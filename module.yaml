@@ -1,0 +1,18 @@
+id: moderation
+version: 0.1.0
+api: 1
+critical: false
+requires:
+  - id: platform
+    api: 1
+optional: []
+capabilities:
+  - moderation.tasks
+capability_requires: {}
+scenario_tests:
+  CM-01:
+    - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
+  CM-02:
+    - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
+  CM-05:
+    - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
