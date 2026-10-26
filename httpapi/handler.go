@@ -49,7 +49,7 @@ func respond(w http.ResponseWriter, v any, e error) {
 		for _, x := range []struct {
 			e error
 			s int
-		}{{m.ErrInput, 400}, {m.ErrForbidden, 403}, {m.ErrNotFound, 404}, {m.ErrConflict, 409}} {
+		}{{m.ErrUnauthenticated, 401}, {m.ErrInput, 400}, {m.ErrForbidden, 403}, {m.ErrNotFound, 404}, {m.ErrConflict, 409}} {
 			if errors.Is(e, x.e) {
 				status = x.s
 				code = x.e.Error()
