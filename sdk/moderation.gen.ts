@@ -75,7 +75,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["getPolicy"];
         put: operations["setPolicy"];
         post?: never;
         delete?: never;
@@ -91,10 +91,11 @@ export interface components {
         Error: {
             code: string;
         };
+        /** @description Reports and author requests require an authenticated user; review tasks may only be opened by a moderator in the object school. */
         Submission: {
             object_id: string;
             /** @enum {string} */
-            kind: "report" | "edit_request" | "delete_request";
+            kind: "report" | "edit_request" | "delete_request" | "review";
             reason: string;
             evidence: string[];
             proposed_body?: string;
@@ -109,6 +110,8 @@ export interface components {
             subject?: string;
             signed?: boolean;
             reason: string;
+            /** @description Discussion-local public author handle, used instead of a private account ID for identity moderation. */
+            author_handle?: string;
         };
         Policy: {
             school_id: string;
@@ -143,6 +146,22 @@ export interface components {
         Decide: {
             revision: number;
             decision: components["schemas"]["Decision"];
+        };
+        PolicyView: {
+            configured: {
+                school_id: string;
+                kind: string;
+                /** @enum {string} */
+                mode: "published" | "pending" | "review";
+                blocked_terms: string[];
+                revision: number;
+            } | null;
+            effective: components["schemas"]["Policy"];
+            /** @enum {string} */
+            source: "default" | "global" | "school";
+        };
+        Saved: {
+            ok: boolean;
         };
     };
     responses: never;
@@ -555,6 +574,83 @@ export interface operations {
             };
         };
     };
+    getPolicy: {
+        parameters: {
+            query: {
+                school_id: string;
+                kind: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyView"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not permitted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Revision or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Required dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     setPolicy: {
         parameters: {
             query?: never;
@@ -576,9 +672,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        ok: boolean;
-                    };
+                    "application/json": components["schemas"]["Saved"];
                 };
             };
             /** @description Invalid input */

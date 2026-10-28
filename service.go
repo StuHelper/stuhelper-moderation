@@ -50,6 +50,7 @@ func view(t Task) TaskView {
 		safe := *t.Decision
 		safe.Body = nil
 		safe.Subject = ""
+		safe.AuthorHandle = ""
 		decision = &safe
 	}
 	return TaskView{t.ID, t.SchoolID, t.Submission, t.ObjectRevision, t.Revision, t.State, t.CreatedAt, t.UpdatedAt, decision, t.ErrorCode}
@@ -93,16 +94,9 @@ func (s *Service) Check(ctx context.Context, school, kind, title, body string) (
 	}
 	var policy Policy
 	err := s.Repo.Transaction(ctx, func(t Transaction) error {
-		var e error
-		policy, e = t.Policy(school, kind)
-		if errors.Is(e, ErrNotFound) {
-			policy, e = t.Policy("*", kind)
-		}
-		if errors.Is(e, ErrNotFound) {
-			policy = Policy{Mode: "published"}
-			return nil
-		}
-		return e
+		view, err := effectivePolicy(t, school, kind)
+		policy = view.Effective
+		return err
 	})
 	if err != nil {
 		return "", err
@@ -123,7 +117,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	if p.Subject == "" {
 		return out, ErrForbidden
 	}
-	if !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || !slices.Contains([]string{"report", "edit_request", "delete_request"}, in.Kind) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
+	if !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || !slices.Contains([]string{"report", "edit_request", "delete_request", "review"}, in.Kind) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
 		return out, ErrInput
 	}
 	for _, v := range in.Evidence {
@@ -138,7 +132,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	if in.Kind == "report" && !object.Visible {
 		return out, ErrNotFound
 	}
-	if in.Kind != "report" && object.Owner != p.Subject {
+	if in.Kind != "report" && in.Kind != "review" && object.Owner != p.Subject {
 		return out, ErrNotFound
 	}
 	if in.Kind == "edit_request" && strings.TrimSpace(in.ProposedBody) == "" {
@@ -146,6 +140,11 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	}
 	if e = s.auth(ctx, p, "submit", object.SchoolID); e != nil {
 		return out, e
+	}
+	if in.Kind == "review" {
+		if e = s.auth(ctx, p, "manage", object.SchoolID); e != nil {
+			return out, e
+		}
 	}
 	rk := digest([]string{p.Subject, in.Kind, in.ObjectID, key})
 	h := digest(in)

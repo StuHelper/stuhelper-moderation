@@ -71,11 +71,54 @@ func (e PolicyMode) Valid() bool {
 	}
 }
 
+// Defines values for PolicyViewConfiguredMode.
+const (
+	PolicyViewConfiguredModePending   PolicyViewConfiguredMode = "pending"
+	PolicyViewConfiguredModePublished PolicyViewConfiguredMode = "published"
+	PolicyViewConfiguredModeReview    PolicyViewConfiguredMode = "review"
+)
+
+// Valid indicates whether the value is a known member of the PolicyViewConfiguredMode enum.
+func (e PolicyViewConfiguredMode) Valid() bool {
+	switch e {
+	case PolicyViewConfiguredModePending:
+		return true
+	case PolicyViewConfiguredModePublished:
+		return true
+	case PolicyViewConfiguredModeReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyViewSource.
+const (
+	Default PolicyViewSource = "default"
+	Global  PolicyViewSource = "global"
+	School  PolicyViewSource = "school"
+)
+
+// Valid indicates whether the value is a known member of the PolicyViewSource enum.
+func (e PolicyViewSource) Valid() bool {
+	switch e {
+	case Default:
+		return true
+	case Global:
+		return true
+	case School:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SubmissionKind.
 const (
 	SubmissionKindDeleteRequest SubmissionKind = "delete_request"
 	SubmissionKindEditRequest   SubmissionKind = "edit_request"
 	SubmissionKindReport        SubmissionKind = "report"
+	SubmissionKindReview        SubmissionKind = "review"
 )
 
 // Valid indicates whether the value is a known member of the SubmissionKind enum.
@@ -86,6 +129,8 @@ func (e SubmissionKind) Valid() bool {
 	case SubmissionKindEditRequest:
 		return true
 	case SubmissionKindReport:
+		return true
+	case SubmissionKindReview:
 		return true
 	default:
 		return false
@@ -124,14 +169,17 @@ type Decide struct {
 
 // Decision defines model for Decision.
 type Decision struct {
-	Action   DecisionAction `json:"action"`
-	Body     *string        `json:"body,omitempty"`
-	Id       string         `json:"id"`
-	ObjectId string         `json:"object_id"`
-	Reason   string         `json:"reason"`
-	Revision int            `json:"revision"`
-	Signed   *bool          `json:"signed,omitempty"`
-	Subject  *string        `json:"subject,omitempty"`
+	Action DecisionAction `json:"action"`
+
+	// AuthorHandle Discussion-local public author handle, used instead of a private account ID for identity moderation.
+	AuthorHandle *string `json:"author_handle,omitempty"`
+	Body         *string `json:"body,omitempty"`
+	Id           string  `json:"id"`
+	ObjectId     string  `json:"object_id"`
+	Reason       string  `json:"reason"`
+	Revision     int     `json:"revision"`
+	Signed       *bool   `json:"signed,omitempty"`
+	Subject      *string `json:"subject,omitempty"`
 }
 
 // DecisionAction defines model for Decision.Action.
@@ -154,7 +202,31 @@ type Policy struct {
 // PolicyMode defines model for Policy.Mode.
 type PolicyMode string
 
-// Submission defines model for Submission.
+// PolicyView defines model for PolicyView.
+type PolicyView struct {
+	Configured *struct {
+		BlockedTerms []string                 `json:"blocked_terms"`
+		Kind         string                   `json:"kind"`
+		Mode         PolicyViewConfiguredMode `json:"mode"`
+		Revision     int                      `json:"revision"`
+		SchoolId     string                   `json:"school_id"`
+	} `json:"configured"`
+	Effective Policy           `json:"effective"`
+	Source    PolicyViewSource `json:"source"`
+}
+
+// PolicyViewConfiguredMode defines model for PolicyView.Configured.Mode.
+type PolicyViewConfiguredMode string
+
+// PolicyViewSource defines model for PolicyView.Source.
+type PolicyViewSource string
+
+// Saved defines model for Saved.
+type Saved struct {
+	Ok bool `json:"ok"`
+}
+
+// Submission Reports and author requests require an authenticated user; review tasks may only be opened by a moderator in the object school.
 type Submission struct {
 	Evidence     []string       `json:"evidence"`
 	Kind         SubmissionKind `json:"kind"`
@@ -190,6 +262,12 @@ type TaskView struct {
 	State          string         `json:"state"`
 	Submission     TaskSubmission `json:"submission"`
 	UpdatedAt      time.Time      `json:"updated_at"`
+}
+
+// GetPolicyParams defines parameters for GetPolicy.
+type GetPolicyParams struct {
+	SchoolId string `form:"school_id" json:"school_id"`
+	Kind     string `form:"kind" json:"kind"`
 }
 
 // SetPolicyParams defines parameters for SetPolicy.
@@ -312,6 +390,9 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
+	// GetPolicy performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
+	GetPolicy(ctx context.Context, params *GetPolicyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SetPolicyWithBody performs a PUT /api/v1/moderation/policies (the `SetPolicy` operationId) request,
 	// with any type of body and a specified content type.
 	SetPolicyWithBody(ctx context.Context, params *SetPolicyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -349,6 +430,19 @@ type ClientInterface interface {
 	// RetryTask performs a POST /api/v1/moderation/tasks/{id}/retry (the `RetryTask` operationId) request.
 	// Takes a body of the `application/json` content type.
 	RetryTask(ctx context.Context, id string, params *RetryTaskParams, body RetryTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+// GetPolicy performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
+func (c *Client) GetPolicy(ctx context.Context, params *GetPolicyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPolicyRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 // SetPolicyWithBody performs a PUT /api/v1/moderation/policies (the `SetPolicy` operationId) request,
@@ -487,6 +581,64 @@ func (c *Client) RetryTask(ctx context.Context, id string, params *RetryTaskPara
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetPolicyRequest constructs an http.Request for the GetPolicy method
+func NewGetPolicyRequest(server string, params *GetPolicyParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/policies")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "school_id", params.SchoolId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewSetPolicyRequest calls the generic SetPolicy builder with application/json body
@@ -895,6 +1047,11 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
+	// GetPolicyWithResponse performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	GetPolicyWithResponse(ctx context.Context, params *GetPolicyParams, reqEditors ...RequestEditorFn) (*GetPolicyResponse, error)
+
 	// SetPolicyWithBodyWithResponse performs a PUT /api/v1/moderation/policies (the `SetPolicy` operationId) request,
 	// with any type of body and a specified content type.
 	//
@@ -946,13 +1103,11 @@ type ClientWithResponsesInterface interface {
 	RetryTaskWithResponse(ctx context.Context, id string, params *RetryTaskParams, body RetryTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*RetryTaskResponse, error)
 }
 
-type SetPolicyResponse struct {
+type GetPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *struct {
-		Ok bool `json:"ok"`
-	}
+	JSON200 *PolicyView
 	// JSON400 the response for an HTTP 400 `application/json` response
 	JSON400 *Error
 	// JSON401 the response for an HTTP 401 `application/json` response
@@ -968,9 +1123,90 @@ type SetPolicyResponse struct {
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r SetPolicyResponse) GetJSON200() *struct {
-	Ok bool `json:"ok"`
-} {
+func (r GetPolicyResponse) GetJSON200() *PolicyView {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetPolicyResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetPolicyResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetPolicyResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetPolicyResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetPolicyResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetPolicyResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetPolicyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPolicyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPolicyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetPolicyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetPolicyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Saved
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SetPolicyResponse) GetJSON200() *Saved {
 	return r.JSON200
 }
 
@@ -1448,6 +1684,17 @@ func (r RetryTaskResponse) ContentType() string {
 	return ""
 }
 
+// GetPolicyWithResponse performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) GetPolicyWithResponse(ctx context.Context, params *GetPolicyParams, reqEditors ...RequestEditorFn) (*GetPolicyResponse, error) {
+	rsp, err := c.GetPolicy(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPolicyResponse(rsp)
+}
+
 // SetPolicyWithBodyWithResponse performs a PUT /api/v1/moderation/policies (the `SetPolicy` operationId) request,
 // with any type of body and a specified content type.
 //
@@ -1558,6 +1805,74 @@ func (c *ClientWithResponses) RetryTaskWithResponse(ctx context.Context, id stri
 	return ParseRetryTaskResponse(rsp)
 }
 
+// ParseGetPolicyResponse parses an HTTP response from a GetPolicyWithResponse call
+func ParseGetPolicyResponse(rsp *http.Response) (*GetPolicyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPolicyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PolicyView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseSetPolicyResponse parses an HTTP response from a SetPolicyWithResponse call
 func ParseSetPolicyResponse(rsp *http.Response) (*SetPolicyResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -1573,9 +1888,7 @@ func ParseSetPolicyResponse(rsp *http.Response) (*SetPolicyResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Ok bool `json:"ok"`
-		}
+		var dest Saved
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

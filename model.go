@@ -36,6 +36,11 @@ type Policy struct {
 	BlockedTerms []string `json:"blocked_terms"`
 	Revision     int64    `json:"revision"`
 }
+type PolicyView struct {
+	Configured *Policy `json:"configured"`
+	Effective  Policy  `json:"effective"`
+	Source     string  `json:"source"`
+}
 type Submission struct {
 	ObjectID     string   `json:"object_id"`
 	Kind         string   `json:"kind"`
@@ -44,14 +49,15 @@ type Submission struct {
 	ProposedBody string   `json:"proposed_body,omitempty"`
 }
 type Decision struct {
-	ID       string  `json:"id"`
-	ObjectID string  `json:"object_id"`
-	Revision int64   `json:"revision"`
-	Action   string  `json:"action"`
-	Body     *string `json:"body,omitempty"`
-	Subject  string  `json:"subject,omitempty"`
-	Signed   bool    `json:"signed"`
-	Reason   string  `json:"reason"`
+	ID           string  `json:"id"`
+	ObjectID     string  `json:"object_id"`
+	Revision     int64   `json:"revision"`
+	Action       string  `json:"action"`
+	Body         *string `json:"body,omitempty"`
+	Subject      string  `json:"subject,omitempty"`
+	AuthorHandle string  `json:"author_handle,omitempty"`
+	Signed       bool    `json:"signed"`
+	Reason       string  `json:"reason"`
 }
 type Task struct {
 	ID             string     `json:"id"`

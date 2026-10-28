@@ -571,16 +571,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "ok": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "ok"
-                  ]
+                  "$ref": "#/components/schemas/Saved"
                 }
               }
             }
@@ -673,6 +664,104 @@
             }
           }
         ]
+      },
+      "get": {
+        "operationId": "getPolicy",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "school_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     }
   },
@@ -708,7 +797,8 @@
             "enum": [
               "report",
               "edit_request",
-              "delete_request"
+              "delete_request",
+              "review"
             ]
           },
           "reason": {
@@ -729,7 +819,8 @@
           "kind",
           "reason",
           "evidence"
-        ]
+        ],
+        "description": "Reports and author requests require an authenticated user; review tasks may only be opened by a moderator in the object school."
       },
       "Decision": {
         "type": "object",
@@ -767,6 +858,11 @@
           },
           "reason": {
             "type": "string"
+          },
+          "author_handle": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Discussion-local public author handle, used instead of a private account ID for identity moderation."
           }
         },
         "required": [
@@ -911,6 +1007,77 @@
         "required": [
           "revision",
           "decision"
+        ]
+      },
+      "PolicyView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "configured": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "school_id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "published",
+                  "pending",
+                  "review"
+                ]
+              },
+              "blocked_terms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "revision": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "school_id",
+              "kind",
+              "mode",
+              "blocked_terms",
+              "revision"
+            ],
+            "nullable": true
+          },
+          "effective": {
+            "$ref": "#/components/schemas/Policy"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "default",
+              "global",
+              "school"
+            ]
+          }
+        },
+        "required": [
+          "configured",
+          "effective",
+          "source"
+        ]
+      },
+      "Saved": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
         ]
       }
     }

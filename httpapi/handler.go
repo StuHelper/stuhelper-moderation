@@ -26,6 +26,14 @@ func (h Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/decisions", h.decide)
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/retry", h.retry)
 	mux.HandleFunc("PUT /api/v1/moderation/policies", h.policy)
+	mux.HandleFunc("GET /api/v1/moderation/policies", func(w http.ResponseWriter, r *http.Request) {
+		p, ok := h.principal(w, r)
+		if !ok {
+			return
+		}
+		v, e := h.Service.GetPolicy(r.Context(), p, r.URL.Query().Get("school_id"), r.URL.Query().Get("kind"))
+		respond(w, v, e)
+	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")

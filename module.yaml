@@ -16,3 +16,4 @@ scenario_tests:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
+    - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
