@@ -17,6 +17,7 @@ scenario_tests:
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
+    - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
   CM-10:
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
   CM-12:
