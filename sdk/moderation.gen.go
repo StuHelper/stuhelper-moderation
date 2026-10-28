@@ -19,13 +19,16 @@ import (
 
 // Defines values for DecisionAction.
 const (
-	Delete   DecisionAction = "delete"
-	Dismiss  DecisionAction = "dismiss"
-	Edit     DecisionAction = "edit"
-	Hide     DecisionAction = "hide"
-	Identity DecisionAction = "identity"
-	Publish  DecisionAction = "publish"
-	Restore  DecisionAction = "restore"
+	Delete    DecisionAction = "delete"
+	Dismiss   DecisionAction = "dismiss"
+	Edit      DecisionAction = "edit"
+	Feature   DecisionAction = "feature"
+	Hide      DecisionAction = "hide"
+	Identity  DecisionAction = "identity"
+	Publish   DecisionAction = "publish"
+	Reassign  DecisionAction = "reassign"
+	Restore   DecisionAction = "restore"
+	Unfeature DecisionAction = "unfeature"
 )
 
 // Valid indicates whether the value is a known member of the DecisionAction enum.
@@ -37,13 +40,19 @@ func (e DecisionAction) Valid() bool {
 		return true
 	case Edit:
 		return true
+	case Feature:
+		return true
 	case Hide:
 		return true
 	case Identity:
 		return true
 	case Publish:
 		return true
+	case Reassign:
+		return true
 	case Restore:
+		return true
+	case Unfeature:
 		return true
 	default:
 		return false
@@ -139,6 +148,7 @@ func (e SubmissionKind) Valid() bool {
 
 // Defines values for TaskSubmissionKind.
 const (
+	TaskSubmissionKindAppeal        TaskSubmissionKind = "appeal"
 	TaskSubmissionKindDeleteRequest TaskSubmissionKind = "delete_request"
 	TaskSubmissionKindEditRequest   TaskSubmissionKind = "edit_request"
 	TaskSubmissionKindReport        TaskSubmissionKind = "report"
@@ -148,6 +158,8 @@ const (
 // Valid indicates whether the value is a known member of the TaskSubmissionKind enum.
 func (e TaskSubmissionKind) Valid() bool {
 	switch e {
+	case TaskSubmissionKindAppeal:
+		return true
 	case TaskSubmissionKindDeleteRequest:
 		return true
 	case TaskSubmissionKindEditRequest:
@@ -161,6 +173,32 @@ func (e TaskSubmissionKind) Valid() bool {
 	}
 }
 
+// BatchItem defines model for BatchItem.
+type BatchItem struct {
+	Decision Decision `json:"decision"`
+	Id       string   `json:"id"`
+	Revision int      `json:"revision"`
+}
+
+// BatchOutcome defines model for BatchOutcome.
+type BatchOutcome struct {
+	Code  string `json:"code"`
+	Id    string `json:"id"`
+	State string `json:"state"`
+}
+
+// BatchPreview defines model for BatchPreview.
+type BatchPreview struct {
+	Items        []BatchOutcome `json:"items"`
+	PreviewToken string         `json:"preview_token"`
+}
+
+// BatchRequest defines model for BatchRequest.
+type BatchRequest struct {
+	Items        []BatchItem `json:"items"`
+	PreviewToken string      `json:"preview_token"`
+}
+
 // Decide defines model for Decide.
 type Decide struct {
 	Decision Decision `json:"decision"`
@@ -172,14 +210,16 @@ type Decision struct {
 	Action DecisionAction `json:"action"`
 
 	// AuthorHandle Discussion-local public author handle, used instead of a private account ID for identity moderation.
-	AuthorHandle *string `json:"author_handle,omitempty"`
-	Body         *string `json:"body,omitempty"`
-	Id           string  `json:"id"`
-	ObjectId     string  `json:"object_id"`
-	Reason       string  `json:"reason"`
-	Revision     int     `json:"revision"`
-	Signed       *bool   `json:"signed,omitempty"`
-	Subject      *string `json:"subject,omitempty"`
+	AuthorHandle     *string `json:"author_handle,omitempty"`
+	Body             *string `json:"body,omitempty"`
+	EvidenceRevision *string `json:"evidence_revision,omitempty"`
+	Id               string  `json:"id"`
+	ObjectId         string  `json:"object_id"`
+	Reason           string  `json:"reason"`
+	Revision         int     `json:"revision"`
+	Signed           *bool   `json:"signed,omitempty"`
+	Subject          *string `json:"subject,omitempty"`
+	TeacherId        *string `json:"teacher_id,omitempty"`
 }
 
 // DecisionAction defines model for Decision.Action.
@@ -240,11 +280,12 @@ type SubmissionKind string
 
 // TaskSubmission defines model for TaskSubmission.
 type TaskSubmission struct {
-	Evidence     []string           `json:"evidence"`
-	Kind         TaskSubmissionKind `json:"kind"`
-	ObjectId     string             `json:"object_id"`
-	ProposedBody *string            `json:"proposed_body,omitempty"`
-	Reason       string             `json:"reason"`
+	Evidence       []string           `json:"evidence"`
+	Kind           TaskSubmissionKind `json:"kind"`
+	ObjectId       string             `json:"object_id"`
+	PreviousTaskId *string            `json:"previous_task_id,omitempty"`
+	ProposedBody   *string            `json:"proposed_body,omitempty"`
+	Reason         string             `json:"reason"`
 }
 
 // TaskSubmissionKind defines model for TaskSubmission.Kind.
@@ -252,11 +293,14 @@ type TaskSubmissionKind string
 
 // TaskView defines model for TaskView.
 type TaskView struct {
+	CanAppeal      *bool          `json:"can_appeal,omitempty"`
+	ContentKind    *string        `json:"content_kind,omitempty"`
 	CreatedAt      time.Time      `json:"created_at"`
 	Decision       *Decision      `json:"decision,omitempty"`
 	ErrorCode      *string        `json:"error_code,omitempty"`
 	Id             string         `json:"id"`
 	ObjectRevision int            `json:"object_revision"`
+	PreviousTaskId *string        `json:"previous_task_id,omitempty"`
 	Revision       int            `json:"revision"`
 	SchoolId       string         `json:"school_id"`
 	State          string         `json:"state"`
@@ -277,15 +321,30 @@ type SetPolicyParams struct {
 
 // ListTasksParams defines parameters for ListTasks.
 type ListTasksParams struct {
-	SchoolId *string `form:"school_id,omitempty" json:"school_id,omitempty"`
-	State    *string `form:"state,omitempty" json:"state,omitempty"`
-	After    *string `form:"after,omitempty" json:"after,omitempty"`
-	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
-	Admin    *string `form:"admin,omitempty" json:"admin,omitempty"`
+	SchoolId    *string `form:"school_id,omitempty" json:"school_id,omitempty"`
+	State       *string `form:"state,omitempty" json:"state,omitempty"`
+	After       *string `form:"after,omitempty" json:"after,omitempty"`
+	Limit       *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Admin       *string `form:"admin,omitempty" json:"admin,omitempty"`
+	ContentKind *string `form:"content_kind,omitempty" json:"content_kind,omitempty"`
+	Kind        *string `form:"kind,omitempty" json:"kind,omitempty"`
+	ObjectId    *string `form:"object_id,omitempty" json:"object_id,omitempty"`
+	From        *string `form:"from,omitempty" json:"from,omitempty"`
+	Until       *string `form:"until,omitempty" json:"until,omitempty"`
 }
 
 // SubmitTaskParams defines parameters for SubmitTask.
 type SubmitTaskParams struct {
+	IdempotencyKey string `json:"Idempotency-Key"`
+}
+
+// DecideBatchParams defines parameters for DecideBatch.
+type DecideBatchParams struct {
+	IdempotencyKey string `json:"Idempotency-Key"`
+}
+
+// PreviewBatchParams defines parameters for PreviewBatch.
+type PreviewBatchParams struct {
 	IdempotencyKey string `json:"Idempotency-Key"`
 }
 
@@ -309,6 +368,12 @@ type SetPolicyJSONRequestBody = Policy
 
 // SubmitTaskJSONRequestBody defines body for SubmitTask for application/json ContentType.
 type SubmitTaskJSONRequestBody = Submission
+
+// DecideBatchJSONRequestBody defines body for DecideBatch for application/json ContentType.
+type DecideBatchJSONRequestBody = BatchRequest
+
+// PreviewBatchJSONRequestBody defines body for PreviewBatch for application/json ContentType.
+type PreviewBatchJSONRequestBody = BatchRequest
 
 // DecideTaskJSONRequestBody defines body for DecideTask for application/json ContentType.
 type DecideTaskJSONRequestBody = Decide
@@ -412,6 +477,22 @@ type ClientInterface interface {
 	// Takes a body of the `application/json` content type.
 	SubmitTask(ctx context.Context, params *SubmitTaskParams, body SubmitTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DecideBatchWithBody performs a POST /api/v1/moderation/tasks/batch (the `DecideBatch` operationId) request,
+	// with any type of body and a specified content type.
+	DecideBatchWithBody(ctx context.Context, params *DecideBatchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DecideBatch performs a POST /api/v1/moderation/tasks/batch (the `DecideBatch` operationId) request.
+	// Takes a body of the `application/json` content type.
+	DecideBatch(ctx context.Context, params *DecideBatchParams, body DecideBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreviewBatchWithBody performs a POST /api/v1/moderation/tasks/batch-preview (the `PreviewBatch` operationId) request,
+	// with any type of body and a specified content type.
+	PreviewBatchWithBody(ctx context.Context, params *PreviewBatchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreviewBatch performs a POST /api/v1/moderation/tasks/batch-preview (the `PreviewBatch` operationId) request.
+	// Takes a body of the `application/json` content type.
+	PreviewBatch(ctx context.Context, params *PreviewBatchParams, body PreviewBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetTask performs a GET /api/v1/moderation/tasks/{id} (the `GetTask` operationId) request.
 	GetTask(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -504,6 +585,62 @@ func (c *Client) SubmitTaskWithBody(ctx context.Context, params *SubmitTaskParam
 // Takes a body of the `application/json` content type.
 func (c *Client) SubmitTask(ctx context.Context, params *SubmitTaskParams, body SubmitTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSubmitTaskRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DecideBatchWithBody performs a POST /api/v1/moderation/tasks/batch (the `DecideBatch` operationId) request,
+// with any type of body and a specified content type.
+func (c *Client) DecideBatchWithBody(ctx context.Context, params *DecideBatchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDecideBatchRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DecideBatch performs a POST /api/v1/moderation/tasks/batch (the `DecideBatch` operationId) request.
+// Takes a body of the `application/json` content type.
+func (c *Client) DecideBatch(ctx context.Context, params *DecideBatchParams, body DecideBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDecideBatchRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PreviewBatchWithBody performs a POST /api/v1/moderation/tasks/batch-preview (the `PreviewBatch` operationId) request,
+// with any type of body and a specified content type.
+func (c *Client) PreviewBatchWithBody(ctx context.Context, params *PreviewBatchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewBatchRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PreviewBatch performs a POST /api/v1/moderation/tasks/batch-preview (the `PreviewBatch` operationId) request.
+// Takes a body of the `application/json` content type.
+func (c *Client) PreviewBatch(ctx context.Context, params *PreviewBatchParams, body PreviewBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewBatchRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -782,6 +919,66 @@ func NewListTasksRequest(server string, params *ListTasksParams) (*http.Request,
 
 		}
 
+		if params.ContentKind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "content_kind", *params.ContentKind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Kind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", *params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ObjectId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "object_id", *params.ObjectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "until", *params.Until, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -817,6 +1014,112 @@ func NewSubmitTaskRequestWithBody(server string, params *SubmitTaskParams, conte
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/moderation/tasks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewDecideBatchRequest calls the generic DecideBatch builder with application/json body
+func NewDecideBatchRequest(server string, params *DecideBatchParams, body DecideBatchJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDecideBatchRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewDecideBatchRequestWithBody constructs an http.Request for the DecideBatch method, with any body, and a specified content type
+func NewDecideBatchRequestWithBody(server string, params *DecideBatchParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/tasks/batch")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewPreviewBatchRequest calls the generic PreviewBatch builder with application/json body
+func NewPreviewBatchRequest(server string, params *PreviewBatchParams, body PreviewBatchJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPreviewBatchRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewPreviewBatchRequestWithBody constructs an http.Request for the PreviewBatch method, with any body, and a specified content type
+func NewPreviewBatchRequestWithBody(server string, params *PreviewBatchParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/tasks/batch-preview")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1076,6 +1379,26 @@ type ClientWithResponsesInterface interface {
 	// SubmitTaskWithResponse performs a POST /api/v1/moderation/tasks (the `SubmitTask` operationId) request.
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	SubmitTaskWithResponse(ctx context.Context, params *SubmitTaskParams, body SubmitTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitTaskResponse, error)
+
+	// DecideBatchWithBodyWithResponse performs a POST /api/v1/moderation/tasks/batch (the `DecideBatch` operationId) request,
+	// with any type of body and a specified content type.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	DecideBatchWithBodyWithResponse(ctx context.Context, params *DecideBatchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DecideBatchResponse, error)
+
+	// DecideBatchWithResponse performs a POST /api/v1/moderation/tasks/batch (the `DecideBatch` operationId) request.
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	DecideBatchWithResponse(ctx context.Context, params *DecideBatchParams, body DecideBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*DecideBatchResponse, error)
+
+	// PreviewBatchWithBodyWithResponse performs a POST /api/v1/moderation/tasks/batch-preview (the `PreviewBatch` operationId) request,
+	// with any type of body and a specified content type.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	PreviewBatchWithBodyWithResponse(ctx context.Context, params *PreviewBatchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewBatchResponse, error)
+
+	// PreviewBatchWithResponse performs a POST /api/v1/moderation/tasks/batch-preview (the `PreviewBatch` operationId) request.
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	PreviewBatchWithResponse(ctx context.Context, params *PreviewBatchParams, body PreviewBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*PreviewBatchResponse, error)
 
 	// GetTaskWithResponse performs a GET /api/v1/moderation/tasks/{id} (the `GetTask` operationId) request.
 	//
@@ -1435,6 +1758,172 @@ func (r SubmitTaskResponse) ContentType() string {
 	return ""
 }
 
+type DecideBatchResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *BatchPreview
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DecideBatchResponse) GetJSON200() *BatchPreview {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r DecideBatchResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DecideBatchResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DecideBatchResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DecideBatchResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DecideBatchResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DecideBatchResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r DecideBatchResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DecideBatchResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DecideBatchResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DecideBatchResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PreviewBatchResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *BatchPreview
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PreviewBatchResponse) GetJSON200() *BatchPreview {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PreviewBatchResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PreviewBatchResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PreviewBatchResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PreviewBatchResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PreviewBatchResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PreviewBatchResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r PreviewBatchResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PreviewBatchResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreviewBatchResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PreviewBatchResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetTaskResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1750,6 +2239,50 @@ func (c *ClientWithResponses) SubmitTaskWithResponse(ctx context.Context, params
 	return ParseSubmitTaskResponse(rsp)
 }
 
+// DecideBatchWithBodyWithResponse performs a POST /api/v1/moderation/tasks/batch (the `DecideBatch` operationId) request,
+// with any type of body and a specified content type.
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) DecideBatchWithBodyWithResponse(ctx context.Context, params *DecideBatchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DecideBatchResponse, error) {
+	rsp, err := c.DecideBatchWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDecideBatchResponse(rsp)
+}
+
+// DecideBatchWithResponse performs a POST /api/v1/moderation/tasks/batch (the `DecideBatch` operationId) request.
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) DecideBatchWithResponse(ctx context.Context, params *DecideBatchParams, body DecideBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*DecideBatchResponse, error) {
+	rsp, err := c.DecideBatch(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDecideBatchResponse(rsp)
+}
+
+// PreviewBatchWithBodyWithResponse performs a POST /api/v1/moderation/tasks/batch-preview (the `PreviewBatch` operationId) request,
+// with any type of body and a specified content type.
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) PreviewBatchWithBodyWithResponse(ctx context.Context, params *PreviewBatchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewBatchResponse, error) {
+	rsp, err := c.PreviewBatchWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreviewBatchResponse(rsp)
+}
+
+// PreviewBatchWithResponse performs a POST /api/v1/moderation/tasks/batch-preview (the `PreviewBatch` operationId) request.
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) PreviewBatchWithResponse(ctx context.Context, params *PreviewBatchParams, body PreviewBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*PreviewBatchResponse, error) {
+	rsp, err := c.PreviewBatch(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreviewBatchResponse(rsp)
+}
+
 // GetTaskWithResponse performs a GET /api/v1/moderation/tasks/{id} (the `GetTask` operationId) request.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -2025,6 +2558,142 @@ func ParseSubmitTaskResponse(rsp *http.Response) (*SubmitTaskResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest TaskView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDecideBatchResponse parses an HTTP response from a DecideBatchWithResponse call
+func ParseDecideBatchResponse(rsp *http.Response) (*DecideBatchResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DecideBatchResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BatchPreview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePreviewBatchResponse parses an HTTP response from a PreviewBatchWithResponse call
+func ParsePreviewBatchResponse(rsp *http.Response) (*PreviewBatchResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PreviewBatchResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BatchPreview
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

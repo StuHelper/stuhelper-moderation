@@ -1,5 +1,5 @@
 id: moderation
-version: 0.1.0
+version: 0.2.0
 api: 1
 critical: false
 requires:
@@ -17,3 +17,9 @@ scenario_tests:
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
+  CM-10:
+    - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
+  CM-12:
+    - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
+  CM-13:
+    - operations_test.go#TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence

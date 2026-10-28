@@ -20,6 +20,7 @@ type Handler struct {
 
 func (h Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
+	h.batchRoutes(mux)
 	mux.HandleFunc("GET /api/v1/moderation/tasks", h.list)
 	mux.HandleFunc("POST /api/v1/moderation/tasks", h.submit)
 	mux.HandleFunc("GET /api/v1/moderation/tasks/{id}", h.get)
@@ -116,7 +117,18 @@ func (h Handler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	admin := q.Get("admin") == "true"
-	v, e := h.Service.List(r.Context(), p, q.Get("school_id"), q.Get("state"), q.Get("after"), n, admin)
+	filter := m.TaskFilter{School: q.Get("school_id"), State: q.Get("state"), After: q.Get("after"), Limit: n, Admin: admin, Kind: q.Get("kind"), ContentKind: q.Get("content_kind"), ObjectID: q.Get("object_id")}
+	for key, dest := range map[string]**time.Time{"from": &filter.From, "until": &filter.Until} {
+		if q.Get(key) != "" {
+			v, e := time.Parse(time.RFC3339, q.Get(key))
+			if e != nil {
+				respond(w, nil, m.ErrInput)
+				return
+			}
+			*dest = &v
+		}
+	}
+	v, e := h.Service.FilteredList(r.Context(), p, filter)
 	respond(w, v, e)
 }
 func (h Handler) get(w http.ResponseWriter, r *http.Request) {

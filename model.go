@@ -42,24 +42,29 @@ type PolicyView struct {
 	Source     string  `json:"source"`
 }
 type Submission struct {
-	ObjectID     string   `json:"object_id"`
-	Kind         string   `json:"kind"`
-	Reason       string   `json:"reason"`
-	Evidence     []string `json:"evidence"`
-	ProposedBody string   `json:"proposed_body,omitempty"`
+	PreviousTaskID string   `json:"previous_task_id,omitempty"`
+	ObjectID       string   `json:"object_id"`
+	Kind           string   `json:"kind"`
+	Reason         string   `json:"reason"`
+	Evidence       []string `json:"evidence"`
+	ProposedBody   string   `json:"proposed_body,omitempty"`
 }
 type Decision struct {
-	ID           string  `json:"id"`
-	ObjectID     string  `json:"object_id"`
-	Revision     int64   `json:"revision"`
-	Action       string  `json:"action"`
-	Body         *string `json:"body,omitempty"`
-	Subject      string  `json:"subject,omitempty"`
-	AuthorHandle string  `json:"author_handle,omitempty"`
-	Signed       bool    `json:"signed"`
-	Reason       string  `json:"reason"`
+	TeacherID        string  `json:"teacher_id,omitempty"`
+	EvidenceRevision string  `json:"evidence_revision,omitempty"`
+	ID               string  `json:"id"`
+	ObjectID         string  `json:"object_id"`
+	Revision         int64   `json:"revision"`
+	Action           string  `json:"action"`
+	Body             *string `json:"body,omitempty"`
+	Subject          string  `json:"subject,omitempty"`
+	AuthorHandle     string  `json:"author_handle,omitempty"`
+	Signed           bool    `json:"signed"`
+	Reason           string  `json:"reason"`
 }
 type Task struct {
+	ContentOwner   string     `json:"content_owner,omitempty"`
+	ContentKind    string     `json:"content_kind,omitempty"`
 	ID             string     `json:"id"`
 	SchoolID       string     `json:"school_id"`
 	Owner          string     `json:"owner"`
@@ -78,6 +83,8 @@ type Task struct {
 	ErrorCode      string     `json:"error_code,omitempty"`
 }
 type TaskView struct {
+	CanAppeal      bool       `json:"can_appeal,omitempty"`
+	ContentKind    string     `json:"content_kind,omitempty"`
 	ID             string     `json:"id"`
 	SchoolID       string     `json:"school_id"`
 	Submission     Submission `json:"submission"`
@@ -108,6 +115,7 @@ type Repository interface {
 	Transaction(context.Context, func(Transaction) error) error
 }
 type Transaction interface {
+	FilteredTasks(TaskFilter) ([]Task, error)
 	Lock(string) error
 	Task(string) (Task, error)
 	Active(owner, object, kind string) (Task, error)

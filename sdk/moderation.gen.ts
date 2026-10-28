@@ -84,6 +84,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/moderation/tasks/batch-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/moderation/tasks/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["decideBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -105,13 +137,15 @@ export interface components {
             object_id: string;
             revision: number;
             /** @enum {string} */
-            action: "publish" | "hide" | "restore" | "delete" | "edit" | "identity" | "dismiss";
+            action: "publish" | "hide" | "restore" | "delete" | "edit" | "identity" | "dismiss" | "feature" | "unfeature" | "reassign";
             body?: string;
             subject?: string;
             signed?: boolean;
             reason: string;
             /** @description Discussion-local public author handle, used instead of a private account ID for identity moderation. */
             author_handle?: string;
+            teacher_id?: string;
+            evidence_revision?: string;
         };
         Policy: {
             school_id: string;
@@ -124,10 +158,11 @@ export interface components {
         TaskSubmission: {
             object_id: string;
             /** @enum {string} */
-            kind: "report" | "edit_request" | "delete_request" | "review";
+            kind: "report" | "edit_request" | "delete_request" | "review" | "appeal";
             reason: string;
             evidence: string[];
             proposed_body?: string;
+            previous_task_id?: string;
         };
         TaskView: {
             id: string;
@@ -142,6 +177,9 @@ export interface components {
             updated_at: string;
             decision?: components["schemas"]["Decision"];
             error_code?: string;
+            content_kind?: string;
+            previous_task_id?: string;
+            can_appeal?: boolean;
         };
         Decide: {
             revision: number;
@@ -163,6 +201,24 @@ export interface components {
         Saved: {
             ok: boolean;
         };
+        BatchItem: {
+            id: string;
+            revision: number;
+            decision: components["schemas"]["Decision"];
+        };
+        BatchRequest: {
+            items: components["schemas"]["BatchItem"][];
+            preview_token: string;
+        };
+        BatchOutcome: {
+            id: string;
+            state: string;
+            code: string;
+        };
+        BatchPreview: {
+            preview_token: string;
+            items: components["schemas"]["BatchOutcome"][];
+        };
     };
     responses: never;
     parameters: never;
@@ -180,6 +236,11 @@ export interface operations {
                 after?: string;
                 limit?: number;
                 admin?: string;
+                content_kind?: string;
+                kind?: string;
+                object_id?: string;
+                from?: string;
+                until?: string;
             };
             header?: never;
             path?: never;
@@ -673,6 +734,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Saved"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not permitted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Revision or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Required dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    previewBatch: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchPreview"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not permitted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Revision or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Required dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    decideBatch: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchPreview"];
                 };
             };
             /** @description Invalid input */
