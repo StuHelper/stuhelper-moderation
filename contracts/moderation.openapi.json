@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "StuHelper Moderation",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "servers": [
     {
@@ -1042,7 +1042,8 @@
               "report",
               "edit_request",
               "delete_request",
-              "review"
+              "review",
+              "appeal"
             ]
           },
           "reason": {
@@ -1056,6 +1057,10 @@
           },
           "proposed_body": {
             "type": "string"
+          },
+          "previous_task_id": {
+            "type": "string",
+            "description": "Required for appeal; identifies the original applied task. Other request kinds must omit it."
           }
         },
         "required": [
@@ -1064,7 +1069,7 @@
           "reason",
           "evidence"
         ],
-        "description": "Reports and author requests require an authenticated user; review tasks may only be opened by a moderator in the object school."
+        "description": "Reports and author requests require an authenticated user; review tasks may only be opened by a moderator in the object school. Appeals require the content owner and a previous applied task; the service verifies the relationship and current eligibility."
       },
       "Decision": {
         "type": "object",

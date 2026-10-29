@@ -124,6 +124,7 @@ func (e PolicyViewSource) Valid() bool {
 
 // Defines values for SubmissionKind.
 const (
+	SubmissionKindAppeal        SubmissionKind = "appeal"
 	SubmissionKindDeleteRequest SubmissionKind = "delete_request"
 	SubmissionKindEditRequest   SubmissionKind = "edit_request"
 	SubmissionKindReport        SubmissionKind = "report"
@@ -133,6 +134,8 @@ const (
 // Valid indicates whether the value is a known member of the SubmissionKind enum.
 func (e SubmissionKind) Valid() bool {
 	switch e {
+	case SubmissionKindAppeal:
+		return true
 	case SubmissionKindDeleteRequest:
 		return true
 	case SubmissionKindEditRequest:
@@ -268,13 +271,16 @@ type Saved struct {
 	Ok bool `json:"ok"`
 }
 
-// Submission Reports and author requests require an authenticated user; review tasks may only be opened by a moderator in the object school.
+// Submission Reports and author requests require an authenticated user; review tasks may only be opened by a moderator in the object school. Appeals require the content owner and a previous applied task; the service verifies the relationship and current eligibility.
 type Submission struct {
-	Evidence     []string       `json:"evidence"`
-	Kind         SubmissionKind `json:"kind"`
-	ObjectId     string         `json:"object_id"`
-	ProposedBody *string        `json:"proposed_body,omitempty"`
-	Reason       string         `json:"reason"`
+	Evidence []string       `json:"evidence"`
+	Kind     SubmissionKind `json:"kind"`
+	ObjectId string         `json:"object_id"`
+
+	// PreviousTaskId Required for appeal; identifies the original applied task. Other request kinds must omit it.
+	PreviousTaskId *string `json:"previous_task_id,omitempty"`
+	ProposedBody   *string `json:"proposed_body,omitempty"`
+	Reason         string  `json:"reason"`
 }
 
 // SubmissionKind defines model for Submission.Kind.

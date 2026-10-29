@@ -1,5 +1,5 @@
 id: moderation
-version: 0.2.0
+version: 0.2.1
 api: 1
 critical: false
 requires:
@@ -20,6 +20,7 @@ scenario_tests:
     - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
   CM-10:
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
+    - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
   CM-12:
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
   CM-13:
