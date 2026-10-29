@@ -137,7 +137,8 @@
             "name": "content_kind",
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Filter by course, mentor, reply, or resource."
           },
           {
             "in": "query",
@@ -1133,7 +1134,8 @@
             "type": "string"
           },
           "kind": {
-            "type": "string"
+            "type": "string",
+            "description": "Content kind: course, mentor, reply, or resource. Resources default to pending review."
           },
           "mode": {
             "type": "string",
@@ -1238,7 +1240,8 @@
             "type": "string"
           },
           "content_kind": {
-            "type": "string"
+            "type": "string",
+            "description": "Owning content type, including resource for learning materials."
           },
           "previous_task_id": {
             "type": "string"

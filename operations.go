@@ -25,7 +25,7 @@ func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) (
 	if f.Kind != "" && !slices.Contains([]string{"review", "report", "edit_request", "delete_request", "appeal"}, f.Kind) {
 		return nil, ErrInput
 	}
-	if f.ContentKind != "" && !slices.Contains([]string{"course", "mentor", "reply"}, f.ContentKind) {
+	if f.ContentKind != "" && !slices.Contains([]string{"course", "mentor", "reply", "resource"}, f.ContentKind) {
 		return nil, ErrInput
 	}
 	if f.Admin {

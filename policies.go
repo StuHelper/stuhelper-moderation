@@ -8,6 +8,9 @@ import (
 
 func effectivePolicy(t Transaction, school, kind string) (PolicyView, error) {
 	out := PolicyView{Source: "default", Effective: Policy{SchoolID: school, Kind: kind, Mode: "published", BlockedTerms: []string{}}}
+	if kind == "resource" {
+		out.Effective.Mode = "pending"
+	}
 	local, err := t.Policy(school, kind)
 	if err == nil {
 		if local.BlockedTerms == nil {
@@ -40,7 +43,7 @@ func effectivePolicy(t Transaction, school, kind string) (PolicyView, error) {
 }
 func (s *Service) GetPolicy(ctx context.Context, p Principal, school, kind string) (PolicyView, error) {
 	var out PolicyView
-	if !keyOK(school) || !slices.Contains([]string{"course", "mentor", "reply"}, kind) {
+	if !keyOK(school) || !slices.Contains([]string{"course", "mentor", "reply", "resource"}, kind) {
 		return out, ErrInput
 	}
 	if err := s.auth(ctx, p, "configure", school); err != nil {

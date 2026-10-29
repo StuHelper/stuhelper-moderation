@@ -89,7 +89,7 @@ func (s *Service) record(t Transaction, key, hash, action string, p Principal, t
 
 // Check is read-only. Pending content is handed off by the content module's outbox.
 func (s *Service) Check(ctx context.Context, school, kind, title, body string) (string, error) {
-	if !slices.Contains([]string{"course", "mentor", "reply"}, kind) {
+	if !slices.Contains([]string{"course", "mentor", "reply", "resource"}, kind) {
 		return "", ErrInput
 	}
 	var policy Policy
@@ -315,6 +315,9 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 		if e != nil {
 			return e
 		}
+		if object.Kind == "resource" && !slices.Contains([]string{"publish", "hide", "restore", "delete", "dismiss"}, d.Action) {
+			return ErrInput
+		}
 		if object.SchoolID != task.SchoolID || object.Revision != d.Revision || d.ObjectID != object.ID {
 			return ErrConflict
 		}
@@ -347,7 +350,7 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 	}
 	replayKey := digest([]string{p.Subject, "policy", policy.SchoolID, policy.Kind, key})
 	requestHash := digest(policy)
-	if policy.SchoolID == "" || !slices.Contains([]string{"course", "mentor", "reply"}, policy.Kind) || !slices.Contains([]string{"published", "pending", "review"}, policy.Mode) || len(policy.BlockedTerms) > 100 {
+	if policy.SchoolID == "" || !slices.Contains([]string{"course", "mentor", "reply", "resource"}, policy.Kind) || !slices.Contains([]string{"published", "pending", "review"}, policy.Mode) || len(policy.BlockedTerms) > 100 {
 		return ErrInput
 	}
 	for _, term := range policy.BlockedTerms {

@@ -232,11 +232,13 @@ type Error struct {
 
 // Policy defines model for Policy.
 type Policy struct {
-	BlockedTerms []string   `json:"blocked_terms"`
-	Kind         string     `json:"kind"`
-	Mode         PolicyMode `json:"mode"`
-	Revision     int        `json:"revision"`
-	SchoolId     string     `json:"school_id"`
+	BlockedTerms []string `json:"blocked_terms"`
+
+	// Kind Content kind: course, mentor, reply, or resource. Resources default to pending review.
+	Kind     string     `json:"kind"`
+	Mode     PolicyMode `json:"mode"`
+	Revision int        `json:"revision"`
+	SchoolId string     `json:"school_id"`
 }
 
 // PolicyMode defines model for Policy.Mode.
@@ -293,7 +295,9 @@ type TaskSubmissionKind string
 
 // TaskView defines model for TaskView.
 type TaskView struct {
-	CanAppeal      *bool          `json:"can_appeal,omitempty"`
+	CanAppeal *bool `json:"can_appeal,omitempty"`
+
+	// ContentKind Owning content type, including resource for learning materials.
 	ContentKind    *string        `json:"content_kind,omitempty"`
 	CreatedAt      time.Time      `json:"created_at"`
 	Decision       *Decision      `json:"decision,omitempty"`
@@ -321,11 +325,13 @@ type SetPolicyParams struct {
 
 // ListTasksParams defines parameters for ListTasks.
 type ListTasksParams struct {
-	SchoolId    *string `form:"school_id,omitempty" json:"school_id,omitempty"`
-	State       *string `form:"state,omitempty" json:"state,omitempty"`
-	After       *string `form:"after,omitempty" json:"after,omitempty"`
-	Limit       *int    `form:"limit,omitempty" json:"limit,omitempty"`
-	Admin       *string `form:"admin,omitempty" json:"admin,omitempty"`
+	SchoolId *string `form:"school_id,omitempty" json:"school_id,omitempty"`
+	State    *string `form:"state,omitempty" json:"state,omitempty"`
+	After    *string `form:"after,omitempty" json:"after,omitempty"`
+	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Admin    *string `form:"admin,omitempty" json:"admin,omitempty"`
+
+	// ContentKind Filter by course, mentor, reply, or resource.
 	ContentKind *string `form:"content_kind,omitempty" json:"content_kind,omitempty"`
 	Kind        *string `form:"kind,omitempty" json:"kind,omitempty"`
 	ObjectId    *string `form:"object_id,omitempty" json:"object_id,omitempty"`
