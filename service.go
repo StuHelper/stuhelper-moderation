@@ -125,6 +125,12 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 			return out, ErrInput
 		}
 	}
+	if in.Kind == "report" {
+		if in.PreviousTaskID != "" {
+			return out, ErrInput
+		}
+		return s.submitReport(ctx, p, key, in)
+	}
 	object, e := s.Content.Inspect(ctx, p, in.ObjectID)
 	if e != nil {
 		return out, e

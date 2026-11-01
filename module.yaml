@@ -1,11 +1,15 @@
 id: moderation
-version: 0.2.1
+version: 0.3.0
 api: 1
 critical: false
 requires:
   - id: platform
     api: 1
-optional: []
+optional:
+  - id: verification
+    api: 1
+  - id: identity
+    api: 1
 capabilities:
   - moderation.tasks
 capability_requires: {}
@@ -25,3 +29,6 @@ scenario_tests:
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
   CM-13:
     - operations_test.go#TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence
+  ACAD-15:
+    - report_test.go#TestNewReportsRequireAdmissionButOwnPendingEvidenceRemainsAvailable
+    - report_test.go#TestPendingEvidenceCannotOverwriteConcurrentDecision

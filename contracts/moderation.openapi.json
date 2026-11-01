@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "StuHelper Moderation",
-    "version": "0.2.1"
+    "version": "0.3.0"
   },
   "servers": [
     {
@@ -270,7 +270,8 @@
               "maxLength": 128
             }
           }
-        ]
+        ],
+        "description": "Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content."
       }
     },
     "/api/v1/moderation/tasks/{id}": {

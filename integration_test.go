@@ -46,7 +46,7 @@ func (access) Authorize(_ context.Context, p m.Principal, action, school string)
 	if p.Subject == "" {
 		return m.ErrForbidden
 	}
-	if action == "submit" {
+	if action == "submit" || action == "report" {
 		return nil
 	}
 	if p.Subject == "admin" && school == "school" {
