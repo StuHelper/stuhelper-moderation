@@ -9,6 +9,9 @@ import (
 // Reports first check owned local work. Only creation reads external content
 // facts, so a qualification outage cannot block evidence on an existing report.
 func (s *Service) submitReport(ctx context.Context, p Principal, key string, in Submission) (TaskView, error) {
+	return s.saveReport(ctx, p, key, in, nil)
+}
+func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Submission, object *Object) (TaskView, error) {
 	var out TaskView
 	if e := s.auth(ctx, p, "submit", ""); e != nil {
 		return out, e
@@ -16,7 +19,6 @@ func (s *Service) submitReport(ctx context.Context, p Principal, key string, in 
 	operation := digest([]string{p.Subject, in.Kind, in.ObjectID, key})
 	payload := digest(in)
 	needsFacts := errors.New("report creation needs current facts")
-	var object *Object
 	apply := func(t Transaction) error {
 		if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
 			return e

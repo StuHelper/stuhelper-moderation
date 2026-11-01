@@ -13,7 +13,7 @@ export interface paths {
         };
         get: operations["listTasks"];
         put?: never;
-        /** @description Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. */
+        /** @description Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission. */
         post: operations["submitTask"];
         delete?: never;
         options?: never;

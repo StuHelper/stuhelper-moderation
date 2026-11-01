@@ -1,5 +1,5 @@
 id: moderation
-version: 0.3.0
+version: 0.3.1
 api: 1
 critical: false
 requires:
@@ -15,6 +15,7 @@ capabilities:
 capability_requires: {}
 scenario_tests:
   CM-01:
+    - complaints_test.go#TestResourceComplaintPortPreservesLegacyReplayAndRejectsPublicBypass
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
   CM-02:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
