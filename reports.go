@@ -59,6 +59,13 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 				return ErrInput
 			}
 		}
+		limiter, ok := t.(interface{ LimitSubmission(string, time.Time) error })
+		if !ok {
+			return ErrUnavailable
+		}
+		if err := limiter.LimitSubmission(p.Subject, s.now()); err != nil {
+			return err
+		}
 		task.Revision++
 		task.UpdatedAt = s.now()
 		if e = t.SaveTask(task); e != nil {

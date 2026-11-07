@@ -15,3 +15,5 @@ CREATE TABLE IF NOT EXISTS moderation.audit(id text PRIMARY KEY,data jsonb NOT N
 CREATE TABLE IF NOT EXISTS moderation.outbox(id text PRIMARY KEY,data jsonb NOT NULL,delivered boolean NOT NULL DEFAULT false);
 REVOKE ALL ON SCHEMA moderation FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA moderation FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS moderation.submission_limits(owner_key text PRIMARY KEY, started_at timestamptz NOT NULL, used integer NOT NULL CHECK(used>0));

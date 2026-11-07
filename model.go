@@ -8,6 +8,7 @@ import (
 )
 
 var (
+	ErrRateLimited     = errors.New("rate_limited")
 	ErrUnauthenticated = errors.New("unauthenticated")
 	ErrInput           = errors.New("invalid_input")
 	ErrNotFound        = errors.New("not_found")

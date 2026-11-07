@@ -47,7 +47,10 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 			return done, ErrUnavailable
 		}
 		callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		applyErr := s.Content.Apply(callCtx, Principal{Subject: task.DecidedBy}, *task.Decision)
+		applyErr := ErrUnavailable
+		if s.Content != nil {
+			applyErr = s.Content.Apply(callCtx, Principal{Subject: task.DecidedBy}, *task.Decision)
+		}
 		cancel()
 		err = s.Repo.Transaction(ctx, func(t Transaction) error {
 			if e := t.Lock(task.ID); e != nil {

@@ -3,9 +3,11 @@ package moderation_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	m "github.com/StuHelper/stuhelper-moderation"
 	"sync"
 	"testing"
+	"time"
 )
 
 type complaintTarget struct {
@@ -71,6 +73,37 @@ func TestResourceComplaintPortPreservesLegacyReplayAndRejectsPublicBypass(t *tes
 	missing := in
 	missing.Evidence = []string{"Contact only"}
 	if _, e = s.SubmitResourceComplaint(ctx, p, "missing", missing, object); !errors.Is(e, m.ErrInput) {
+		t.Fatal(e)
+	}
+}
+
+func TestComplaintRateLimitIsPerAccountAndReplayDoesNotConsumeQuota(t *testing.T) {
+	s, _, _ := fixture(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC)
+	s.Clock = func() time.Time { return now }
+	p := m.Principal{Subject: "reporter"}
+	submit := func(i int, key string, who m.Principal) error {
+		object := m.Object{ID: fmt.Sprintf("resource-%d", i), Kind: "resource", SchoolID: "school", Owner: "uploader", Revision: 1}
+		_, e := s.SubmitResourceComplaint(ctx, who, key, m.Submission{Kind: "report", ObjectID: object.ID, Reason: "Complaint", Evidence: []string{"Evidence", "Contact"}}, object)
+		return e
+	}
+	for i := 0; i < 10; i++ {
+		if e := submit(i, fmt.Sprint(i), p); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e := submit(0, "0", p); e != nil {
+		t.Fatal("replay consumed quota", e)
+	}
+	if e := submit(11, "blocked", p); !errors.Is(e, m.ErrRateLimited) {
+		t.Fatal(e)
+	}
+	if e := submit(11, "other", m.Principal{Subject: "other"}); e != nil {
+		t.Fatal(e)
+	}
+	now = now.Add(time.Minute)
+	if e := submit(11, "recovered", p); e != nil {
 		t.Fatal(e)
 	}
 }

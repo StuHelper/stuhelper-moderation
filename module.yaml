@@ -1,5 +1,6 @@
 id: moderation
 version: 0.3.1
+kind: module
 api: 1
 critical: false
 requires:
@@ -12,7 +13,10 @@ optional:
     api: 1
 capabilities:
   - moderation.tasks
-capability_requires: {}
+capability_requires:
+  moderation.tasks:
+    - id: identity
+      api: 1
 scenario_tests:
   CM-01:
     - complaints_test.go#TestResourceComplaintPortPreservesLegacyReplayAndRejectsPublicBypass
@@ -33,3 +37,5 @@ scenario_tests:
   ACAD-15:
     - report_test.go#TestNewReportsRequireAdmissionButOwnPendingEvidenceRemainsAvailable
     - report_test.go#TestPendingEvidenceCannotOverwriteConcurrentDecision
+  CM-15:
+    - complaints_test.go#TestComplaintRateLimitIsPerAccountAndReplayDoesNotConsumeQuota
