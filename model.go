@@ -108,6 +108,8 @@ type Replay struct {
 	Until  time.Time
 }
 type Event struct {
+	Data *ResultData
+
 	ID, Type, Subject, SchoolID, Actor string
 	Revision                           int64
 	At                                 time.Time

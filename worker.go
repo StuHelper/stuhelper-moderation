@@ -87,7 +87,13 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 					current.State = "failed"
 				}
 			}
-			return t.SaveTask(current)
+			if e := t.SaveTask(current); e != nil {
+				return e
+			}
+			if current.State == "applied" || current.State == "failed" {
+				return s.recordResult(t, current)
+			}
+			return nil
 		})
 		if err != nil {
 			return done, err

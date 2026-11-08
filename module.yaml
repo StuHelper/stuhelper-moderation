@@ -39,3 +39,7 @@ scenario_tests:
     - report_test.go#TestPendingEvidenceCannotOverwriteConcurrentDecision
   CM-15:
     - complaints_test.go#TestComplaintRateLimitIsPerAccountAndReplayDoesNotConsumeQuota
+  CM-16:
+    - outbox_delivery_test.go#TestOutboxCommitNotificationAndRollback
+    - outbox_delivery_test.go#TestDecisionResultsAreDurableAndReplaySafe
+    - outbox_delivery_test.go#TestDecisionOutboxFailureRollsBackDecision

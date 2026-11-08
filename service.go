@@ -81,7 +81,11 @@ func replay(t Transaction, key, hash string, now time.Time) (TaskView, bool, err
 	return r.View, true, nil
 }
 func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
-	if e := t.Event(Event{ID: key, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: s.now()}); e != nil {
+	var data *ResultData
+	if action == "decided" {
+		data = resultData(task)
+	}
+	if e := t.Event(Event{Data: data, ID: key, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: s.now()}); e != nil {
 		return e
 	}
 	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: view(task), Until: s.now().Add(24 * time.Hour)})
@@ -341,6 +345,11 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 		task.NextAttempt = s.now()
 		if e = t.SaveTask(task); e != nil {
 			return e
+		}
+		if task.State == "applied" {
+			if e = s.recordResult(t, task); e != nil {
+				return e
+			}
 		}
 		if e = s.record(t, rk, h, "decided", p, task); e != nil {
 			return e

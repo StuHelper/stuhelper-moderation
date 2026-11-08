@@ -121,5 +121,14 @@ func (t *transaction) Event(v m.Event) error {
 	if e := t.save(`INSERT INTO moderation.audit(id,data) VALUES($1,$2)`, v, v.ID); e != nil {
 		return e
 	}
-	return t.save(`INSERT INTO moderation.outbox(id,data) VALUES($1,$2)`, map[string]any{"specversion": "1.0", "id": v.ID, "source": "moderation", "type": v.Type, "subject": v.Subject, "time": v.At, "schoolid": v.SchoolID, "datacontenttype": "application/json", "data": map[string]any{"revision": v.Revision}}, v.ID)
+	data := m.ResultData{Revision: v.Revision}
+	if v.Data != nil {
+		data = *v.Data
+	}
+	envelope := m.Envelope{SpecVersion: "1.0", ID: v.ID, Source: "moderation", Type: v.Type, Subject: v.Subject, Time: v.At, SchoolID: v.SchoolID, DataContentType: "application/json", Data: data}
+	if e := t.save(`INSERT INTO moderation.outbox(id,data) VALUES($1,$2)`, envelope, v.ID); e != nil {
+		return e
+	}
+	_, e := t.tx.ExecContext(t.ctx, `SELECT pg_notify('moderation_outbox', '')`)
+	return safe(e)
 }

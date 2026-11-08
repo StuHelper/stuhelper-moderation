@@ -17,3 +17,7 @@ REVOKE ALL ON SCHEMA moderation FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA moderation FROM PUBLIC;
 
 CREATE TABLE IF NOT EXISTS moderation.submission_limits(owner_key text PRIMARY KEY, started_at timestamptz NOT NULL, used integer NOT NULL CHECK(used>0));
+
+ALTER TABLE moderation.outbox ADD COLUMN IF NOT EXISTS sent_at timestamptz;
+UPDATE moderation.outbox SET sent_at=now() WHERE delivered AND sent_at IS NULL;
+CREATE INDEX IF NOT EXISTS moderation_outbox_pending ON moderation.outbox ((data->>'subject'), ((data->'data'->>'revision')::bigint), id) WHERE sent_at IS NULL;

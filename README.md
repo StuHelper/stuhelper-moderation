@@ -38,3 +38,5 @@ PostgreSQL 测试覆盖举报合并、作者请求限制、策略幂等、学校
 资料侵权投诉由 resources 完成登录、材料和目标校验，经 SubmitResourceComplaint 登记。该模块接口不对 HTTP 开放，以相同幂等键和载荷恢复未确认请求。通用举报入口继续要求内容准入，投诉回执不含目标正文。
 
 举报及投诉按账号限制每分钟 10 次新提交，同键重试保留原结果，超限返回 429 且不改变任务。限制与任务写入在同一数据库事务执行，失败不消耗次数。
+
+审核决定和终态结果按[事件契约](contracts/events.md)写入事务 outbox，并在提交后通知 moderation_outbox。relay 通过公开 Go OutboxReader 读取与确认事件，单批最多 100。backend 的 LISTEN、消费者 inbox 与重试装配由后续任务接入。
