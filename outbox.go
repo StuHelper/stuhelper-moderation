@@ -43,5 +43,11 @@ func resultData(task Task) *ResultData {
 	return &ResultData{Revision: task.Revision, TaskID: task.ID, Owner: task.Owner, ContentOwner: task.ContentOwner, ObjectID: task.Submission.ObjectID, ContentKind: task.ContentKind, RequestKind: task.Submission.Kind, DecisionID: task.Decision.ID, Action: task.Decision.Action, State: task.State}
 }
 func (s *Service) recordResult(t Transaction, task Task) error {
-	return t.Event(Event{ID: digest([]string{"result", task.Decision.ID, strconv.FormatInt(task.Revision, 10)}), Type: "moderation.result.v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Revision: task.Revision, At: s.now(), Data: resultData(task)})
+	result := "unknown"
+	if task.State == "applied" {
+		result = "success"
+	} else if task.State == "failed" {
+		result = "failed"
+	}
+	return t.Event(Event{Result: result, Reason: task.ErrorCode, Actor: task.DecidedBy, ID: digest([]string{"result", task.Decision.ID, strconv.FormatInt(task.Revision, 10)}), Type: "moderation.result.v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Revision: task.Revision, At: s.now(), Data: resultData(task)})
 }

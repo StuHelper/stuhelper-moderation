@@ -118,7 +118,7 @@ func (t *transaction) SaveReplay(key string, v m.Replay) error {
 	return t.save(`INSERT INTO moderation.replays(key,data) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET data=excluded.data`, v, key)
 }
 func (t *transaction) Event(v m.Event) error {
-	if e := t.save(`INSERT INTO moderation.audit(id,data) VALUES($1,$2)`, v, v.ID); e != nil {
+	if e := t.saveAudit(v); e != nil {
 		return e
 	}
 	data := m.ResultData{Revision: v.Revision}

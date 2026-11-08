@@ -43,3 +43,9 @@ scenario_tests:
     - outbox_delivery_test.go#TestOutboxCommitNotificationAndRollback
     - outbox_delivery_test.go#TestDecisionResultsAreDurableAndReplaySafe
     - outbox_delivery_test.go#TestDecisionOutboxFailureRollsBackDecision
+  CM-17:
+    - audit_test.go#TestAuditFiltersScopesAndProjection
+    - audit_test.go#TestAuditSnapshotExcludesBackfillAndLateCommit
+    - audit_test.go#TestAuditDefaultsAndTransactionRollback
+    - audit_test.go#TestAuditBatchLimitAndRecordedOutcome
+    - audit_test.go#TestAuditDecisionSavedIsNotExecutionSuccess

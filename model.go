@@ -108,6 +108,10 @@ type Replay struct {
 	Until  time.Time
 }
 type Event struct {
+	// Reason is a safe audit reason code, never user-supplied evidence or identity data.
+	Reason string `json:"audit_reason,omitempty"`
+	Result string `json:"audit_result,omitempty"`
+
 	Data *ResultData
 
 	ID, Type, Subject, SchoolID, Actor string

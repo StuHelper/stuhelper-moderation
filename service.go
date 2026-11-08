@@ -81,11 +81,15 @@ func replay(t Transaction, key, hash string, now time.Time) (TaskView, bool, err
 	return r.View, true, nil
 }
 func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
+	result := "success"
+	if action == "decided" {
+		result = "unknown"
+	}
 	var data *ResultData
 	if action == "decided" {
 		data = resultData(task)
 	}
-	if e := t.Event(Event{Data: data, ID: key, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: s.now()}); e != nil {
+	if e := t.Event(Event{Result: result, Data: data, ID: key, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: s.now()}); e != nil {
 		return e
 	}
 	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: view(task), Until: s.now().Add(24 * time.Hour)})
@@ -401,7 +405,7 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 		if e = t.SavePolicy(policy); e != nil {
 			return e
 		}
-		if e := t.Event(Event{ID: digest(policy), Type: "moderation.policy.v1", Subject: "policy/" + policy.SchoolID + "/" + policy.Kind, SchoolID: policy.SchoolID, Actor: p.Subject, Revision: policy.Revision, At: s.now()}); e != nil {
+		if e := t.Event(Event{Result: "success", ID: digest(policy), Type: "moderation.policy.v1", Subject: "policy/" + policy.SchoolID + "/" + policy.Kind, SchoolID: policy.SchoolID, Actor: p.Subject, Revision: policy.Revision, At: s.now()}); e != nil {
 			return e
 		}
 		return t.SaveReplay(replayKey, Replay{Digest: requestHash, Until: s.now().Add(24 * time.Hour)})

@@ -40,3 +40,5 @@ PostgreSQL 测试覆盖举报合并、作者请求限制、策略幂等、学校
 举报及投诉按账号限制每分钟 10 次新提交，同键重试保留原结果，超限返回 429 且不改变任务。限制与任务写入在同一数据库事务执行，失败不消耗次数。
 
 审核决定和终态结果按[事件契约](contracts/events.md)写入事务 outbox，并在提交后通知 moderation_outbox。relay 通过公开 Go OutboxReader 读取与确认事件，单批最多 100。backend 的 LISTEN、消费者 inbox 与重试装配由后续任务接入。
+
+受信管理适配器可通过 Repository.ReadAudit 查询[脱敏审计](contracts/audit.md)。查询支持范围先过滤、最多 101 条、事务可见性快照与排他游标。现有审计表需按最终结构建立，本轮不转换历史数据。
