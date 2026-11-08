@@ -74,11 +74,11 @@ func TestOutboxCommitNotificationAndRollback(t *testing.T) {
 		}
 	}
 
-	events, err := repo.PendingOutbox(context.Background(), 100)
+	events, err := repo.PendingOutbox(context.Background(), 100, nil)
 	if err != nil || len(events) != 100 {
 		t.Fatalf("batch: %d %v", len(events), err)
 	}
-	again, err := repo.PendingOutbox(context.Background(), 100)
+	again, err := repo.PendingOutbox(context.Background(), 100, nil)
 	if err != nil || again[0].ID != events[0].ID {
 		t.Fatal("redelivery changed ID", err)
 	}
@@ -92,12 +92,12 @@ func TestOutboxCommitNotificationAndRollback(t *testing.T) {
 			}
 		}
 	}
-	rest, err := repo.PendingOutbox(context.Background(), 100)
+	rest, err := repo.PendingOutbox(context.Background(), 100, nil)
 	if err != nil || len(rest) != 2 {
 		t.Fatalf("remaining: %d %v", len(rest), err)
 	}
 	for _, limit := range []int{0, 101} {
-		if _, err := repo.PendingOutbox(context.Background(), limit); !errors.Is(err, m.ErrInput) {
+		if _, err := repo.PendingOutbox(context.Background(), limit, nil); !errors.Is(err, m.ErrInput) {
 			t.Fatal("unbounded read", err)
 		}
 	}
@@ -137,7 +137,7 @@ func TestDecisionResultsAreDurableAndReplaySafe(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				events, err := relay.PendingOutbox(context.Background(), 100)
+				events, err := relay.PendingOutbox(context.Background(), 100, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -179,7 +179,7 @@ func TestDecisionOutboxFailureRollsBackDecision(t *testing.T) {
 	if err != nil || current.State != "waiting" || current.Revision != task.Revision || current.Decision != nil {
 		t.Fatal("decision escaped rollback", current, err)
 	}
-	events, err := repo.PendingOutbox(context.Background(), 100)
+	events, err := repo.PendingOutbox(context.Background(), 100, nil)
 	if err != nil || len(events) != 1 || events[0].Type != "moderation.submitted.v1" {
 		t.Fatal("result escaped rollback", events, err)
 	}

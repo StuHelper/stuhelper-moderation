@@ -16,10 +16,14 @@ moderation.decided.v1 与决定同事务写入，表示决定已保存。moderat
 
 所有 outbox 写入在同一事务执行 pg_notify('moderation_outbox', '')。通知仅用于唤醒，数据以 outbox 为准。回滚不产生事件或通知。
 
-Go OutboxReader 提供 PendingOutbox(ctx, limit) 与 ConfirmOutbox(ctx, id)。limit 为 1–100，按 subject、revision、ID 排序，查询 sent_at IS NULL 部分索引。确认仅在消费者事务成功后调用，重复确认成功，未知 ID 返回 not_found。
+Go OutboxReader 提供 PendingOutbox(ctx, limit, excludeSubjects) 与 ConfirmOutbox(ctx, id)。limit 为 1–100，按 subject、revision、ID 排序，查询 sent_at IS NULL 部分索引。确认仅在消费者事务成功后调用，重复确认成功，未知 ID 返回 not_found。
 
 relay 启动、重连和每 60 秒兜底读取未发送事件，收到通知立即排空积压。相同 source/subject 串行处理，失败阻止后续修订超前。5 秒指数退避至 1 小时，24 小时后转人工处理，重试保留原 ID。
 
 消费者在本地事务写 inbox，以 source/ID 去重，并忽略不高于已处理修订的事件。生产模块的确认不替代消费者 inbox。backend 装配与消费者验证由后续任务完成。
 
 CM-16：事务回滚没有通知和 outbox，提交后收到通知；未监听期间的积压可补读；批量上限 100；重复读取保持封套及 ID，重复确认幂等，旧决定不产生新结果。
+
+excludeSubjects 最多包含 1000 个 subject，超限返回 invalid_input。nil 和空列表均不排除主题。查询在 LIMIT 前排除退避或人工处理中的主题，使后续其他主题可以继续投递；同一主题仍按数值修订和 ID 升序读取。读取继续使用未确认事件的部分索引。
+
+CM-18：排除队头主题后返回其他主题，同主题排序保持不变；空列表不排除，超过 1000 项拒绝；在已确认历史与待发送积压混合数据上用 EXPLAIN ANALYZE 验证实际读取 SQL 使用部分索引。

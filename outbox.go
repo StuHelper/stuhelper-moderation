@@ -10,7 +10,8 @@ const OutboxChannel = "moderation_outbox"
 
 // OutboxReader is a trusted relay port. Confirm only after durable consumption.
 type OutboxReader interface {
-	PendingOutbox(context.Context, int) ([]Envelope, error)
+	// PendingOutbox excludes at most 1000 subjects before applying the 1–100 limit.
+	PendingOutbox(context.Context, int, []string) ([]Envelope, error)
 	ConfirmOutbox(context.Context, string) error
 }
 
