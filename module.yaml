@@ -19,7 +19,7 @@ capability_requires:
       api: 1
 scenario_tests:
   CM-01:
-    - complaints_test.go#TestResourceComplaintPortPreservesLegacyReplayAndRejectsPublicBypass
+    - complaints_test.go#TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
   CM-02:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision

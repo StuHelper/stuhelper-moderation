@@ -7,8 +7,7 @@ import (
 
 // SubmitResourceComplaint is a trusted module port, never an HTTP route. The
 // resources module authenticates and persists the complaint, then supplies
-// verified target metadata. Preserve the legacy report key/payload so an
-// ambiguous old delivery retries the original task instead of creating another.
+// verified target metadata. Retries use the same request key and payload.
 func (s *Service) SubmitResourceComplaint(ctx context.Context, p Principal, key string, in Submission, object Object) (TaskView, error) {
 	if p.Subject == "" {
 		return TaskView{}, ErrUnauthenticated

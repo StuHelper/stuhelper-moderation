@@ -18,14 +18,14 @@ type complaintTarget struct {
 func (c complaintTarget) Inspect(context.Context, m.Principal, string) (m.Object, error) {
 	return c.object, nil
 }
-func TestResourceComplaintPortPreservesLegacyReplayAndRejectsPublicBypass(t *testing.T) {
+func TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass(t *testing.T) {
 	s, _, _ := fixture(t)
 	ctx := context.Background()
 	p := m.Principal{Subject: "reporter"}
 	object := m.Object{ID: "resource:version", Kind: "resource", SchoolID: "school", Owner: "uploader", Revision: 1, Visible: true}
 	s.Content = complaintTarget{Content: s.Content, object: object}
 	in := m.Submission{Kind: "report", ObjectID: object.ID, Reason: "Complaint", Evidence: []string{"Rights evidence", "Contact"}}
-	legacy, e := s.Submit(ctx, p, "ambiguous", in)
+	original, e := s.SubmitResourceComplaint(ctx, p, "ambiguous", in, object)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -42,8 +42,8 @@ func TestResourceComplaintPortPreservesLegacyReplayAndRejectsPublicBypass(t *tes
 		go func() {
 			defer wg.Done()
 			got, e := s.SubmitResourceComplaint(ctx, p, "ambiguous", in, object)
-			if e == nil && (got.ID != legacy.ID || len(got.Submission.Evidence) != 2) {
-				e = errors.New("legacy report duplicated")
+			if e == nil && (got.ID != original.ID || len(got.Submission.Evidence) != 2) {
+				e = errors.New("original report duplicated")
 			}
 			results <- e
 		}()
@@ -56,7 +56,7 @@ func TestResourceComplaintPortPreservesLegacyReplayAndRejectsPublicBypass(t *tes
 		}
 	}
 	fresh, e := s.SubmitResourceComplaint(ctx, m.Principal{Subject: "new-reporter"}, "fresh", in, object)
-	if e != nil || fresh.ID == legacy.ID {
+	if e != nil || fresh.ID == original.ID {
 		t.Fatal(fresh, e)
 	}
 	if _, e = s.Get(ctx, m.Principal{Subject: "other"}, fresh.ID); !errors.Is(e, m.ErrNotFound) {
