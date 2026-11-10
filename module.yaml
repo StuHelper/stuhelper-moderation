@@ -1,16 +1,25 @@
 id: moderation
-version: 0.2.1
+version: 0.3.1
+kind: module
 api: 1
 critical: false
 requires:
   - id: platform
     api: 1
-optional: []
+optional:
+  - id: verification
+    api: 1
+  - id: identity
+    api: 1
 capabilities:
   - moderation.tasks
-capability_requires: {}
+capability_requires:
+  moderation.tasks:
+    - id: identity
+      api: 1
 scenario_tests:
   CM-01:
+    - complaints_test.go#TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
   CM-02:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
@@ -25,3 +34,21 @@ scenario_tests:
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
   CM-13:
     - operations_test.go#TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence
+  ACAD-15:
+    - report_test.go#TestNewReportsRequireAdmissionButOwnPendingEvidenceRemainsAvailable
+    - report_test.go#TestPendingEvidenceCannotOverwriteConcurrentDecision
+  CM-15:
+    - complaints_test.go#TestComplaintRateLimitIsPerAccountAndReplayDoesNotConsumeQuota
+  CM-16:
+    - outbox_delivery_test.go#TestOutboxCommitNotificationAndRollback
+    - outbox_delivery_test.go#TestDecisionResultsAreDurableAndReplaySafe
+    - outbox_delivery_test.go#TestDecisionOutboxFailureRollsBackDecision
+  CM-17:
+    - audit_test.go#TestAuditFiltersScopesAndProjection
+    - audit_test.go#TestAuditSnapshotExcludesBackfillAndLateCommit
+    - audit_test.go#TestAuditDefaultsAndTransactionRollback
+    - audit_test.go#TestAuditBatchLimitAndRecordedOutcome
+    - audit_test.go#TestAuditDecisionSavedIsNotExecutionSuccess
+  CM-18:
+    - outbox_exclusion_test.go#TestOutboxExcludesDeferredSubjectsBeforeLimit
+    - postgres/outbox_test.go#TestPendingOutboxPlanUsesPartialIndex

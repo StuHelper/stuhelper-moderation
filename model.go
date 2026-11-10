@@ -8,6 +8,7 @@ import (
 )
 
 var (
+	ErrRateLimited     = errors.New("rate_limited")
 	ErrUnauthenticated = errors.New("unauthenticated")
 	ErrInput           = errors.New("invalid_input")
 	ErrNotFound        = errors.New("not_found")
@@ -107,6 +108,12 @@ type Replay struct {
 	Until  time.Time
 }
 type Event struct {
+	// Reason is a safe audit reason code, never user-supplied evidence or identity data.
+	Reason string `json:"audit_reason,omitempty"`
+	Result string `json:"audit_result,omitempty"`
+
+	Data *ResultData
+
 	ID, Type, Subject, SchoolID, Actor string
 	Revision                           int64
 	At                                 time.Time

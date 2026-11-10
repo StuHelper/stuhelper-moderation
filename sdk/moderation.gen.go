@@ -483,10 +483,14 @@ type ClientInterface interface {
 
 	// SubmitTaskWithBody performs a POST /api/v1/moderation/tasks (the `SubmitTask` operationId) request,
 	// with any type of body and a specified content type.
+	//
+	// Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission.
 	SubmitTaskWithBody(ctx context.Context, params *SubmitTaskParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SubmitTask performs a POST /api/v1/moderation/tasks (the `SubmitTask` operationId) request.
 	// Takes a body of the `application/json` content type.
+	//
+	// Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission.
 	SubmitTask(ctx context.Context, params *SubmitTaskParams, body SubmitTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DecideBatchWithBody performs a POST /api/v1/moderation/tasks/batch (the `DecideBatch` operationId) request,
@@ -581,6 +585,8 @@ func (c *Client) ListTasks(ctx context.Context, params *ListTasksParams, reqEdit
 
 // SubmitTaskWithBody performs a POST /api/v1/moderation/tasks (the `SubmitTask` operationId) request,
 // with any type of body and a specified content type.
+//
+// Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission.
 func (c *Client) SubmitTaskWithBody(ctx context.Context, params *SubmitTaskParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSubmitTaskRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
@@ -595,6 +601,8 @@ func (c *Client) SubmitTaskWithBody(ctx context.Context, params *SubmitTaskParam
 
 // SubmitTask performs a POST /api/v1/moderation/tasks (the `SubmitTask` operationId) request.
 // Takes a body of the `application/json` content type.
+//
+// Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission.
 func (c *Client) SubmitTask(ctx context.Context, params *SubmitTaskParams, body SubmitTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSubmitTaskRequest(c.Server, params, body)
 	if err != nil {
@@ -1385,11 +1393,15 @@ type ClientWithResponsesInterface interface {
 	// SubmitTaskWithBodyWithResponse performs a POST /api/v1/moderation/tasks (the `SubmitTask` operationId) request,
 	// with any type of body and a specified content type.
 	//
+	// Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission.
+	//
 	// Returns a wrapper object for the known response body format(s).
 	SubmitTaskWithBodyWithResponse(ctx context.Context, params *SubmitTaskParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitTaskResponse, error)
 
 	// SubmitTaskWithResponse performs a POST /api/v1/moderation/tasks (the `SubmitTask` operationId) request.
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission.
 	SubmitTaskWithResponse(ctx context.Context, params *SubmitTaskParams, body SubmitTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitTaskResponse, error)
 
 	// DecideBatchWithBodyWithResponse performs a POST /api/v1/moderation/tasks/batch (the `DecideBatch` operationId) request,
@@ -1702,6 +1714,10 @@ type SubmitTaskResponse struct {
 	JSON404 *Error
 	// JSON409 the response for an HTTP 409 `application/json` response
 	JSON409 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *struct {
+		Code *string `json:"code,omitempty"`
+	}
 	// JSON503 the response for an HTTP 503 `application/json` response
 	JSON503 *Error
 }
@@ -1734,6 +1750,13 @@ func (r SubmitTaskResponse) GetJSON404() *Error {
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
 func (r SubmitTaskResponse) GetJSON409() *Error {
 	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r SubmitTaskResponse) GetJSON429() *struct {
+	Code *string `json:"code,omitempty"`
+} {
+	return r.JSON429
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
@@ -2232,6 +2255,8 @@ func (c *ClientWithResponses) ListTasksWithResponse(ctx context.Context, params 
 // SubmitTaskWithBodyWithResponse performs a POST /api/v1/moderation/tasks (the `SubmitTask` operationId) request,
 // with any type of body and a specified content type.
 //
+// Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission.
+//
 // Returns a wrapper object for the known response body format(s).
 func (c *ClientWithResponses) SubmitTaskWithBodyWithResponse(ctx context.Context, params *SubmitTaskParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitTaskResponse, error) {
 	rsp, err := c.SubmitTaskWithBody(ctx, params, contentType, body, reqEditors...)
@@ -2243,6 +2268,8 @@ func (c *ClientWithResponses) SubmitTaskWithBodyWithResponse(ctx context.Context
 
 // SubmitTaskWithResponse performs a POST /api/v1/moderation/tasks (the `SubmitTask` operationId) request.
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission.
 func (c *ClientWithResponses) SubmitTaskWithResponse(ctx context.Context, params *SubmitTaskParams, body SubmitTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitTaskResponse, error) {
 	rsp, err := c.SubmitTask(ctx, params, body, reqEditors...)
 	if err != nil {
@@ -2609,6 +2636,15 @@ func ParseSubmitTaskResponse(rsp *http.Response) (*SubmitTaskResponse, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest struct {
+			Code *string `json:"code,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest Error

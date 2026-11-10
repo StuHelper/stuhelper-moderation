@@ -81,7 +81,15 @@ func replay(t Transaction, key, hash string, now time.Time) (TaskView, bool, err
 	return r.View, true, nil
 }
 func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
-	if e := t.Event(Event{ID: key, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: s.now()}); e != nil {
+	result := "success"
+	if action == "decided" {
+		result = "unknown"
+	}
+	var data *ResultData
+	if action == "decided" {
+		data = resultData(task)
+	}
+	if e := t.Event(Event{Result: result, Data: data, ID: key, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: s.now()}); e != nil {
 		return e
 	}
 	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: view(task), Until: s.now().Add(24 * time.Hour)})
@@ -124,6 +132,12 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 		if !textOK(v, 2000) {
 			return out, ErrInput
 		}
+	}
+	if in.Kind == "report" {
+		if in.PreviousTaskID != "" {
+			return out, ErrInput
+		}
+		return s.submitReport(ctx, p, key, in)
 	}
 	object, e := s.Content.Inspect(ctx, p, in.ObjectID)
 	if e != nil {
@@ -336,6 +350,11 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 		if e = t.SaveTask(task); e != nil {
 			return e
 		}
+		if task.State == "applied" {
+			if e = s.recordResult(t, task); e != nil {
+				return e
+			}
+		}
 		if e = s.record(t, rk, h, "decided", p, task); e != nil {
 			return e
 		}
@@ -386,7 +405,7 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 		if e = t.SavePolicy(policy); e != nil {
 			return e
 		}
-		if e := t.Event(Event{ID: digest(policy), Type: "moderation.policy.v1", Subject: "policy/" + policy.SchoolID + "/" + policy.Kind, SchoolID: policy.SchoolID, Actor: p.Subject, Revision: policy.Revision, At: s.now()}); e != nil {
+		if e := t.Event(Event{Result: "success", ID: digest(policy), Type: "moderation.policy.v1", Subject: "policy/" + policy.SchoolID + "/" + policy.Kind, SchoolID: policy.SchoolID, Actor: p.Subject, Revision: policy.Revision, At: s.now()}); e != nil {
 			return e
 		}
 		return t.SaveReplay(replayKey, Replay{Digest: requestHash, Until: s.now().Add(24 * time.Hour)})
