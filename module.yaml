@@ -1,0 +1,54 @@
+id: moderation
+version: 0.3.1
+kind: module
+api: 1
+critical: false
+requires:
+  - id: platform
+    api: 1
+optional:
+  - id: verification
+    api: 1
+  - id: identity
+    api: 1
+capabilities:
+  - moderation.tasks
+capability_requires:
+  moderation.tasks:
+    - id: identity
+      api: 1
+scenario_tests:
+  CM-01:
+    - complaints_test.go#TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass
+    - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
+  CM-02:
+    - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
+  CM-05:
+    - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
+    - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
+    - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
+  CM-10:
+    - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
+    - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
+  CM-12:
+    - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
+  CM-13:
+    - operations_test.go#TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence
+  ACAD-15:
+    - report_test.go#TestNewReportsRequireAdmissionButOwnPendingEvidenceRemainsAvailable
+    - report_test.go#TestPendingEvidenceCannotOverwriteConcurrentDecision
+  CM-15:
+    - complaints_test.go#TestComplaintRateLimitIsPerAccountAndReplayDoesNotConsumeQuota
+  CM-16:
+    - outbox_delivery_test.go#TestOutboxCommitNotificationAndRollback
+    - outbox_delivery_test.go#TestDecisionResultsAreDurableAndReplaySafe
+    - outbox_delivery_test.go#TestDecisionOutboxFailureRollsBackDecision
+  CM-17:
+    - audit_test.go#TestAuditFiltersScopesAndProjection
+    - audit_test.go#TestAuditSnapshotExcludesBackfillAndLateCommit
+    - audit_test.go#TestAuditDefaultsAndTransactionRollback
+    - audit_test.go#TestAuditBatchLimitAndRecordedOutcome
+    - audit_test.go#TestAuditDecisionSavedIsNotExecutionSuccess
+  CM-18:
+    - outbox_exclusion_test.go#TestOutboxExcludesDeferredSubjectsBeforeLimit
+    - postgres/outbox_test.go#TestPendingOutboxPlanUsesPartialIndex
