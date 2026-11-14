@@ -54,6 +54,9 @@ func database(t *testing.T) (*postgres.Repository, *sql.DB) {
 	if _, e = migration.Exec(`REVOKE ALL ON SCHEMA public FROM PUBLIC; GRANT CONNECT ON DATABASE ` + name + ` TO ` + role + `; GRANT USAGE ON SCHEMA moderation TO ` + role + `; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA moderation TO ` + role + `; CREATE SCHEMA unrelated; CREATE TABLE unrelated.private_data(id integer); REVOKE ALL ON SCHEMA unrelated FROM PUBLIC;`); e != nil {
 		t.Fatal(e)
 	}
+	if _, e = migration.Exec(`GRANT EXECUTE ON FUNCTION moderation.cleanup_feedback_audit() TO ` + role + `; REVOKE UPDATE, DELETE ON moderation.audit FROM ` + role); e != nil {
+		t.Fatal(e)
+	}
 	runtime := dbcfg.Copy()
 	runtime.User = role
 	runtime.Password = ""

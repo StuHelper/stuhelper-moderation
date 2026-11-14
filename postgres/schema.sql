@@ -36,3 +36,40 @@ CREATE TABLE IF NOT EXISTS moderation.submission_limits(owner_key text PRIMARY K
 ALTER TABLE moderation.outbox ADD COLUMN IF NOT EXISTS sent_at timestamptz;
 UPDATE moderation.outbox SET sent_at=now() WHERE delivered AND sent_at IS NULL;
 CREATE INDEX IF NOT EXISTS moderation_outbox_pending ON moderation.outbox ((data->>'subject'), ((data->'data'->>'revision')::bigint), id) WHERE sent_at IS NULL;
+
+-- Feedback is global operator correspondence; school-scoped grants do not
+-- expose a sender's identity or complaint materials.
+CREATE TABLE IF NOT EXISTS moderation.feedback (
+ id text PRIMARY KEY, dedupe text NOT NULL UNIQUE, sender text NOT NULL,
+ state text NOT NULL CHECK(state IN ('new','processing','resolved','spam')),
+ ready boolean NOT NULL, received_at timestamptz NOT NULL, closed_at timestamptz,
+ bytes bigint NOT NULL CHECK(bytes>=0), data jsonb NOT NULL
+);
+CREATE INDEX IF NOT EXISTS feedback_sender_rate ON moderation.feedback(sender,received_at);
+CREATE INDEX IF NOT EXISTS feedback_expiry ON moderation.feedback(closed_at,id) WHERE closed_at IS NOT NULL;
+CREATE TABLE IF NOT EXISTS moderation.feedback_receipts (
+ key text PRIMARY KEY, hash text NOT NULL, target text NOT NULL REFERENCES moderation.feedback(id) ON DELETE CASCADE, data jsonb NOT NULL, created_at timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS feedback_receipt_expiry ON moderation.feedback_receipts(created_at);
+CREATE TABLE IF NOT EXISTS moderation.feedback_cursors (
+ mailbox text PRIMARY KEY, validity bigint NOT NULL, uid bigint NOT NULL
+);
+REVOKE ALL ON moderation.feedback, moderation.feedback_receipts, moderation.feedback_cursors FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS moderation.feedback_tombstones(id text PRIMARY KEY, dedupe text NOT NULL UNIQUE);
+REVOKE ALL ON moderation.feedback_tombstones FROM PUBLIC;
+
+-- Only this bounded retention operation can delete feedback audit rows. The
+-- application role retains no general UPDATE/DELETE permission on audit.
+CREATE OR REPLACE FUNCTION moderation.cleanup_feedback_audit() RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+DECLARE removed integer;
+BEGIN
+ DELETE FROM moderation.audit WHERE id IN (
+  SELECT id FROM moderation.audit WHERE action LIKE 'feedback.%'
+   AND time < current_timestamp - interval '12 months' ORDER BY time,id LIMIT 100
+ );
+ GET DIAGNOSTICS removed = ROW_COUNT;
+ RETURN removed;
+END $$;
+REVOKE ALL ON FUNCTION moderation.cleanup_feedback_audit() FROM PUBLIC;
