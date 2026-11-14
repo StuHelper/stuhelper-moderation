@@ -250,3 +250,37 @@ func TestFeedbackLeapDayRetentionMatchesDatabaseCalendarMonths(t *testing.T) {
 		t.Fatal(count, e)
 	}
 }
+
+func TestFeedbackRetentionUsesUTCRegardlessOfDatabaseTimezone(t *testing.T) {
+	repo, _ := database(t)
+	repo.DB.SetMaxOpenConns(1)
+	if _, e := repo.DB.Exec("SET TIME ZONE 'Asia/Shanghai'"); e != nil {
+		t.Fatal(e)
+	}
+	clock := time.Date(2028, 2, 28, 16, 30, 0, 0, time.UTC)
+	repository := &pg.FeedbackRepository{DB: repo.DB}
+	svc := &f.Service{Repo: repository, Access: &feedbackAccess{}, Blobs: &feedbackBlobs{values: map[string][]byte{}}, Now: func() time.Time { return clock }}
+	ctx := context.Background()
+	v, e := svc.Ingest(ctx, feedbackInput("timezone"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	_, e = svc.Update(ctx, "operator", v.ID, "close-timezone", f.Update{Revision: v.Revision, State: "resolved"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	before := time.Date(2029, 2, 28, 16, 29, 59, 0, time.UTC)
+	e = repository.Transaction(ctx, func(tx f.Tx) error {
+		rows, e := tx.Expired(before, 50)
+		if e != nil {
+			return e
+		}
+		if len(rows) != 0 {
+			t.Fatal("database expired the case before the UTC calendar boundary")
+		}
+		return nil
+	})
+	if e != nil {
+		t.Fatal(e)
+	}
+}
