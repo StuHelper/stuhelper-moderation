@@ -1,5 +1,5 @@
 id: moderation
-version: 0.3.1
+version: 0.4.0
 kind: module
 api: 1
 critical: false
@@ -52,3 +52,9 @@ scenario_tests:
   CM-18:
     - outbox_exclusion_test.go#TestOutboxExcludesDeferredSubjectsBeforeLimit
     - postgres/outbox_test.go#TestPendingOutboxPlanUsesPartialIndex
+  CM-19:
+    - feedback_test.go#TestFeedbackConcurrentIngestAuthorizationAndAudit
+  CM-20:
+    - feedback_test.go#TestFeedbackReplyUnknownIsNeverResentAndRetentionDeletesMaterials
+  CM-21:
+    - feedback_test.go#TestFeedbackRateCapacityAndCursor

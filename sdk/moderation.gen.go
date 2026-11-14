@@ -59,6 +59,96 @@ func (e DecisionAction) Valid() bool {
 	}
 }
 
+// Defines values for FeedbackState.
+const (
+	FeedbackStateNew        FeedbackState = "new"
+	FeedbackStateProcessing FeedbackState = "processing"
+	FeedbackStateResolved   FeedbackState = "resolved"
+	FeedbackStateSpam       FeedbackState = "spam"
+)
+
+// Valid indicates whether the value is a known member of the FeedbackState enum.
+func (e FeedbackState) Valid() bool {
+	switch e {
+	case FeedbackStateNew:
+		return true
+	case FeedbackStateProcessing:
+		return true
+	case FeedbackStateResolved:
+		return true
+	case FeedbackStateSpam:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeedbackAttachmentStatus.
+const (
+	Rejected FeedbackAttachmentStatus = "rejected"
+	Stored   FeedbackAttachmentStatus = "stored"
+)
+
+// Valid indicates whether the value is a known member of the FeedbackAttachmentStatus enum.
+func (e FeedbackAttachmentStatus) Valid() bool {
+	switch e {
+	case Rejected:
+		return true
+	case Stored:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeedbackReplyState.
+const (
+	Failed  FeedbackReplyState = "failed"
+	Sending FeedbackReplyState = "sending"
+	Sent    FeedbackReplyState = "sent"
+	Unknown FeedbackReplyState = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the FeedbackReplyState enum.
+func (e FeedbackReplyState) Valid() bool {
+	switch e {
+	case Failed:
+		return true
+	case Sending:
+		return true
+	case Sent:
+		return true
+	case Unknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeedbackUpdateState.
+const (
+	FeedbackUpdateStateNew        FeedbackUpdateState = "new"
+	FeedbackUpdateStateProcessing FeedbackUpdateState = "processing"
+	FeedbackUpdateStateResolved   FeedbackUpdateState = "resolved"
+	FeedbackUpdateStateSpam       FeedbackUpdateState = "spam"
+)
+
+// Valid indicates whether the value is a known member of the FeedbackUpdateState enum.
+func (e FeedbackUpdateState) Valid() bool {
+	switch e {
+	case FeedbackUpdateStateNew:
+		return true
+	case FeedbackUpdateStateProcessing:
+		return true
+	case FeedbackUpdateStateResolved:
+		return true
+	case FeedbackUpdateStateSpam:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PolicyMode.
 const (
 	PolicyModePending   PolicyMode = "pending"
@@ -176,6 +266,30 @@ func (e TaskSubmissionKind) Valid() bool {
 	}
 }
 
+// Defines values for ListFeedbackParamsState.
+const (
+	ListFeedbackParamsStateNew        ListFeedbackParamsState = "new"
+	ListFeedbackParamsStateProcessing ListFeedbackParamsState = "processing"
+	ListFeedbackParamsStateResolved   ListFeedbackParamsState = "resolved"
+	ListFeedbackParamsStateSpam       ListFeedbackParamsState = "spam"
+)
+
+// Valid indicates whether the value is a known member of the ListFeedbackParamsState enum.
+func (e ListFeedbackParamsState) Valid() bool {
+	switch e {
+	case ListFeedbackParamsStateNew:
+		return true
+	case ListFeedbackParamsStateProcessing:
+		return true
+	case ListFeedbackParamsStateResolved:
+		return true
+	case ListFeedbackParamsStateSpam:
+		return true
+	default:
+		return false
+	}
+}
+
 // BatchItem defines model for BatchItem.
 type BatchItem struct {
 	Decision Decision `json:"decision"`
@@ -232,6 +346,72 @@ type DecisionAction string
 type Error struct {
 	Code string `json:"code"`
 }
+
+// Feedback defines model for Feedback.
+type Feedback struct {
+	Assignee              string               `json:"assignee"`
+	Attachments           []FeedbackAttachment `json:"attachments"`
+	AuthenticationResults string               `json:"authentication_results"`
+	Body                  string               `json:"body"`
+	ClosedAt              *time.Time           `json:"closed_at"`
+	Id                    string               `json:"id"`
+	Note                  string               `json:"note"`
+	ReceivedAt            time.Time            `json:"received_at"`
+	Replies               []FeedbackReply      `json:"replies"`
+	Revision              int64                `json:"revision"`
+	Sender                string               `json:"sender"`
+	State                 FeedbackState        `json:"state"`
+	Subject               string               `json:"subject"`
+	Suspicious            bool                 `json:"suspicious"`
+}
+
+// FeedbackState defines model for Feedback.State.
+type FeedbackState string
+
+// FeedbackAttachment defines model for FeedbackAttachment.
+type FeedbackAttachment struct {
+	ContentType string                   `json:"content_type"`
+	Id          string                   `json:"id"`
+	Name        string                   `json:"name"`
+	Size        int64                    `json:"size"`
+	Status      FeedbackAttachmentStatus `json:"status"`
+}
+
+// FeedbackAttachmentStatus defines model for FeedbackAttachment.Status.
+type FeedbackAttachmentStatus string
+
+// FeedbackPage defines model for FeedbackPage.
+type FeedbackPage struct {
+	Items      []Feedback `json:"items"`
+	NextCursor string     `json:"next_cursor"`
+}
+
+// FeedbackReply defines model for FeedbackReply.
+type FeedbackReply struct {
+	Actor     string             `json:"actor"`
+	Body      string             `json:"body"`
+	CreatedAt time.Time          `json:"created_at"`
+	Id        string             `json:"id"`
+	State     FeedbackReplyState `json:"state"`
+}
+
+// FeedbackReplyState defines model for FeedbackReply.State.
+type FeedbackReplyState string
+
+// FeedbackReplyInput defines model for FeedbackReplyInput.
+type FeedbackReplyInput struct {
+	Body string `json:"body"`
+}
+
+// FeedbackUpdate defines model for FeedbackUpdate.
+type FeedbackUpdate struct {
+	Note     string              `json:"note"`
+	Revision int64               `json:"revision"`
+	State    FeedbackUpdateState `json:"state"`
+}
+
+// FeedbackUpdateState defines model for FeedbackUpdate.State.
+type FeedbackUpdateState string
 
 // Policy defines model for Policy.
 type Policy struct {
@@ -318,6 +498,26 @@ type TaskView struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
+// ListFeedbackParams defines parameters for ListFeedback.
+type ListFeedbackParams struct {
+	After *string                  `form:"after,omitempty" json:"after,omitempty"`
+	Limit *int                     `form:"limit,omitempty" json:"limit,omitempty"`
+	State *ListFeedbackParamsState `form:"state,omitempty" json:"state,omitempty"`
+}
+
+// ListFeedbackParamsState defines parameters for ListFeedback.
+type ListFeedbackParamsState string
+
+// UpdateFeedbackParams defines parameters for UpdateFeedback.
+type UpdateFeedbackParams struct {
+	IdempotencyKey string `json:"Idempotency-Key"`
+}
+
+// ReplyFeedbackParams defines parameters for ReplyFeedback.
+type ReplyFeedbackParams struct {
+	IdempotencyKey string `json:"Idempotency-Key"`
+}
+
 // GetPolicyParams defines parameters for GetPolicy.
 type GetPolicyParams struct {
 	SchoolId string `form:"school_id" json:"school_id"`
@@ -374,6 +574,12 @@ type RetryTaskJSONBody struct {
 type RetryTaskParams struct {
 	IdempotencyKey string `json:"Idempotency-Key"`
 }
+
+// UpdateFeedbackJSONRequestBody defines body for UpdateFeedback for application/json ContentType.
+type UpdateFeedbackJSONRequestBody = FeedbackUpdate
+
+// ReplyFeedbackJSONRequestBody defines body for ReplyFeedback for application/json ContentType.
+type ReplyFeedbackJSONRequestBody = FeedbackReplyInput
 
 // SetPolicyJSONRequestBody defines body for SetPolicy for application/json ContentType.
 type SetPolicyJSONRequestBody = Policy
@@ -467,6 +673,49 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
+	// ListFeedback listFeedback
+	//
+	// Corresponds with GET /api/v1/moderation/feedback (the `ListFeedback` operationId).
+	ListFeedback(ctx context.Context, params *ListFeedbackParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFeedback getFeedback
+	//
+	// Corresponds with GET /api/v1/moderation/feedback/{id} (the `GetFeedback` operationId).
+	GetFeedback(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateFeedbackWithBody updateFeedback
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /api/v1/moderation/feedback/{id} (the `UpdateFeedback` operationId).
+	UpdateFeedbackWithBody(ctx context.Context, id string, params *UpdateFeedbackParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateFeedback updateFeedback
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /api/v1/moderation/feedback/{id} (the `UpdateFeedback` operationId).
+	UpdateFeedback(ctx context.Context, id string, params *UpdateFeedbackParams, body UpdateFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DownloadFeedbackAttachment Download attachment with current feedback permission
+	//
+	// Corresponds with GET /api/v1/moderation/feedback/{id}/attachments/{attachment} (the `DownloadFeedbackAttachment` operationId).
+	DownloadFeedbackAttachment(ctx context.Context, id string, attachment string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplyFeedbackWithBody replyFeedback
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
+	ReplyFeedbackWithBody(ctx context.Context, id string, params *ReplyFeedbackParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplyFeedback replyFeedback
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
+	ReplyFeedback(ctx context.Context, id string, params *ReplyFeedbackParams, body ReplyFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetPolicy performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
 	GetPolicy(ctx context.Context, params *GetPolicyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -527,6 +776,119 @@ type ClientInterface interface {
 	// RetryTask performs a POST /api/v1/moderation/tasks/{id}/retry (the `RetryTask` operationId) request.
 	// Takes a body of the `application/json` content type.
 	RetryTask(ctx context.Context, id string, params *RetryTaskParams, body RetryTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+// ListFeedback listFeedback
+//
+// Corresponds with GET /api/v1/moderation/feedback (the `ListFeedback` operationId).
+func (c *Client) ListFeedback(ctx context.Context, params *ListFeedbackParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListFeedbackRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetFeedback getFeedback
+//
+// Corresponds with GET /api/v1/moderation/feedback/{id} (the `GetFeedback` operationId).
+func (c *Client) GetFeedback(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFeedbackRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateFeedbackWithBody updateFeedback
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /api/v1/moderation/feedback/{id} (the `UpdateFeedback` operationId).
+func (c *Client) UpdateFeedbackWithBody(ctx context.Context, id string, params *UpdateFeedbackParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateFeedbackRequestWithBody(c.Server, id, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateFeedback updateFeedback
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /api/v1/moderation/feedback/{id} (the `UpdateFeedback` operationId).
+func (c *Client) UpdateFeedback(ctx context.Context, id string, params *UpdateFeedbackParams, body UpdateFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateFeedbackRequest(c.Server, id, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DownloadFeedbackAttachment Download attachment with current feedback permission
+//
+// Corresponds with GET /api/v1/moderation/feedback/{id}/attachments/{attachment} (the `DownloadFeedbackAttachment` operationId).
+func (c *Client) DownloadFeedbackAttachment(ctx context.Context, id string, attachment string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDownloadFeedbackAttachmentRequest(c.Server, id, attachment)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReplyFeedbackWithBody replyFeedback
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
+func (c *Client) ReplyFeedbackWithBody(ctx context.Context, id string, params *ReplyFeedbackParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplyFeedbackRequestWithBody(c.Server, id, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReplyFeedback replyFeedback
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
+func (c *Client) ReplyFeedback(ctx context.Context, id string, params *ReplyFeedbackParams, body ReplyFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplyFeedbackRequest(c.Server, id, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 // GetPolicy performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
@@ -738,6 +1100,279 @@ func (c *Client) RetryTask(ctx context.Context, id string, params *RetryTaskPara
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewListFeedbackRequest constructs an http.Request for the ListFeedback method
+func NewListFeedbackRequest(server string, params *ListFeedbackParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/feedback")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.After != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "after", *params.After, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.State != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetFeedbackRequest constructs an http.Request for the GetFeedback method
+func NewGetFeedbackRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/feedback/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateFeedbackRequest calls the generic UpdateFeedback builder with application/json body
+func NewUpdateFeedbackRequest(server string, id string, params *UpdateFeedbackParams, body UpdateFeedbackJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateFeedbackRequestWithBody(server, id, params, "application/json", bodyReader)
+}
+
+// NewUpdateFeedbackRequestWithBody constructs an http.Request for the UpdateFeedback method, with any body, and a specified content type
+func NewUpdateFeedbackRequestWithBody(server string, id string, params *UpdateFeedbackParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/feedback/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewDownloadFeedbackAttachmentRequest constructs an http.Request for the DownloadFeedbackAttachment method
+func NewDownloadFeedbackAttachmentRequest(server string, id string, attachment string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "attachment", attachment, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/feedback/%s/attachments/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReplyFeedbackRequest calls the generic ReplyFeedback builder with application/json body
+func NewReplyFeedbackRequest(server string, id string, params *ReplyFeedbackParams, body ReplyFeedbackJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplyFeedbackRequestWithBody(server, id, params, "application/json", bodyReader)
+}
+
+// NewReplyFeedbackRequestWithBody constructs an http.Request for the ReplyFeedback method, with any body, and a specified content type
+func NewReplyFeedbackRequestWithBody(server string, id string, params *ReplyFeedbackParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/feedback/%s/replies", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
 }
 
 // NewGetPolicyRequest constructs an http.Request for the GetPolicy method
@@ -1370,6 +2005,55 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
+	// ListFeedbackWithResponse listFeedback
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/moderation/feedback (the `ListFeedback` operationId).
+	ListFeedbackWithResponse(ctx context.Context, params *ListFeedbackParams, reqEditors ...RequestEditorFn) (*ListFeedbackResponse, error)
+
+	// GetFeedbackWithResponse getFeedback
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/moderation/feedback/{id} (the `GetFeedback` operationId).
+	GetFeedbackWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetFeedbackResponse, error)
+
+	// UpdateFeedbackWithBodyWithResponse updateFeedback
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/moderation/feedback/{id} (the `UpdateFeedback` operationId).
+	UpdateFeedbackWithBodyWithResponse(ctx context.Context, id string, params *UpdateFeedbackParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateFeedbackResponse, error)
+
+	// UpdateFeedbackWithResponse updateFeedback
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/moderation/feedback/{id} (the `UpdateFeedback` operationId).
+	UpdateFeedbackWithResponse(ctx context.Context, id string, params *UpdateFeedbackParams, body UpdateFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateFeedbackResponse, error)
+
+	// DownloadFeedbackAttachmentWithResponse Download attachment with current feedback permission
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/moderation/feedback/{id}/attachments/{attachment} (the `DownloadFeedbackAttachment` operationId).
+	DownloadFeedbackAttachmentWithResponse(ctx context.Context, id string, attachment string, reqEditors ...RequestEditorFn) (*DownloadFeedbackAttachmentResponse, error)
+
+	// ReplyFeedbackWithBodyWithResponse replyFeedback
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
+	ReplyFeedbackWithBodyWithResponse(ctx context.Context, id string, params *ReplyFeedbackParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplyFeedbackResponse, error)
+
+	// ReplyFeedbackWithResponse replyFeedback
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
+	ReplyFeedbackWithResponse(ctx context.Context, id string, params *ReplyFeedbackParams, body ReplyFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplyFeedbackResponse, error)
+
 	// GetPolicyWithResponse performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -1448,6 +2132,204 @@ type ClientWithResponsesInterface interface {
 	// RetryTaskWithResponse performs a POST /api/v1/moderation/tasks/{id}/retry (the `RetryTask` operationId) request.
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	RetryTaskWithResponse(ctx context.Context, id string, params *RetryTaskParams, body RetryTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*RetryTaskResponse, error)
+}
+
+type ListFeedbackResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FeedbackPage
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListFeedbackResponse) GetJSON200() *FeedbackPage {
+	return r.JSON200
+}
+
+// GetBody returns the raw response body bytes
+func (r ListFeedbackResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListFeedbackResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListFeedbackResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListFeedbackResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetFeedbackResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Feedback
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetFeedbackResponse) GetJSON200() *Feedback {
+	return r.JSON200
+}
+
+// GetBody returns the raw response body bytes
+func (r GetFeedbackResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFeedbackResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFeedbackResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetFeedbackResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateFeedbackResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Feedback
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateFeedbackResponse) GetJSON200() *Feedback {
+	return r.JSON200
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateFeedbackResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateFeedbackResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateFeedbackResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateFeedbackResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DownloadFeedbackAttachmentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// GetBody returns the raw response body bytes
+func (r DownloadFeedbackAttachmentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DownloadFeedbackAttachmentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DownloadFeedbackAttachmentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DownloadFeedbackAttachmentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReplyFeedbackResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FeedbackReply
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReplyFeedbackResponse) GetJSON200() *FeedbackReply {
+	return r.JSON200
+}
+
+// GetBody returns the raw response body bytes
+func (r ReplyFeedbackResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplyFeedbackResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplyFeedbackResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReplyFeedbackResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
 }
 
 type GetPolicyResponse struct {
@@ -2208,6 +3090,97 @@ func (r RetryTaskResponse) ContentType() string {
 	return ""
 }
 
+// ListFeedbackWithResponse listFeedback
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/moderation/feedback (the `ListFeedback` operationId).
+func (c *ClientWithResponses) ListFeedbackWithResponse(ctx context.Context, params *ListFeedbackParams, reqEditors ...RequestEditorFn) (*ListFeedbackResponse, error) {
+	rsp, err := c.ListFeedback(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListFeedbackResponse(rsp)
+}
+
+// GetFeedbackWithResponse getFeedback
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/moderation/feedback/{id} (the `GetFeedback` operationId).
+func (c *ClientWithResponses) GetFeedbackWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetFeedbackResponse, error) {
+	rsp, err := c.GetFeedback(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFeedbackResponse(rsp)
+}
+
+// UpdateFeedbackWithBodyWithResponse updateFeedback
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/moderation/feedback/{id} (the `UpdateFeedback` operationId).
+func (c *ClientWithResponses) UpdateFeedbackWithBodyWithResponse(ctx context.Context, id string, params *UpdateFeedbackParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateFeedbackResponse, error) {
+	rsp, err := c.UpdateFeedbackWithBody(ctx, id, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateFeedbackResponse(rsp)
+}
+
+// UpdateFeedbackWithResponse updateFeedback
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/moderation/feedback/{id} (the `UpdateFeedback` operationId).
+func (c *ClientWithResponses) UpdateFeedbackWithResponse(ctx context.Context, id string, params *UpdateFeedbackParams, body UpdateFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateFeedbackResponse, error) {
+	rsp, err := c.UpdateFeedback(ctx, id, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateFeedbackResponse(rsp)
+}
+
+// DownloadFeedbackAttachmentWithResponse Download attachment with current feedback permission
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/moderation/feedback/{id}/attachments/{attachment} (the `DownloadFeedbackAttachment` operationId).
+func (c *ClientWithResponses) DownloadFeedbackAttachmentWithResponse(ctx context.Context, id string, attachment string, reqEditors ...RequestEditorFn) (*DownloadFeedbackAttachmentResponse, error) {
+	rsp, err := c.DownloadFeedbackAttachment(ctx, id, attachment, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDownloadFeedbackAttachmentResponse(rsp)
+}
+
+// ReplyFeedbackWithBodyWithResponse replyFeedback
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
+func (c *ClientWithResponses) ReplyFeedbackWithBodyWithResponse(ctx context.Context, id string, params *ReplyFeedbackParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplyFeedbackResponse, error) {
+	rsp, err := c.ReplyFeedbackWithBody(ctx, id, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplyFeedbackResponse(rsp)
+}
+
+// ReplyFeedbackWithResponse replyFeedback
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
+func (c *ClientWithResponses) ReplyFeedbackWithResponse(ctx context.Context, id string, params *ReplyFeedbackParams, body ReplyFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplyFeedbackResponse, error) {
+	rsp, err := c.ReplyFeedback(ctx, id, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplyFeedbackResponse(rsp)
+}
+
 // GetPolicyWithResponse performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -2375,6 +3348,210 @@ func (c *ClientWithResponses) RetryTaskWithResponse(ctx context.Context, id stri
 		return nil, err
 	}
 	return ParseRetryTaskResponse(rsp)
+}
+
+// ParseListFeedbackResponse parses an HTTP response from a ListFeedbackWithResponse call
+func ParseListFeedbackResponse(rsp *http.Response) (*ListFeedbackResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListFeedbackResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeedbackPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case rsp.StatusCode == 400:
+		break // No content-type
+
+	case rsp.StatusCode == 401:
+		break // No content-type
+
+	case rsp.StatusCode == 403:
+		break // No content-type
+
+	case rsp.StatusCode == 404:
+		break // No content-type
+
+	case rsp.StatusCode == 409:
+		break // No content-type
+
+	case rsp.StatusCode == 429:
+		break // No content-type
+
+	case rsp.StatusCode == 503:
+		break // No content-type
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFeedbackResponse parses an HTTP response from a GetFeedbackWithResponse call
+func ParseGetFeedbackResponse(rsp *http.Response) (*GetFeedbackResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFeedbackResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Feedback
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case rsp.StatusCode == 400:
+		break // No content-type
+
+	case rsp.StatusCode == 401:
+		break // No content-type
+
+	case rsp.StatusCode == 403:
+		break // No content-type
+
+	case rsp.StatusCode == 404:
+		break // No content-type
+
+	case rsp.StatusCode == 409:
+		break // No content-type
+
+	case rsp.StatusCode == 429:
+		break // No content-type
+
+	case rsp.StatusCode == 503:
+		break // No content-type
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateFeedbackResponse parses an HTTP response from a UpdateFeedbackWithResponse call
+func ParseUpdateFeedbackResponse(rsp *http.Response) (*UpdateFeedbackResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateFeedbackResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Feedback
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case rsp.StatusCode == 400:
+		break // No content-type
+
+	case rsp.StatusCode == 401:
+		break // No content-type
+
+	case rsp.StatusCode == 403:
+		break // No content-type
+
+	case rsp.StatusCode == 404:
+		break // No content-type
+
+	case rsp.StatusCode == 409:
+		break // No content-type
+
+	case rsp.StatusCode == 429:
+		break // No content-type
+
+	case rsp.StatusCode == 503:
+		break // No content-type
+
+	}
+
+	return response, nil
+}
+
+// ParseDownloadFeedbackAttachmentResponse parses an HTTP response from a DownloadFeedbackAttachmentWithResponse call
+func ParseDownloadFeedbackAttachmentResponse(rsp *http.Response) (*DownloadFeedbackAttachmentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DownloadFeedbackAttachmentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseReplyFeedbackResponse parses an HTTP response from a ReplyFeedbackWithResponse call
+func ParseReplyFeedbackResponse(rsp *http.Response) (*ReplyFeedbackResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplyFeedbackResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeedbackReply
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case rsp.StatusCode == 400:
+		break // No content-type
+
+	case rsp.StatusCode == 401:
+		break // No content-type
+
+	case rsp.StatusCode == 403:
+		break // No content-type
+
+	case rsp.StatusCode == 404:
+		break // No content-type
+
+	case rsp.StatusCode == 409:
+		break // No content-type
+
+	case rsp.StatusCode == 429:
+		break // No content-type
+
+	case rsp.StatusCode == 503:
+		break // No content-type
+
+	}
+
+	return response, nil
 }
 
 // ParseGetPolicyResponse parses an HTTP response from a GetPolicyWithResponse call
