@@ -220,3 +220,33 @@ func TestFeedbackRateCapacityAndCursor(t *testing.T) {
 		t.Fatal(uid, e)
 	}
 }
+
+func TestFeedbackLeapDayRetentionMatchesDatabaseCalendarMonths(t *testing.T) {
+	repo, _ := database(t)
+	clock := time.Date(2028, 2, 29, 12, 30, 0, 0, time.UTC)
+	svc := &f.Service{Repo: &pg.FeedbackRepository{DB: repo.DB}, Access: &feedbackAccess{}, Blobs: &feedbackBlobs{values: map[string][]byte{}}, Now: func() time.Time { return clock }}
+	ctx := context.Background()
+	v, e := svc.Ingest(ctx, feedbackInput("leap-day"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	v, e = svc.Update(ctx, "operator", v.ID, "close-leap", f.Update{Revision: v.Revision, State: "resolved"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	clock = time.Date(2029, 2, 28, 12, 29, 59, 0, time.UTC)
+	if _, e = svc.Get(ctx, "operator", v.ID); e != nil {
+		t.Fatal(e)
+	}
+	clock = clock.Add(time.Second)
+	if _, e = svc.Get(ctx, "operator", v.ID); !errors.Is(e, f.ErrNotFound) {
+		t.Fatal(e)
+	}
+	if e = svc.Cleanup(ctx); e != nil {
+		t.Fatal(e)
+	}
+	var count int
+	if e = repo.DB.QueryRow(`SELECT count(*) FROM moderation.feedback`).Scan(&count); e != nil || count != 0 {
+		t.Fatal(count, e)
+	}
+}

@@ -56,5 +56,6 @@ scenario_tests:
     - feedback_test.go#TestFeedbackConcurrentIngestAuthorizationAndAudit
   CM-20:
     - feedback_test.go#TestFeedbackReplyUnknownIsNeverResentAndRetentionDeletesMaterials
+    - feedback_test.go#TestFeedbackLeapDayRetentionMatchesDatabaseCalendarMonths
   CM-21:
     - feedback_test.go#TestFeedbackRateCapacityAndCursor
