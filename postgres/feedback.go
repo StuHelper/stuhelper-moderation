@@ -42,6 +42,11 @@ func (r *FeedbackRepository) Transaction(ctx context.Context, run func(f.Tx) err
 		return feedbackError(e)
 	}
 	defer tx.Rollback()
+	// Calendar retention must match the UTC timestamps used by the service,
+	// independently of the deployment database/session timezone.
+	if _, e = tx.ExecContext(ctx, "SET LOCAL TIME ZONE 'UTC'"); e != nil {
+		return feedbackError(e)
+	}
 	if e = run(&feedbackTx{ctx, tx}); e != nil {
 		return e
 	}
