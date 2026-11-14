@@ -189,7 +189,16 @@ func (s *Service) Get(ctx context.Context, actor, id string) (Message, error) {
 	return out, e
 }
 func expired(v Message, now time.Time) bool {
-	return v.ClosedAt != nil && !v.ClosedAt.AddDate(1, 0, 0).After(now)
+	if v.ClosedAt == nil {
+		return false
+	}
+	expiry := v.ClosedAt.AddDate(1, 0, 0)
+	// PostgreSQL calendar-month intervals clamp leap day to February 28.
+	// Use the same boundary for detail access and cleanup eligibility.
+	if expiry.Month() != v.ClosedAt.Month() {
+		expiry = expiry.AddDate(0, 0, -1)
+	}
+	return !expiry.After(now)
 }
 func (s *Service) Update(ctx context.Context, actor, id, key string, u Update) (Message, error) {
 	if e := s.allowed(ctx, actor, "manage"); e != nil {
