@@ -57,5 +57,6 @@ scenario_tests:
   CM-20:
     - feedback_test.go#TestFeedbackReplyUnknownIsNeverResentAndRetentionDeletesMaterials
     - feedback_test.go#TestFeedbackLeapDayRetentionMatchesDatabaseCalendarMonths
+    - feedback_test.go#TestFeedbackRetentionUsesUTCRegardlessOfDatabaseTimezone
   CM-21:
     - feedback_test.go#TestFeedbackRateCapacityAndCursor
