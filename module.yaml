@@ -33,6 +33,7 @@ scenario_tests:
   CM-12:
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
   CM-13:
+    - object_access_test.go#TestNotificationTaskBatchKeepsReceiptPermissions
     - operations_test.go#TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence
   ACAD-15:
     - report_test.go#TestNewReportsRequireAdmissionButOwnPendingEvidenceRemainsAvailable
