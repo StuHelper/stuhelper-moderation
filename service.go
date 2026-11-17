@@ -21,9 +21,9 @@ type Service struct {
 
 func (s *Service) now() time.Time {
 	if s.Clock != nil {
-		return s.Clock().UTC()
+		return s.Clock().UTC().Truncate(time.Microsecond)
 	}
-	return time.Now().UTC()
+	return time.Now().UTC().Truncate(time.Microsecond)
 }
 func digest(v any) string {
 	b, _ := json.Marshal(v)

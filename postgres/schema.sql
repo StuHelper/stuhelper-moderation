@@ -9,6 +9,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS moderation_active_request ON moderation.tasks(
 CREATE INDEX IF NOT EXISTS moderation_school_queue ON moderation.tasks(school_id,state,id);
 CREATE INDEX IF NOT EXISTS moderation_owner_queue ON moderation.tasks(owner,id);
 CREATE INDEX IF NOT EXISTS moderation_delivery ON moderation.tasks(next_attempt,lease_until) WHERE state='decided';
+ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS created_at timestamptz;
+ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS content_owner text NOT NULL DEFAULT '';
+ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS content_kind text NOT NULL DEFAULT '';
+UPDATE moderation.tasks SET
+ created_at=COALESCE((data->>'created_at')::timestamptz,next_attempt),
+ updated_at=COALESCE((data->>'updated_at')::timestamptz,next_attempt),
+ content_owner=COALESCE(data->>'content_owner',''),
+ content_kind=COALESCE(data->>'content_kind','')
+ WHERE created_at IS NULL OR updated_at IS NULL;
+ALTER TABLE moderation.tasks ALTER COLUMN created_at SET NOT NULL;
+ALTER TABLE moderation.tasks ALTER COLUMN updated_at SET NOT NULL;
+CREATE INDEX IF NOT EXISTS moderation_school_created_asc ON moderation.tasks(school_id,created_at ASC,id COLLATE "C" ASC);
+CREATE INDEX IF NOT EXISTS moderation_school_created_desc ON moderation.tasks(school_id,created_at DESC,id COLLATE "C" DESC);
+CREATE INDEX IF NOT EXISTS moderation_school_state_created_asc ON moderation.tasks(school_id,state,created_at ASC,id COLLATE "C" ASC);
+CREATE INDEX IF NOT EXISTS moderation_owner_updated_desc ON moderation.tasks(owner,updated_at DESC,id COLLATE "C" DESC);
+CREATE INDEX IF NOT EXISTS moderation_content_owner_updated_desc ON moderation.tasks(content_owner,updated_at DESC,id COLLATE "C" DESC) WHERE content_owner<>'';
+CREATE INDEX IF NOT EXISTS moderation_object_history ON moderation.tasks(school_id,object_id,created_at DESC,id COLLATE "C" DESC);
 CREATE TABLE IF NOT EXISTS moderation.policies(school_id text NOT NULL,kind text NOT NULL,data jsonb NOT NULL,PRIMARY KEY(school_id,kind));
 CREATE TABLE IF NOT EXISTS moderation.replays(key text PRIMARY KEY,data jsonb NOT NULL);
 CREATE TABLE IF NOT EXISTS moderation.audit (
@@ -46,6 +64,8 @@ CREATE TABLE IF NOT EXISTS moderation.feedback (
  bytes bigint NOT NULL CHECK(bytes>=0), data jsonb NOT NULL
 );
 CREATE INDEX IF NOT EXISTS feedback_sender_rate ON moderation.feedback(sender,received_at);
+CREATE INDEX IF NOT EXISTS feedback_inbox_order ON moderation.feedback(received_at DESC,id COLLATE "C" DESC) WHERE ready;
+CREATE INDEX IF NOT EXISTS feedback_state_order ON moderation.feedback(state,received_at DESC,id COLLATE "C" DESC) WHERE ready;
 CREATE INDEX IF NOT EXISTS feedback_expiry ON moderation.feedback(closed_at,id) WHERE closed_at IS NOT NULL;
 CREATE TABLE IF NOT EXISTS moderation.feedback_receipts (
  key text PRIMARY KEY, hash text NOT NULL, target text NOT NULL REFERENCES moderation.feedback(id) ON DELETE CASCADE, data jsonb NOT NULL, created_at timestamptz NOT NULL

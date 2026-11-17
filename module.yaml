@@ -25,6 +25,7 @@ scenario_tests:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
+    - pagination_test.go#TestTimeOrderedTaskPaginationAndQueueSummary
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
     - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
   CM-10:
@@ -55,6 +56,7 @@ scenario_tests:
     - postgres/outbox_test.go#TestPendingOutboxPlanUsesPartialIndex
   CM-19:
     - feedback_test.go#TestFeedbackConcurrentIngestAuthorizationAndAudit
+    - pagination_test.go#TestFeedbackTimeOrderedCursorPagination
   CM-20:
     - feedback_test.go#TestFeedbackReplyUnknownIsNeverResentAndRetentionDeletesMaterials
     - feedback_test.go#TestFeedbackLeapDayRetentionMatchesDatabaseCalendarMonths

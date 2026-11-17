@@ -22,6 +22,8 @@ func (h Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	h.batchRoutes(mux)
 	mux.HandleFunc("GET /api/v1/moderation/tasks", h.list)
+	mux.HandleFunc("GET /api/v1/moderation/tasks/page", h.listPage)
+	mux.HandleFunc("GET /api/v1/moderation/tasks/summary", h.summary)
 	mux.HandleFunc("POST /api/v1/moderation/tasks", h.submit)
 	mux.HandleFunc("GET /api/v1/moderation/tasks/{id}", h.get)
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/decisions", h.decide)
@@ -101,34 +103,77 @@ func (h Handler) principal(w http.ResponseWriter, r *http.Request) (m.Principal,
 	}
 	return p, true
 }
-func (h Handler) list(w http.ResponseWriter, r *http.Request) {
-	p, ok := h.principal(w, r)
-	if !ok {
-		return
-	}
+func parseTaskFilter(r *http.Request) (m.TaskFilter, error) {
 	q := r.URL.Query()
 	n := 20
 	if q.Get("limit") != "" {
 		var e error
 		n, e = strconv.Atoi(q.Get("limit"))
 		if e != nil {
-			respond(w, nil, m.ErrInput)
-			return
+			return m.TaskFilter{}, m.ErrInput
 		}
 	}
-	admin := q.Get("admin") == "true"
-	filter := m.TaskFilter{School: q.Get("school_id"), State: q.Get("state"), After: q.Get("after"), Limit: n, Admin: admin, Kind: q.Get("kind"), ContentKind: q.Get("content_kind"), ObjectID: q.Get("object_id")}
+	rawAdmin := q.Get("admin")
+	if rawAdmin != "" && rawAdmin != "true" && rawAdmin != "false" {
+		return m.TaskFilter{}, m.ErrInput
+	}
+	filter := m.TaskFilter{
+		School:      q.Get("school_id"),
+		State:       q.Get("state"),
+		After:       q.Get("after"),
+		Order:       q.Get("order"),
+		Limit:       n,
+		Admin:       rawAdmin == "true",
+		Kind:        q.Get("kind"),
+		ContentKind: q.Get("content_kind"),
+		ObjectID:    q.Get("object_id"),
+	}
 	for key, dest := range map[string]**time.Time{"from": &filter.From, "until": &filter.Until} {
 		if q.Get(key) != "" {
 			v, e := time.Parse(time.RFC3339, q.Get(key))
 			if e != nil {
-				respond(w, nil, m.ErrInput)
-				return
+				return m.TaskFilter{}, m.ErrInput
 			}
 			*dest = &v
 		}
 	}
-	v, e := h.Service.FilteredList(r.Context(), p, filter)
+	return filter, nil
+}
+func (h Handler) list(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	filter, err := parseTaskFilter(r)
+	if err != nil {
+		respond(w, nil, err)
+		return
+	}
+	page, e := h.Service.FilteredPage(r.Context(), p, filter)
+	if e == nil && page.NextCursor != "" {
+		w.Header().Set("X-Next-Cursor", page.NextCursor)
+	}
+	respond(w, page.Items, e)
+}
+func (h Handler) listPage(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	filter, err := parseTaskFilter(r)
+	if err != nil {
+		respond(w, nil, err)
+		return
+	}
+	page, e := h.Service.FilteredPage(r.Context(), p, filter)
+	respond(w, page, e)
+}
+func (h Handler) summary(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	v, e := h.Service.QueueSummary(r.Context(), p, r.URL.Query().Get("school_id"))
 	respond(w, v, e)
 }
 func (h Handler) get(w http.ResponseWriter, r *http.Request) {

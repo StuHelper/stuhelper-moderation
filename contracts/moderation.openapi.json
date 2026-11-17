@@ -16,6 +16,15 @@
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "X-Next-Cursor": {
+                "description": "Opaque cursor for the next page, empty when no further items exist.",
+                "schema": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -112,7 +121,21 @@
             "in": "query",
             "name": "after",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "description": "Sort order: oldest (created_at ASC, default for admin), newest (created_at DESC), or updated_desc (updated_at DESC, default for user).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "oldest",
+                "newest",
+                "updated_desc"
+              ]
             }
           },
           {
@@ -287,6 +310,228 @@
           }
         ],
         "description": "Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission."
+      }
+    },
+    "/api/v1/moderation/tasks/page": {
+      "get": {
+        "operationId": "listTaskPage",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "school_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "oldest",
+                "newest",
+                "updated_desc"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "content_kind",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "object_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/moderation/tasks/summary": {
+      "get": {
+        "operationId": "getQueueSummary",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "school_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/v1/moderation/tasks/{id}": {
@@ -1951,6 +2196,122 @@
         },
         "required": [
           "body"
+        ]
+      },
+      "TaskPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskView"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "QueueContentCounts": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "course": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mentor": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reply": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resource": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "course",
+          "mentor",
+          "reply",
+          "resource"
+        ]
+      },
+      "QueueRequestCounts": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "review": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "report": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "edit_request": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "delete_request": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "appeal": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "review",
+          "report",
+          "edit_request",
+          "delete_request",
+          "appeal"
+        ]
+      },
+      "QueueSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "school_id": {
+            "type": "string"
+          },
+          "waiting": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "decided": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "by_content_kind": {
+            "$ref": "#/components/schemas/QueueContentCounts"
+          },
+          "by_request_kind": {
+            "$ref": "#/components/schemas/QueueRequestCounts"
+          }
+        },
+        "required": [
+          "school_id",
+          "waiting",
+          "decided",
+          "failed",
+          "by_content_kind",
+          "by_request_kind"
         ]
       },
       "FeedbackPage": {

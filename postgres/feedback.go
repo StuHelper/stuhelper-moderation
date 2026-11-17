@@ -91,6 +91,11 @@ func (t *feedbackTx) Find(key string) (f.Message, error) {
 	return f.Message{ID: id, Ready: true}, feedbackError(e)
 }
 func (t *feedbackTx) Save(v f.Message) error {
+	v.ReceivedAt = v.ReceivedAt.UTC().Truncate(time.Microsecond)
+	if v.ClosedAt != nil {
+		closed := v.ClosedAt.UTC().Truncate(time.Microsecond)
+		v.ClosedAt = &closed
+	}
 	objects := map[string]string{}
 	for _, a := range v.Attachments {
 		objects[a.ID] = a.ObjectID
@@ -123,7 +128,11 @@ func (t *feedbackTx) many(q string, args ...any) ([]f.Message, error) {
 	return out, feedbackError(rows.Err())
 }
 func (t *feedbackTx) List(v f.Filter) ([]f.Message, error) {
-	return t.many(`SELECT data FROM moderation.feedback WHERE ready AND id>$1 AND ($2='' OR state=$2) AND (closed_at IS NULL OR closed_at+interval '12 months'>now()) ORDER BY id LIMIT $3`, v.After, v.State, v.Limit+1)
+	now := v.Now
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	return t.many(`SELECT data FROM moderation.feedback WHERE ready AND ($1::timestamptz IS NULL OR (received_at, id COLLATE "C") < ($1, $2::text COLLATE "C")) AND ($3='' OR state=$3) AND (closed_at IS NULL OR closed_at+interval '12 months'>$4) ORDER BY received_at DESC, id COLLATE "C" DESC LIMIT $5`, v.CursorAt, v.CursorID, v.State, now, v.Limit+1)
 }
 func (t *feedbackTx) Usage(sender string, since time.Time) (int, int64, int, error) {
 	var count, rate int

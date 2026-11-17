@@ -59,6 +59,9 @@ type Input struct {
 }
 type Filter struct {
 	After, State string
+	CursorAt     *time.Time
+	CursorID     string
+	Now          time.Time
 	Limit        int
 }
 type Page struct {
@@ -114,7 +117,7 @@ type Service struct {
 
 func (s *Service) now() time.Time {
 	if s.Now != nil {
-		return s.Now().UTC()
+		return s.Now().UTC().Truncate(time.Microsecond)
 	}
-	return time.Now().UTC()
+	return time.Now().UTC().Truncate(time.Microsecond)
 }

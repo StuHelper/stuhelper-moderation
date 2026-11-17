@@ -97,7 +97,17 @@ func (t *transaction) Active(owner, object, kind string) (m.Task, error) {
 	return read[m.Task](t, `SELECT data FROM moderation.tasks WHERE owner=$1 AND object_id=$2 AND kind=$3 AND state IN ('waiting','decided')`, owner, object, kind)
 }
 func (t *transaction) SaveTask(v m.Task) error {
-	return t.save(`INSERT INTO moderation.tasks(id,owner,school_id,object_id,kind,state,next_attempt,lease_until,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO UPDATE SET state=excluded.state,next_attempt=excluded.next_attempt,lease_until=excluded.lease_until,data=excluded.data`, v, v.ID, v.Owner, v.SchoolID, v.Submission.ObjectID, v.Submission.Kind, v.State, v.NextAttempt, v.LeaseUntil)
+	createdAt := v.CreatedAt.UTC().Truncate(time.Microsecond)
+	if createdAt.IsZero() {
+		createdAt = time.Unix(0, 0).UTC()
+	}
+	updatedAt := v.UpdatedAt.UTC().Truncate(time.Microsecond)
+	if updatedAt.IsZero() {
+		updatedAt = createdAt
+	}
+	v.CreatedAt = createdAt
+	v.UpdatedAt = updatedAt
+	return t.save(`INSERT INTO moderation.tasks(id,owner,school_id,object_id,kind,state,next_attempt,lease_until,created_at,updated_at,content_owner,content_kind,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,school_id=excluded.school_id,object_id=excluded.object_id,kind=excluded.kind,state=excluded.state,next_attempt=excluded.next_attempt,lease_until=excluded.lease_until,created_at=excluded.created_at,updated_at=excluded.updated_at,content_owner=excluded.content_owner,content_kind=excluded.content_kind,data=excluded.data`, v, v.ID, v.Owner, v.SchoolID, v.Submission.ObjectID, v.Submission.Kind, v.State, v.NextAttempt, v.LeaseUntil, createdAt, updatedAt, v.ContentOwner, v.ContentKind)
 }
 func (t *transaction) List(owner, school, state, after string, limit int) ([]m.Task, error) {
 	return list[m.Task](t, `SELECT data FROM moderation.tasks WHERE ($1='' OR owner=$1) AND ($2='' OR school_id=$2) AND ($3='' OR state=$3) AND id>$4 ORDER BY id LIMIT $5`, owner, school, state, after, limit)
