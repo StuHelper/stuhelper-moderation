@@ -84,7 +84,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	return nil
 }
 func (h Handler) principal(w http.ResponseWriter, r *http.Request) (m.Principal, bool) {
-	if h.Authenticate == nil {
+	if h.Authenticate == nil || h.Service == nil {
 		respond(w, nil, m.ErrUnavailable)
 		return m.Principal{}, false
 	}

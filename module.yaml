@@ -30,6 +30,8 @@ scenario_tests:
   CM-10:
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
+    - contract_test.go#TestConvergedEditRequestCannotOverwriteConcurrentDecision
+    - contract_test.go#TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance
   CM-12:
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
   CM-13:

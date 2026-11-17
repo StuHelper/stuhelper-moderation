@@ -80,7 +80,7 @@ func replay(t Transaction, key, hash string, now time.Time) (TaskView, bool, err
 	}
 	return r.View, true, nil
 }
-func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
+func (s *Service) recordWithView(t Transaction, key, hash, action string, p Principal, task Task, v TaskView) error {
 	result := "success"
 	if action == "decided" {
 		result = "unknown"
@@ -92,7 +92,86 @@ func (s *Service) record(t Transaction, key, hash, action string, p Principal, t
 	if e := t.Event(Event{Result: result, Data: data, ID: key, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: s.now()}); e != nil {
 		return e
 	}
-	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: view(task), Until: s.now().Add(24 * time.Hour)})
+	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: v, Until: s.now().Add(24 * time.Hour)})
+}
+func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
+	return s.recordWithView(t, key, hash, action, p, task, view(task))
+}
+
+func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payload string, in Submission, object *Object, missingObjectErr error, beforeSave func(Transaction) error) (TaskView, error) {
+	var out TaskView
+	if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
+		return out, e
+	}
+	cached, found, e := replay(t, operation, payload, s.now())
+	if e != nil {
+		return out, e
+	}
+	if found {
+		return cached, nil
+	}
+	task, e := t.Active(p.Subject, in.ObjectID, in.Kind)
+	if e != nil && !errors.Is(e, ErrNotFound) {
+		return out, e
+	}
+	if errors.Is(e, ErrNotFound) {
+		if object == nil {
+			return out, missingObjectErr
+		}
+		if in.Evidence == nil {
+			in.Evidence = []string{}
+		}
+		task = Task{
+			ContentOwner:   object.Owner,
+			ContentKind:    object.Kind,
+			ID:             operation,
+			SchoolID:       object.SchoolID,
+			Owner:          p.Subject,
+			Submission:     in,
+			ObjectRevision: object.Revision,
+			State:          "waiting",
+			CreatedAt:      s.now(),
+		}
+	} else {
+		if e = t.Lock(task.ID); e != nil {
+			return out, e
+		}
+		task, e = t.Task(task.ID)
+		if e != nil {
+			return out, e
+		}
+		if task.State != "waiting" {
+			return out, ErrConflict
+		}
+		if task.Submission.Evidence == nil {
+			task.Submission.Evidence = []string{}
+		}
+		if in.Reason != task.Submission.Reason {
+			task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)
+		}
+		task.Submission.Evidence = append(task.Submission.Evidence, in.Evidence...)
+		if len(task.Submission.Evidence) > 20 {
+			return out, ErrInput
+		}
+		if in.Kind == "edit_request" {
+			task.Submission.ProposedBody = in.ProposedBody
+		}
+	}
+	if beforeSave != nil {
+		if e = beforeSave(t); e != nil {
+			return out, e
+		}
+	}
+	task.Revision++
+	task.UpdatedAt = s.now()
+	if e = t.SaveTask(task); e != nil {
+		return out, e
+	}
+	out = viewFor(p, task)
+	if e = s.recordWithView(t, operation, payload, "submitted", p, task, out); e != nil {
+		return out, e
+	}
+	return out, nil
 }
 
 // Check is read-only. Pending content is handed off by the content module's outbox.
@@ -133,11 +212,17 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 			return out, ErrInput
 		}
 	}
+	if in.Evidence == nil {
+		in.Evidence = []string{}
+	}
 	if in.Kind == "report" {
 		if in.PreviousTaskID != "" {
 			return out, ErrInput
 		}
 		return s.submitReport(ctx, p, key, in)
+	}
+	if s.Content == nil {
+		return out, ErrUnavailable
 	}
 	object, e := s.Content.Inspect(ctx, p, in.ObjectID)
 	if e != nil {
@@ -183,48 +268,9 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	rk := digest([]string{p.Subject, in.Kind, in.ObjectID, key})
 	h := digest(in)
 	err := s.Repo.Transaction(ctx, func(t Transaction) error {
-		if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
-			return e
-		}
-		cached, ok, e := replay(t, rk, h, s.now())
-		if e != nil {
-			return e
-		}
-		if ok {
-			out = cached
-			return nil
-		}
-		task, e := t.Active(p.Subject, in.ObjectID, in.Kind)
-		if e != nil && !errors.Is(e, ErrNotFound) {
-			return e
-		}
-		if e == nil && task.State != "waiting" {
-			return ErrConflict
-		}
-		if errors.Is(e, ErrNotFound) {
-			task = Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: rk, SchoolID: object.SchoolID, Owner: p.Subject, Submission: in, ObjectRevision: object.Revision, State: "waiting", CreatedAt: s.now()}
-		} else {
-			if in.Reason != task.Submission.Reason {
-				task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)
-			}
-			task.Submission.Evidence = append(task.Submission.Evidence, in.Evidence...)
-			if len(task.Submission.Evidence) > 20 {
-				return ErrInput
-			}
-			if in.Kind == "edit_request" {
-				task.Submission.ProposedBody = in.ProposedBody
-			}
-		}
-		task.Revision++
-		task.UpdatedAt = s.now()
-		if e = t.SaveTask(task); e != nil {
-			return e
-		}
-		if e = s.record(t, rk, h, "submitted", p, task); e != nil {
-			return e
-		}
-		out = viewFor(p, task)
-		return nil
+		var txErr error
+		out, txErr = s.upsertSubmissionTx(t, p, rk, h, in, &object, ErrUnavailable, nil)
+		return txErr
 	})
 	return out, err
 }
