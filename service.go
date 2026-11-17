@@ -109,11 +109,9 @@ func (s *Service) Check(ctx context.Context, school, kind, title, body string) (
 	if err != nil {
 		return "", err
 	}
-	text := strings.ToLower(title + "\n" + body)
-	for _, term := range policy.BlockedTerms {
-		if strings.Contains(text, strings.ToLower(term)) {
-			return "blocked", nil
-		}
+	matched := matchedBlockedTerms(policy.BlockedTerms, title, body)
+	if len(matched) > 0 {
+		return "blocked", nil
 	}
 	if !slices.Contains([]string{"published", "pending", "review"}, policy.Mode) {
 		return "", ErrUnavailable
@@ -283,6 +281,20 @@ func (s *Service) Get(ctx context.Context, p Principal, id string) (TaskView, er
 func (s *Service) List(ctx context.Context, p Principal, school, state, after string, limit int, admin bool) ([]TaskView, error) {
 	return s.FilteredList(ctx, p, TaskFilter{School: school, State: state, After: after, Limit: limit, Admin: admin})
 }
+func isSelfFavorableDecision(p Principal, task Task, objectOwner, action string) bool {
+	if p.Subject == "" || (task.ContentOwner != p.Subject && objectOwner != p.Subject) {
+		return false
+	}
+	switch action {
+	case "publish", "restore", "feature":
+		return true
+	case "dismiss":
+		return task.Owner != p.Subject
+	default:
+		return false
+	}
+}
+
 func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in Decide) (TaskView, error) {
 	var out TaskView
 	d := in.Decision
@@ -329,6 +341,11 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 		if e != nil {
 			return e
 		}
+		if isSelfFavorableDecision(p, task, object.Owner, d.Action) {
+			if e = s.auth(ctx, p, "self_approve", "*"); e != nil {
+				return e
+			}
+		}
 		if object.Kind == "resource" && !slices.Contains([]string{"publish", "hide", "restore", "delete", "dismiss"}, d.Action) {
 			return ErrInput
 		}
@@ -367,16 +384,16 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 	if !keyOK(key) {
 		return ErrInput
 	}
-	replayKey := digest([]string{p.Subject, "policy", policy.SchoolID, policy.Kind, key})
-	requestHash := digest(policy)
-	if policy.SchoolID == "" || !slices.Contains([]string{"course", "mentor", "reply", "resource"}, policy.Kind) || !slices.Contains([]string{"published", "pending", "review"}, policy.Mode) || len(policy.BlockedTerms) > 100 {
+	if !keyOK(policy.SchoolID) || !slices.Contains([]string{"course", "mentor", "reply", "resource"}, policy.Kind) || !slices.Contains([]string{"published", "pending", "review"}, policy.Mode) {
 		return ErrInput
 	}
-	for _, term := range policy.BlockedTerms {
-		if strings.TrimSpace(term) == "" || !textOK(term, 100) {
-			return ErrInput
-		}
+	normalized, err := normalizeBlockedTerms(policy.BlockedTerms)
+	if err != nil {
+		return err
 	}
+	policy.BlockedTerms = normalized
+	replayKey := digest([]string{p.Subject, "policy", policy.SchoolID, policy.Kind, key})
+	requestHash := digest(policy)
 	if e := s.auth(ctx, p, "configure", policy.SchoolID); e != nil {
 		return e
 	}

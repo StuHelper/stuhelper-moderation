@@ -85,6 +85,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/moderation/policies/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/moderation/tasks/batch-preview": {
         parameters: {
             query?: never;
@@ -271,6 +287,25 @@ export interface components {
             effective: components["schemas"]["Policy"];
             /** @enum {string} */
             source: "default" | "global" | "school";
+        };
+        PolicyPreviewInput: {
+            school_id: string;
+            /** @enum {string} */
+            kind: "course" | "mentor" | "reply" | "resource";
+            title?: string;
+            body: string;
+            /** @enum {string} */
+            mode?: "published" | "pending" | "review";
+            blocked_terms?: string[];
+        };
+        PolicyPreview: {
+            /** @enum {string} */
+            result: "published" | "pending" | "review" | "blocked";
+            matched_terms: string[];
+            /** @enum {string} */
+            effective_mode: "published" | "pending" | "review";
+            /** @enum {string} */
+            source: "default" | "global" | "school" | "candidate";
         };
         Saved: {
             ok: boolean;
@@ -912,6 +947,66 @@ export interface operations {
             };
             /** @description Revision or idempotency conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Required dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    previewPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyPreviewInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyPreview"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not permitted */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

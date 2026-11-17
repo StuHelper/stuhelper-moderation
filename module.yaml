@@ -27,6 +27,8 @@ scenario_tests:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
     - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
+    - recusal_policy_preview_test.go#TestModeratorConflictOfInterestRecusalAndSuperAdminExemption
+    - recusal_policy_preview_test.go#TestBlockedTermsNormalizationAndPolicyDryRunPreview
   CM-10:
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields

@@ -96,16 +96,30 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 	out.PreviewToken = batchToken(p, in)
 	for _, item := range in.Items {
 		result := BatchOutcome{ID: item.ID, State: "ready"}
-		task, e := s.Get(ctx, p, item.ID)
+		var rawTask Task
+		e := s.Repo.Transaction(ctx, func(t Transaction) error {
+			var err error
+			rawTask, err = t.Task(item.ID)
+			return err
+		})
 		if e == nil {
-			e = s.auth(ctx, p, "manage", task.SchoolID)
+			if err := s.auth(ctx, p, "manage", rawTask.SchoolID); err != nil {
+				if rawTask.Owner != p.Subject && rawTask.ContentOwner != p.Subject {
+					e = ErrNotFound
+				} else {
+					e = err
+				}
+			}
 		}
-		if e == nil && (task.State != "waiting" || task.Revision != item.Revision) {
+		if e == nil && (rawTask.State != "waiting" || rawTask.Revision != item.Revision) {
 			e = ErrConflict
 		}
 		if e == nil {
-			object, err := s.Content.Inspect(ctx, p, task.Submission.ObjectID)
+			object, err := s.Content.Inspect(ctx, p, rawTask.Submission.ObjectID)
 			e = err
+			if e == nil && isSelfFavorableDecision(p, rawTask, object.Owner, item.Decision.Action) {
+				e = s.auth(ctx, p, "self_approve", "*")
+			}
 			if e == nil && (object.ID != item.Decision.ObjectID || object.Revision != item.Decision.Revision) {
 				e = ErrConflict
 			}
