@@ -413,6 +413,18 @@ type FeedbackUpdate struct {
 // FeedbackUpdateState defines model for FeedbackUpdate.State.
 type FeedbackUpdateState string
 
+// HealthSnapshot defines model for HealthSnapshot.
+type HealthSnapshot struct {
+	DecidedReadyCount      int        `json:"decided_ready_count"`
+	FailedManualCount      int        `json:"failed_manual_count"`
+	FeedbackActiveBytes    int64      `json:"feedback_active_bytes"`
+	FeedbackActiveCount    int        `json:"feedback_active_count"`
+	FeedbackTombstoneCount int        `json:"feedback_tombstone_count"`
+	OldestDecidedAt        *time.Time `json:"oldest_decided_at"`
+	OldestOutboxAt         *time.Time `json:"oldest_outbox_at"`
+	OutboxPendingCount     int        `json:"outbox_pending_count"`
+}
+
 // Policy defines model for Policy.
 type Policy struct {
 	BlockedTerms []string `json:"blocked_terms"`
@@ -716,6 +728,9 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
 	ReplyFeedback(ctx context.Context, id string, params *ReplyFeedbackParams, body ReplyFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetModerationHealth performs a GET /api/v1/moderation/health (the `GetModerationHealth` operationId) request.
+	GetModerationHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetPolicy performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
 	GetPolicy(ctx context.Context, params *GetPolicyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -881,6 +896,19 @@ func (c *Client) ReplyFeedbackWithBody(ctx context.Context, id string, params *R
 // Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
 func (c *Client) ReplyFeedback(ctx context.Context, id string, params *ReplyFeedbackParams, body ReplyFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReplyFeedbackRequest(c.Server, id, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetModerationHealth performs a GET /api/v1/moderation/health (the `GetModerationHealth` operationId) request.
+func (c *Client) GetModerationHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetModerationHealthRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -1370,6 +1398,33 @@ func NewReplyFeedbackRequestWithBody(server string, id string, params *ReplyFeed
 
 		req.Header.Set("Idempotency-Key", headerParam0)
 
+	}
+
+	return req, nil
+}
+
+// NewGetModerationHealthRequest constructs an http.Request for the GetModerationHealth method
+func NewGetModerationHealthRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/health")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil
@@ -2054,6 +2109,11 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/moderation/feedback/{id}/replies (the `ReplyFeedback` operationId).
 	ReplyFeedbackWithResponse(ctx context.Context, id string, params *ReplyFeedbackParams, body ReplyFeedbackJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplyFeedbackResponse, error)
 
+	// GetModerationHealthWithResponse performs a GET /api/v1/moderation/health (the `GetModerationHealth` operationId) request.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	GetModerationHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetModerationHealthResponse, error)
+
 	// GetPolicyWithResponse performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -2326,6 +2386,68 @@ func (r ReplyFeedbackResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ReplyFeedbackResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetModerationHealthResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *HealthSnapshot
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetModerationHealthResponse) GetJSON200() *HealthSnapshot {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetModerationHealthResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetModerationHealthResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetModerationHealthResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetModerationHealthResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetModerationHealthResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetModerationHealthResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetModerationHealthResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -3181,6 +3303,17 @@ func (c *ClientWithResponses) ReplyFeedbackWithResponse(ctx context.Context, id 
 	return ParseReplyFeedbackResponse(rsp)
 }
 
+// GetModerationHealthWithResponse performs a GET /api/v1/moderation/health (the `GetModerationHealth` operationId) request.
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) GetModerationHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetModerationHealthResponse, error) {
+	rsp, err := c.GetModerationHealth(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetModerationHealthResponse(rsp)
+}
+
 // GetPolicyWithResponse performs a GET /api/v1/moderation/policies (the `GetPolicy` operationId) request.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -3548,6 +3681,53 @@ func ParseReplyFeedbackResponse(rsp *http.Response) (*ReplyFeedbackResponse, err
 
 	case rsp.StatusCode == 503:
 		break // No content-type
+
+	}
+
+	return response, nil
+}
+
+// ParseGetModerationHealthResponse parses an HTTP response from a GetModerationHealthWithResponse call
+func ParseGetModerationHealthResponse(rsp *http.Response) (*GetModerationHealthResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetModerationHealthResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HealthSnapshot
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 

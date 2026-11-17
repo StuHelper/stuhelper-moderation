@@ -50,6 +50,8 @@ scenario_tests:
     - audit_test.go#TestAuditDefaultsAndTransactionRollback
     - audit_test.go#TestAuditBatchLimitAndRecordedOutcome
     - audit_test.go#TestAuditDecisionSavedIsNotExecutionSuccess
+    - retention_health_test.go#TestNonFeedbackRetentionBoundedCleanupAndAuditSnapshotSafety
+    - retention_health_test.go#TestModerationHealthSnapshotAndHTTPAuthorization
   CM-18:
     - outbox_exclusion_test.go#TestOutboxExcludesDeferredSubjectsBeforeLimit
     - postgres/outbox_test.go#TestPendingOutboxPlanUsesPartialIndex

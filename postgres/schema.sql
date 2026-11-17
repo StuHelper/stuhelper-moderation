@@ -32,10 +32,16 @@ REVOKE ALL ON SCHEMA moderation FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA moderation FROM PUBLIC;
 
 CREATE TABLE IF NOT EXISTS moderation.submission_limits(owner_key text PRIMARY KEY, started_at timestamptz NOT NULL, used integer NOT NULL CHECK(used>0));
+CREATE INDEX IF NOT EXISTS moderation_submission_limits_started ON moderation.submission_limits(started_at,owner_key);
+
+ALTER TABLE moderation.replays ADD COLUMN IF NOT EXISTS until timestamptz;
+UPDATE moderation.replays SET until=(data->>'Until')::timestamptz WHERE until IS NULL AND data ? 'Until';
+CREATE INDEX IF NOT EXISTS moderation_replays_until ON moderation.replays(until,key) WHERE until IS NOT NULL;
 
 ALTER TABLE moderation.outbox ADD COLUMN IF NOT EXISTS sent_at timestamptz;
 UPDATE moderation.outbox SET sent_at=now() WHERE delivered AND sent_at IS NULL;
 CREATE INDEX IF NOT EXISTS moderation_outbox_pending ON moderation.outbox ((data->>'subject'), ((data->'data'->>'revision')::bigint), id) WHERE sent_at IS NULL;
+CREATE INDEX IF NOT EXISTS moderation_outbox_sent ON moderation.outbox (sent_at, id) WHERE sent_at IS NOT NULL;
 
 -- Feedback is global operator correspondence; school-scoped grants do not
 -- expose a sender's identity or complaint materials.
@@ -65,6 +71,12 @@ CREATE OR REPLACE FUNCTION moderation.cleanup_feedback_audit() RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
 DECLARE removed integer;
 BEGIN
+ IF NOT EXISTS (
+  SELECT 1 FROM moderation.audit WHERE action LIKE 'feedback.%'
+   AND time < current_timestamp - interval '12 months'
+ ) THEN
+  RETURN 0;
+ END IF;
  DELETE FROM moderation.audit WHERE id IN (
   SELECT id FROM moderation.audit WHERE action LIKE 'feedback.%'
    AND time < current_timestamp - interval '12 months' ORDER BY time,id LIMIT 100
@@ -73,3 +85,22 @@ BEGIN
  RETURN removed;
 END $$;
 REVOKE ALL ON FUNCTION moderation.cleanup_feedback_audit() FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION moderation.cleanup_moderation_audit() RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+DECLARE removed integer;
+BEGIN
+ IF NOT EXISTS (
+  SELECT 1 FROM moderation.audit WHERE action NOT LIKE 'feedback.%'
+   AND time < current_timestamp - interval '12 months'
+ ) THEN
+  RETURN 0;
+ END IF;
+ DELETE FROM moderation.audit WHERE id IN (
+  SELECT id FROM moderation.audit WHERE action NOT LIKE 'feedback.%'
+   AND time < current_timestamp - interval '12 months' ORDER BY time,id LIMIT 100
+ );
+ GET DIAGNOSTICS removed = ROW_COUNT;
+ RETURN removed;
+END $$;
+REVOKE ALL ON FUNCTION moderation.cleanup_moderation_audit() FROM PUBLIC;

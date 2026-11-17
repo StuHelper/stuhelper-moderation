@@ -115,7 +115,11 @@ func (t *transaction) Replay(key string) (m.Replay, error) {
 	return read[m.Replay](t, `SELECT data FROM moderation.replays WHERE key=$1`, key)
 }
 func (t *transaction) SaveReplay(key string, v m.Replay) error {
-	return t.save(`INSERT INTO moderation.replays(key,data) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET data=excluded.data`, v, key)
+	var until any
+	if !v.Until.IsZero() {
+		until = v.Until.UTC()
+	}
+	return t.save(`INSERT INTO moderation.replays(key,until,data) VALUES($1,$2,$3) ON CONFLICT(key) DO UPDATE SET until=excluded.until,data=excluded.data`, v, key, until)
 }
 func (t *transaction) Event(v m.Event) error {
 	if e := t.saveAudit(v); e != nil {

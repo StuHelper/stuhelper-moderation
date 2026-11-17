@@ -27,6 +27,7 @@ func (h Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/decisions", h.decide)
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/retry", h.retry)
 	mux.HandleFunc("PUT /api/v1/moderation/policies", h.policy)
+	mux.HandleFunc("GET /api/v1/moderation/health", h.health)
 	mux.HandleFunc("GET /api/v1/moderation/policies", func(w http.ResponseWriter, r *http.Request) {
 		p, ok := h.principal(w, r)
 		if !ok {
@@ -192,4 +193,12 @@ func (h Handler) policy(w http.ResponseWriter, r *http.Request) {
 	}
 	e := h.Service.SetPolicy(r.Context(), p, r.Header.Get("Idempotency-Key"), in)
 	respond(w, map[string]bool{"ok": e == nil}, e)
+}
+func (h Handler) health(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	v, e := h.Service.Health(r.Context(), p)
+	respond(w, v, e)
 }

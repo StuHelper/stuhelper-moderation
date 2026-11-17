@@ -1024,6 +1024,58 @@
         ]
       }
     },
+    "/api/v1/moderation/health": {
+      "get": {
+        "operationId": "getModerationHealth",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/moderation/feedback": {
       "get": {
         "operationId": "listFeedback",
@@ -1951,6 +2003,57 @@
         },
         "required": [
           "body"
+        ]
+      },
+      "HealthSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decided_ready_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "oldest_decided_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "failed_manual_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outbox_pending_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "oldest_outbox_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "feedback_active_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "feedback_active_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "feedback_tombstone_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "decided_ready_count",
+          "oldest_decided_at",
+          "failed_manual_count",
+          "outbox_pending_count",
+          "oldest_outbox_at",
+          "feedback_active_count",
+          "feedback_active_bytes",
+          "feedback_tombstone_count"
         ]
       },
       "FeedbackPage": {
