@@ -254,6 +254,8 @@ export interface components {
             content_kind?: string;
             previous_task_id?: string;
             can_appeal?: boolean;
+            /** @description Number of other waiting tasks on the same target object, visible only to authorized moderators. */
+            related_waiting_count?: number;
         };
         Decide: {
             revision: number;

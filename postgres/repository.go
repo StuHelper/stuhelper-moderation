@@ -97,7 +97,7 @@ func (t *transaction) Active(owner, object, kind string) (m.Task, error) {
 	return read[m.Task](t, `SELECT data FROM moderation.tasks WHERE owner=$1 AND object_id=$2 AND kind=$3 AND state IN ('waiting','decided')`, owner, object, kind)
 }
 func (t *transaction) SaveTask(v m.Task) error {
-	return t.save(`INSERT INTO moderation.tasks(id,owner,school_id,object_id,kind,state,next_attempt,lease_until,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO UPDATE SET state=excluded.state,next_attempt=excluded.next_attempt,lease_until=excluded.lease_until,data=excluded.data`, v, v.ID, v.Owner, v.SchoolID, v.Submission.ObjectID, v.Submission.Kind, v.State, v.NextAttempt, v.LeaseUntil)
+	return t.save(`INSERT INTO moderation.tasks(id,owner,school_id,object_id,kind,state,next_attempt,lease_until,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,school_id=excluded.school_id,object_id=excluded.object_id,kind=excluded.kind,state=excluded.state,next_attempt=excluded.next_attempt,lease_until=excluded.lease_until,data=excluded.data`, v, v.ID, v.Owner, v.SchoolID, v.Submission.ObjectID, v.Submission.Kind, v.State, v.NextAttempt, v.LeaseUntil)
 }
 func (t *transaction) List(owner, school, state, after string, limit int) ([]m.Task, error) {
 	return list[m.Task](t, `SELECT data FROM moderation.tasks WHERE ($1='' OR owner=$1) AND ($2='' OR school_id=$2) AND ($3='' OR state=$3) AND id>$4 ORDER BY id LIMIT $5`, owner, school, state, after, limit)

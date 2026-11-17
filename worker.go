@@ -53,6 +53,9 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 		}
 		cancel()
 		err = s.Repo.Transaction(ctx, func(t Transaction) error {
+			if e := t.Lock("object:" + task.SchoolID + ":" + task.Submission.ObjectID); e != nil {
+				return e
+			}
 			if e := t.Lock(task.ID); e != nil {
 				return e
 			}
@@ -90,7 +93,13 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 			if e := t.SaveTask(current); e != nil {
 				return e
 			}
-			if current.State == "applied" || current.State == "failed" {
+			if current.State == "applied" {
+				if e := s.recordResult(t, current); e != nil {
+					return e
+				}
+				return s.resolveRelatedReports(t, current)
+			}
+			if current.State == "failed" {
 				return s.recordResult(t, current)
 			}
 			return nil

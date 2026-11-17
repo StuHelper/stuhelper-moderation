@@ -84,18 +84,19 @@ type Task struct {
 	ErrorCode      string     `json:"error_code,omitempty"`
 }
 type TaskView struct {
-	CanAppeal      bool       `json:"can_appeal,omitempty"`
-	ContentKind    string     `json:"content_kind,omitempty"`
-	ID             string     `json:"id"`
-	SchoolID       string     `json:"school_id"`
-	Submission     Submission `json:"submission"`
-	ObjectRevision int64      `json:"object_revision"`
-	Revision       int64      `json:"revision"`
-	State          string     `json:"state"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	Decision       *Decision  `json:"decision,omitempty"`
-	ErrorCode      string     `json:"error_code,omitempty"`
+	CanAppeal           bool       `json:"can_appeal,omitempty"`
+	RelatedWaitingCount *int       `json:"related_waiting_count,omitempty"`
+	ContentKind         string     `json:"content_kind,omitempty"`
+	ID                  string     `json:"id"`
+	SchoolID            string     `json:"school_id"`
+	Submission          Submission `json:"submission"`
+	ObjectRevision      int64      `json:"object_revision"`
+	Revision            int64      `json:"revision"`
+	State               string     `json:"state"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	Decision            *Decision  `json:"decision,omitempty"`
+	ErrorCode           string     `json:"error_code,omitempty"`
 }
 type Decide struct {
 	Revision int64    `json:"revision"`

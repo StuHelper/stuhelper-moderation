@@ -23,6 +23,8 @@ scenario_tests:
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
   CM-02:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
+    - linked_reports_test.go#TestRelatedWaitingCountAndLinkedReportResolution
+    - linked_reports_test.go#TestDismissCascadesOnlyForReportOrReviewAndRespectsObjectRevision
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped

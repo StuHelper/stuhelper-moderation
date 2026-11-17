@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS moderation.tasks (
 CREATE UNIQUE INDEX IF NOT EXISTS moderation_active_request ON moderation.tasks(owner,object_id,kind)
  WHERE state IN ('waiting','decided') AND kind IN ('report','edit_request','delete_request');
 CREATE INDEX IF NOT EXISTS moderation_school_queue ON moderation.tasks(school_id,state,id);
+CREATE INDEX IF NOT EXISTS moderation_object_state ON moderation.tasks(school_id,object_id,state,id);
 CREATE INDEX IF NOT EXISTS moderation_owner_queue ON moderation.tasks(owner,id);
 CREATE INDEX IF NOT EXISTS moderation_delivery ON moderation.tasks(next_attempt,lease_until) WHERE state='decided';
 CREATE TABLE IF NOT EXISTS moderation.policies(school_id text NOT NULL,kind text NOT NULL,data jsonb NOT NULL,PRIMARY KEY(school_id,kind));

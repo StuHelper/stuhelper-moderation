@@ -1570,6 +1570,11 @@
           },
           "can_appeal": {
             "type": "boolean"
+          },
+          "related_waiting_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of other waiting tasks on the same target object, visible only to authorized moderators."
           }
         },
         "required": [
