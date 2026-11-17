@@ -59,6 +59,9 @@ func (s *Service) Reply(ctx context.Context, actor, id, key, body string) (Reply
 				return nil
 			}
 		}
+		if v.State == "spam" {
+			return ErrConflict
+		}
 		if len(v.Replies) >= 100 {
 			return ErrLimit
 		}

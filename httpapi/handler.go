@@ -5,22 +5,28 @@ import (
 	"encoding/json"
 	"errors"
 	m "github.com/StuHelper/stuhelper-moderation"
+	f "github.com/StuHelper/stuhelper-moderation/feedback"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Authenticate func(*http.Request) (m.Principal, error)
 type Handler struct {
 	Service      *m.Service
+	Feedback     *f.Service
 	Authenticate Authenticate
 }
 
 func (h Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	h.batchRoutes(mux)
+	if h.Feedback != nil {
+		(FeedbackHandler{Service: h.Feedback, Authenticate: h.Authenticate}).registerRoutes(mux)
+	}
 	mux.HandleFunc("GET /api/v1/moderation/tasks", h.list)
 	mux.HandleFunc("POST /api/v1/moderation/tasks", h.submit)
 	mux.HandleFunc("GET /api/v1/moderation/tasks/{id}", h.get)
@@ -45,7 +51,11 @@ func (h Handler) Routes() http.Handler {
 				return
 			}
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		timeout := 15 * time.Second
+		if strings.HasPrefix(r.URL.Path, "/api/v1/moderation/feedback") {
+			timeout = 40 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 		mux.ServeHTTP(w, r.WithContext(ctx))
 	})

@@ -17,6 +17,28 @@ func Digest(v string) string { h := sha256.Sum256([]byte(v)); return hex.EncodeT
 func validText(v string, max int) bool {
 	return len(v) <= max && utf8.ValidString(v) && !strings.ContainsRune(v, 0)
 }
+func validIdentifier(v string, max int) bool {
+	if len(v) > max || !utf8.ValidString(v) || strings.TrimSpace(v) != v {
+		return false
+	}
+	for _, r := range v {
+		if r < 32 || r == 127 {
+			return false
+		}
+	}
+	return true
+}
+func validASCIIKey(v string, max int) bool {
+	if len(v) > max {
+		return false
+	}
+	for i := 0; i < len(v); i++ {
+		if v[i] <= 32 || v[i] > 126 {
+			return false
+		}
+	}
+	return true
+}
 func validState(v string) bool {
 	return v == "new" || v == "processing" || v == "resolved" || v == "spam"
 }
@@ -145,7 +167,10 @@ func (s *Service) List(ctx context.Context, actor string, f Filter) (Page, error
 	if f.Limit == 0 {
 		f.Limit = 25
 	}
-	if f.Limit < 1 || f.Limit > 50 || len(f.After) > 64 || (f.State != "" && !validState(f.State)) {
+	if f.Limit < 1 || f.Limit > 50 || len(f.After) > 256 || (f.State != "" && !validState(f.State)) {
+		return Page{}, ErrInvalid
+	}
+	if f.Assignee != nil && (*f.Assignee != "" && !validIdentifier(*f.Assignee, 256)) {
 		return Page{}, ErrInvalid
 	}
 	out := Page{Items: []Message{}}
@@ -207,6 +232,15 @@ func (s *Service) Update(ctx context.Context, actor, id, key string, u Update) (
 	if !validState(u.State) || u.Revision < 1 || !validText(u.Note, 10000) || len(key) < 8 || len(key) > 128 {
 		return Message{}, ErrInvalid
 	}
+	if u.Assignee != nil && *u.Assignee != "" && !validIdentifier(*u.Assignee, 256) {
+		return Message{}, ErrInvalid
+	}
+	if u.RelatedTaskID != nil && *u.RelatedTaskID != "" && !validASCIIKey(*u.RelatedTaskID, 128) {
+		return Message{}, ErrInvalid
+	}
+	if u.RelatedObjectID != nil && *u.RelatedObjectID != "" && !validASCIIKey(*u.RelatedObjectID, 128) {
+		return Message{}, ErrInvalid
+	}
 	request, _ := json.Marshal(u)
 	hash := Digest(string(request))
 	rk := Digest(actor + ":update:" + id + ":" + key)
@@ -234,7 +268,17 @@ func (s *Service) Update(ctx context.Context, actor, id, key string, u Update) (
 		}
 		v.State = u.State
 		v.Note = u.Note
-		v.Assignee = actor
+		if u.Assignee != nil {
+			v.Assignee = *u.Assignee
+		} else if v.Assignee == "" {
+			v.Assignee = actor
+		}
+		if u.RelatedTaskID != nil {
+			v.RelatedTaskID = *u.RelatedTaskID
+		}
+		if u.RelatedObjectID != nil {
+			v.RelatedObjectID = *u.RelatedObjectID
+		}
 		v.Revision++
 		if v.State == "resolved" || v.State == "spam" {
 			if v.ClosedAt == nil {
@@ -259,18 +303,41 @@ func (s *Service) Update(ctx context.Context, actor, id, key string, u Update) (
 	})
 	return out, e
 }
-func (s *Service) Download(ctx context.Context, actor, id, part string, w io.Writer) error {
-	v, e := s.Get(ctx, actor, id)
-	if e != nil {
-		return e
+func (s *Service) DownloadAttachment(ctx context.Context, actor, id, part string, w io.Writer) (Attachment, error) {
+	if e := s.allowed(ctx, actor, "read"); e != nil {
+		return Attachment{}, e
 	}
-	for _, a := range v.Attachments {
-		if a.ID == part && a.Status == "stored" && a.ObjectID != "" {
-			if s.Blobs == nil {
-				return ErrUnavailable
-			}
-			return s.Blobs.Download(ctx, a.ObjectID, w)
+	var found Attachment
+	var ok bool
+	e := s.Repo.Transaction(ctx, func(tx Tx) error {
+		v, e := tx.Get(id)
+		if e != nil {
+			return e
 		}
+		if !v.Ready || expired(v, s.now()) {
+			return ErrNotFound
+		}
+		for _, a := range v.Attachments {
+			if a.ID == part && a.Status == "stored" && a.ObjectID != "" {
+				found = a
+				ok = true
+				return tx.Audit(actor, "download", id, s.now())
+			}
+		}
+		return ErrNotFound
+	})
+	if e != nil || !ok {
+		if e == nil {
+			e = ErrNotFound
+		}
+		return Attachment{}, e
 	}
-	return ErrNotFound
+	if s.Blobs == nil {
+		return Attachment{}, ErrUnavailable
+	}
+	return found, s.Blobs.Download(ctx, found.ObjectID, w)
+}
+func (s *Service) Download(ctx context.Context, actor, id, part string, w io.Writer) error {
+	_, err := s.DownloadAttachment(ctx, actor, id, part, w)
+	return err
 }

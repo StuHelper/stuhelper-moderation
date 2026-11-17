@@ -99,7 +99,7 @@ func (t *feedbackTx) Save(v f.Message) error {
 	if e != nil {
 		return f.ErrInvalid
 	}
-	_, e = t.tx.ExecContext(t.ctx, `INSERT INTO moderation.feedback(id,dedupe,sender,state,ready,received_at,closed_at,bytes,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO UPDATE SET state=excluded.state,ready=excluded.ready,closed_at=excluded.closed_at,data=excluded.data`, v.ID, v.Dedupe, v.Sender, v.State, v.Ready, v.ReceivedAt, v.ClosedAt, v.Bytes, string(b))
+	_, e = t.tx.ExecContext(t.ctx, `INSERT INTO moderation.feedback(id,dedupe,sender,state,assignee,suspicious,ready,received_at,closed_at,bytes,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO UPDATE SET state=excluded.state,assignee=excluded.assignee,suspicious=excluded.suspicious,ready=excluded.ready,closed_at=excluded.closed_at,data=excluded.data`, v.ID, v.Dedupe, v.Sender, v.State, v.Assignee, v.Suspicious, v.Ready, v.ReceivedAt, v.ClosedAt, v.Bytes, string(b))
 	return feedbackError(e)
 }
 func (t *feedbackTx) many(q string, args ...any) ([]f.Message, error) {
@@ -123,7 +123,7 @@ func (t *feedbackTx) many(q string, args ...any) ([]f.Message, error) {
 	return out, feedbackError(rows.Err())
 }
 func (t *feedbackTx) List(v f.Filter) ([]f.Message, error) {
-	return t.many(`SELECT data FROM moderation.feedback WHERE ready AND id>$1 AND ($2='' OR state=$2) AND (closed_at IS NULL OR closed_at+interval '12 months'>now()) ORDER BY id LIMIT $3`, v.After, v.State, v.Limit+1)
+	return t.many(`SELECT data FROM moderation.feedback WHERE ready AND id>$1 AND ($2='' OR state=$2) AND ($3::text IS NULL OR assignee=$3) AND ($4::boolean IS NULL OR suspicious=$4) AND (closed_at IS NULL OR closed_at+interval '12 months'>now()) ORDER BY id LIMIT $5`, v.After, v.State, v.Assignee, v.Suspicious, v.Limit+1)
 }
 func (t *feedbackTx) Usage(sender string, since time.Time) (int, int64, int, error) {
 	var count, rate int

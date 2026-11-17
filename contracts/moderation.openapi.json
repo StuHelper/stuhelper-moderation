@@ -1028,6 +1028,11 @@
       "get": {
         "operationId": "listFeedback",
         "summary": "listFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
@@ -1058,6 +1063,23 @@
                 "spam"
               ]
             }
+          },
+          {
+            "in": "query",
+            "name": "assignee",
+            "description": "Filter by assignee; pass an empty value (?assignee=) to list unassigned items.",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "query",
+            "name": "suspicious",
+            "description": "Filter by suspicious sender verification flag.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -1072,25 +1094,74 @@
             }
           },
           "400": {
-            "description": "Invalid request"
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permission denied"
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Revision or idempotency conflict"
+            "description": "Revision or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "429": {
-            "description": "Capacity exceeded"
+            "description": "Capacity exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Dependency unavailable"
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1099,6 +1170,11 @@
       "get": {
         "operationId": "getFeedback",
         "summary": "getFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "path",
@@ -1122,31 +1198,85 @@
             }
           },
           "400": {
-            "description": "Invalid request"
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permission denied"
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Revision or idempotency conflict"
+            "description": "Revision or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "429": {
-            "description": "Capacity exceeded"
+            "description": "Capacity exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Dependency unavailable"
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "patch": {
         "operationId": "updateFeedback",
         "summary": "updateFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "path",
@@ -1180,25 +1310,74 @@
             }
           },
           "400": {
-            "description": "Invalid request"
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permission denied"
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Revision or idempotency conflict"
+            "description": "Revision or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "429": {
-            "description": "Capacity exceeded"
+            "description": "Capacity exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Dependency unavailable"
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -1217,6 +1396,11 @@
       "post": {
         "operationId": "replyFeedback",
         "summary": "replyFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "path",
@@ -1250,25 +1434,74 @@
             }
           },
           "400": {
-            "description": "Invalid request"
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permission denied"
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Revision or idempotency conflict"
+            "description": "Revision or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "429": {
-            "description": "Capacity exceeded"
+            "description": "Capacity exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Dependency unavailable"
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -1287,6 +1520,11 @@
       "get": {
         "operationId": "downloadFeedbackAttachment",
         "summary": "Download attachment with current feedback permission",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "path",
@@ -1319,8 +1557,55 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "Permission denied"
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1864,6 +2149,14 @@
             "type": "string",
             "maxLength": 256
           },
+          "related_task_id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "related_object_id": {
+            "type": "string",
+            "maxLength": 128
+          },
           "note": {
             "type": "string",
             "maxLength": 10000
@@ -1932,6 +2225,19 @@
           "note": {
             "type": "string",
             "maxLength": 10000
+          },
+          "assignee": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional target assignee; pass an empty string to unassign or omit to retain current assignee."
+          },
+          "related_task_id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "related_object_id": {
+            "type": "string",
+            "maxLength": 128
           }
         },
         "required": [

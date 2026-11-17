@@ -41,6 +41,8 @@ type Message struct {
 	Suspicious            bool         `json:"suspicious"`
 	State                 string       `json:"state"`
 	Assignee              string       `json:"assignee"`
+	RelatedTaskID         string       `json:"related_task_id,omitempty"`
+	RelatedObjectID       string       `json:"related_object_id,omitempty"`
 	Note                  string       `json:"note"`
 	Revision              int64        `json:"revision"`
 	ReceivedAt            time.Time    `json:"received_at"`
@@ -59,6 +61,8 @@ type Input struct {
 }
 type Filter struct {
 	After, State string
+	Assignee     *string
+	Suspicious   *bool
 	Limit        int
 }
 type Page struct {
@@ -66,9 +70,12 @@ type Page struct {
 	NextCursor string    `json:"next_cursor"`
 }
 type Update struct {
-	Revision int64  `json:"revision"`
-	State    string `json:"state"`
-	Note     string `json:"note"`
+	Revision        int64   `json:"revision"`
+	State           string  `json:"state"`
+	Note            string  `json:"note"`
+	Assignee        *string `json:"assignee,omitempty"`
+	RelatedTaskID   *string `json:"related_task_id,omitempty"`
+	RelatedObjectID *string `json:"related_object_id,omitempty"`
 }
 type Tx interface {
 	Lock() error
