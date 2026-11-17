@@ -39,6 +39,9 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 			if object == nil {
 				return needsFacts
 			}
+			if in.Evidence == nil {
+				in.Evidence = []string{}
+			}
 			task = Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: operation, SchoolID: object.SchoolID, Owner: p.Subject, Submission: in, ObjectRevision: object.Revision, State: "waiting", CreatedAt: s.now()}
 		} else {
 			if e = t.Lock(task.ID); e != nil {
@@ -49,14 +52,17 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 				return e
 			}
 			if task.State != "waiting" {
-				return ErrConflict
+				return withReason(ErrConflict, "task_not_waiting")
+			}
+			if task.Submission.Category == "" && in.Category != "" {
+				task.Submission.Category = in.Category
 			}
 			if in.Reason != task.Submission.Reason {
 				task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)
 			}
 			task.Submission.Evidence = append(task.Submission.Evidence, in.Evidence...)
 			if len(task.Submission.Evidence) > 20 {
-				return ErrInput
+				return withReason(ErrInput, "invalid_parameter")
 			}
 		}
 		limiter, ok := t.(interface{ LimitSubmission(string, time.Time) error })

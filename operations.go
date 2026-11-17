@@ -43,10 +43,26 @@ func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) (
 		if e != nil {
 			return e
 		}
+		var appealed map[string]bool
+		if port, ok := t.(AppealStateTransaction); ok && len(tasks) > 0 {
+			candidateIDs := []string{}
+			for _, task := range tasks {
+				if task.ContentOwner == p.Subject && task.State == "applied" && isAdverseToAuthor(task) {
+					candidateIDs = append(candidateIDs, task.ID)
+				}
+			}
+			if len(candidateIDs) > 0 {
+				appealed, e = port.AppealedTaskIDs(candidateIDs)
+				if e != nil {
+					return e
+				}
+			}
+		}
 		for _, task := range tasks {
-			v := viewFor(p, task)
+			alreadyAppealed := appealed != nil && appealed[task.ID]
+			v := viewForWithAppeal(p, task, alreadyAppealed)
 			if !f.Admin {
-				v = recipientView(p, task)
+				v = recipientViewWithAppeal(p, task, alreadyAppealed)
 			}
 			out = append(out, v)
 		}
@@ -140,7 +156,7 @@ func (s *Service) DecideBatch(ctx context.Context, p Principal, key string, in B
 		old, e := t.Replay(rk)
 		if e == nil && s.now().Before(old.Until) {
 			if old.Digest != hash {
-				return ErrConflict
+				return withReason(ErrConflict, "idempotency_mismatch")
 			}
 			return nil
 		}

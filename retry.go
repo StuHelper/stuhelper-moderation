@@ -31,11 +31,11 @@ func (s *Service) Retry(ctx context.Context, p Principal, id, key string, revisi
 			out = cached
 			return nil
 		}
-		if task.Revision != revision || task.State != "failed" || task.Decision == nil {
-			return ErrConflict
+		if task.State != "failed" || task.Decision == nil || task.ErrorCode != "unavailable" {
+			return withReason(ErrConflict, "retry_not_allowed")
 		}
-		if task.ErrorCode != "unavailable" {
-			return ErrConflict
+		if task.Revision != revision {
+			return withReason(ErrConflict, "stale_revision")
 		}
 		task.State = "decided"
 		task.NextAttempt = s.now()

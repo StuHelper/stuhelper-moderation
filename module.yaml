@@ -28,6 +28,7 @@ scenario_tests:
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
     - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
   CM-10:
+    - categories_errors_appeal_test.go#TestClosedCategoriesErrorReasonsRetryAfterAndCanAppeal
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
   CM-12:

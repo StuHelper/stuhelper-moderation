@@ -245,15 +245,19 @@
           },
           "429": {
             "description": "请求过于频繁，稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the caller may submit a new request.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -1334,12 +1338,44 @@
       }
     },
     "schemas": {
+      "ViolationCategory": {
+        "type": "string",
+        "enum": [
+          "spam",
+          "personal_attack",
+          "copyright",
+          "wrong_teacher",
+          "academic_integrity",
+          "privacy_leak",
+          "low_quality",
+          "author_update",
+          "other"
+        ],
+        "description": "Closed violation or disposition category code used as an i18n key."
+      },
       "Error": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
           "code": {
             "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "idempotency_mismatch",
+              "stale_revision",
+              "task_not_waiting",
+              "self_review_forbidden",
+              "insufficient_scope",
+              "cross_origin_forbidden",
+              "appeal_not_allowed",
+              "already_appealed",
+              "retry_not_allowed",
+              "submission_rate_limited",
+              "invalid_category",
+              "invalid_parameter"
+            ]
           }
         },
         "required": [
@@ -1362,6 +1398,9 @@
               "review",
               "appeal"
             ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/ViolationCategory"
           },
           "reason": {
             "type": "string"
@@ -1424,6 +1463,9 @@
           },
           "signed": {
             "type": "boolean"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ViolationCategory"
           },
           "reason": {
             "type": "string"
@@ -1501,6 +1543,9 @@
               "review",
               "appeal"
             ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/ViolationCategory"
           },
           "reason": {
             "type": "string"
