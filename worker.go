@@ -72,7 +72,7 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 				done++
 			} else if errors.Is(applyErr, ErrConflict) || errors.Is(applyErr, ErrNotFound) || errors.Is(applyErr, ErrForbidden) {
 				current.State = "failed"
-				current.ErrorCode = applyErr.Error()
+				current.ErrorCode = errorCode(applyErr)
 			} else {
 				current.ErrorCode = "unavailable"
 				delay := 5 * time.Second

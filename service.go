@@ -47,10 +47,16 @@ func textOK(v string, max int) bool {
 func view(t Task) TaskView {
 	var decision *Decision
 	if t.Decision != nil {
-		safe := *t.Decision
-		safe.Body = nil
-		safe.Subject = ""
-		safe.AuthorHandle = ""
+		safe := Decision{
+			ID:       t.Decision.ID,
+			ObjectID: t.Decision.ObjectID,
+			Revision: t.Decision.Revision,
+			Action:   t.Decision.Action,
+			Reason:   t.Decision.Reason,
+		}
+		if t.Decision.Action == "reassign" {
+			safe.TeacherID = t.Decision.TeacherID
+		}
 		decision = &safe
 	}
 	return TaskView{false, t.ContentKind, t.ID, t.SchoolID, t.Submission, t.ObjectRevision, t.Revision, t.State, t.CreatedAt, t.UpdatedAt, decision, t.ErrorCode}
@@ -341,19 +347,29 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 		now := s.now()
 		task.DecidedAt = &now
 		task.State = "decided"
-		if d.Action == "dismiss" {
-			task.State = "applied"
-		}
 		task.Revision++
-		task.UpdatedAt = s.now()
-		task.NextAttempt = s.now()
-		if e = t.SaveTask(task); e != nil {
-			return e
-		}
-		if task.State == "applied" {
+		task.UpdatedAt = now
+		task.NextAttempt = now
+		if d.Action == "dismiss" {
+			if e = t.Event(Event{Result: "unknown", Data: resultData(task), ID: rk, Type: "moderation.decided.v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: now}); e != nil {
+				return e
+			}
+			task.State = "applied"
+			task.Revision++
+			if e = t.SaveTask(task); e != nil {
+				return e
+			}
 			if e = s.recordResult(t, task); e != nil {
 				return e
 			}
+			if e = t.SaveReplay(rk, Replay{Digest: h, TaskID: task.ID, View: view(task), Until: now.Add(24 * time.Hour)}); e != nil {
+				return e
+			}
+			out = viewFor(p, task)
+			return nil
+		}
+		if e = t.SaveTask(task); e != nil {
+			return e
 		}
 		if e = s.record(t, rk, h, "decided", p, task); e != nil {
 			return e

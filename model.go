@@ -60,7 +60,7 @@ type Decision struct {
 	Body             *string `json:"body,omitempty"`
 	Subject          string  `json:"subject,omitempty"`
 	AuthorHandle     string  `json:"author_handle,omitempty"`
-	Signed           bool    `json:"signed"`
+	Signed           bool    `json:"signed,omitempty"`
 	Reason           string  `json:"reason"`
 }
 type Task struct {

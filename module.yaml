@@ -23,10 +23,12 @@ scenario_tests:
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
   CM-02:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
+    - privacy_events_test.go#TestWorkNormalizesWrappedAndMultilineErrorsWithoutPoisonLoop
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
     - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
+    - privacy_events_test.go#TestDecisionProjectionHidesEnrollmentEvidenceAndSignedState
   CM-10:
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
@@ -44,6 +46,7 @@ scenario_tests:
     - outbox_delivery_test.go#TestOutboxCommitNotificationAndRollback
     - outbox_delivery_test.go#TestDecisionResultsAreDurableAndReplaySafe
     - outbox_delivery_test.go#TestDecisionOutboxFailureRollsBackDecision
+    - privacy_events_test.go#TestDismissEmitsStrictlyIncreasingRevisionsInOrder
   CM-17:
     - audit_test.go#TestAuditFiltersScopesAndProjection
     - audit_test.go#TestAuditSnapshotExcludesBackfillAndLateCommit
