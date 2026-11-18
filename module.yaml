@@ -39,7 +39,10 @@ scenario_tests:
     - submission_safety_test.go#TestAppealEnforcesSingleAppealAppliedStateAndRecusal
     - submission_safety_test.go#TestAppealMigrationPreservesHistoricalDuplicates
   CM-12:
+    - batch_validation_runtime_test.go#TestReplacedDecisionRejectsStaleWorkerResult
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
+    - batch_validation_runtime_test.go#TestBatchValidationSameObjectConflictRedecideAndRevokedModeratorRetry
+    - batch_validation_runtime_test.go#TestInputValidationFeedbackClockDownloadAuditAndCheckRuntime
   CM-13:
     - object_access_test.go#TestNotificationTaskBatchKeepsReceiptPermissions
     - operations_test.go#TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence

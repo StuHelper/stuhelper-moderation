@@ -52,7 +52,11 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 		callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		applyErr := ErrUnavailable
 		if s.Content != nil {
-			applyErr = s.Content.Apply(callCtx, Principal{Subject: task.DecidedBy}, *task.Decision)
+			actor := task.DecidedBy
+			if task.RetriedBy != "" {
+				actor = task.RetriedBy
+			}
+			applyErr = s.Content.Apply(callCtx, Principal{Subject: actor}, *task.Decision)
 		}
 		cancel()
 		// Persist the outcome even if shutdown canceled ctx after Apply executed.
@@ -65,7 +69,7 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 			if e != nil {
 				return e
 			}
-			if current.Attempts != task.Attempts || current.State != "decided" {
+			if current.Revision != task.Revision || current.Attempts != task.Attempts || current.State != "decided" {
 				return nil
 			}
 			current.LeaseUntil = time.Time{}

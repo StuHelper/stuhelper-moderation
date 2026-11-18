@@ -37,7 +37,20 @@ func (s *Service) Retry(ctx context.Context, p Principal, id, key string, revisi
 		if task.ErrorCode != "unavailable" {
 			return ErrConflict
 		}
+		if task.Submission.Kind == "appeal" {
+			if e = s.auth(ctx, p, "review", task.SchoolID); e != nil {
+				return e
+			}
+			prior, e := t.Task(task.Submission.PreviousTaskID)
+			if e != nil {
+				return e
+			}
+			if prior.DecidedBy == p.Subject {
+				return ErrForbidden
+			}
+		}
 		task.State = "decided"
+		task.RetriedBy = p.Subject
 		task.Attempts = 0
 		task.NextAttempt = s.now()
 		task.LeaseUntil = time.Time{}

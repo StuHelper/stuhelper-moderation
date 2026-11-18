@@ -127,7 +127,11 @@ func (t *feedbackTx) many(q string, args ...any) ([]f.Message, error) {
 	return out, feedbackError(rows.Err())
 }
 func (t *feedbackTx) List(v f.Filter) ([]f.Message, error) {
-	return t.many(`SELECT data FROM moderation.feedback WHERE ready AND id>$1 AND ($2='' OR state=$2) AND (closed_at IS NULL OR closed_at+interval '12 months'>now()) ORDER BY id LIMIT $3`, v.After, v.State, v.Limit+1)
+	now := v.Now
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	return t.many(`SELECT data FROM moderation.feedback WHERE ready AND id>$1 AND ($2='' OR state=$2) AND (closed_at IS NULL OR closed_at+interval '12 months'>$4) ORDER BY id LIMIT $3`, v.After, v.State, v.Limit+1, now)
 }
 func (t *feedbackTx) Usage(sender string, since time.Time) (int, int64, int, error) {
 	var count, rate int

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -45,7 +46,7 @@ func digest(v any) string {
 	return hex.EncodeToString(h[:])
 }
 func keyOK(v string) bool {
-	if len(v) < 1 || len(v) > 128 {
+	if len(v) < 1 || len(v) > 128 || strings.TrimSpace(v) == "" {
 		return false
 	}
 	for _, c := range v {
@@ -57,6 +58,52 @@ func keyOK(v string) bool {
 }
 func textOK(v string, max int) bool {
 	return utf8.ValidString(v) && utf8.RuneCountInString(v) <= max && !strings.ContainsRune(v, 0)
+}
+func cleanToken(v string, max int) bool {
+	if len(v) > max || !utf8.ValidString(v) {
+		return false
+	}
+	for _, r := range v {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
+func validateDecision(d Decision) bool {
+	if !keyOK(d.ObjectID) || d.Revision < 1 || !slices.Contains([]string{"publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || strings.TrimSpace(d.Reason) == "" || !textOK(d.Reason, 2000) {
+		return false
+	}
+	if d.Body != nil && !textOK(*d.Body, 16000) {
+		return false
+	}
+	if !cleanToken(d.AuthorHandle, 128) || !cleanToken(d.Subject, 256) || !cleanToken(d.EvidenceRevision, 256) || (d.TeacherID != "" && !keyOK(d.TeacherID)) {
+		return false
+	}
+	switch d.Action {
+	case "edit":
+		return d.Body != nil && strings.TrimSpace(*d.Body) != ""
+	case "reassign":
+		return strings.TrimSpace(d.EvidenceRevision) != ""
+	case "identity":
+		return (strings.TrimSpace(d.Subject) != "") != (strings.TrimSpace(d.AuthorHandle) != "")
+	}
+	return true
+}
+func canDecideTask(task Task, revision int64) bool {
+	if task.Revision != revision {
+		return false
+	}
+	return task.State == "waiting" || (task.State == "failed" && (task.ErrorCode == "conflict" || task.ErrorCode == "forbidden"))
+}
+func validateDecisionTarget(object Object, task Task, d Decision) error {
+	if object.Kind == "resource" && !slices.Contains([]string{"publish", "hide", "restore", "delete", "dismiss"}, d.Action) {
+		return ErrInput
+	}
+	if object.SchoolID != task.SchoolID || object.Revision != d.Revision || d.ObjectID != object.ID {
+		return ErrConflict
+	}
+	return nil
 }
 func publicDecision(d *Decision) *Decision {
 	if d == nil {
@@ -329,7 +376,7 @@ func (s *Service) List(ctx context.Context, p Principal, school, state, after st
 func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in Decide) (TaskView, error) {
 	var out TaskView
 	d := in.Decision
-	if !keyOK(key) || in.Revision < 1 || !slices.Contains([]string{"publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || strings.TrimSpace(d.Reason) == "" || !textOK(d.Reason, 2000) || d.Body != nil && !textOK(*d.Body, 16000) {
+	if !keyOK(key) || in.Revision < 1 || !validateDecision(d) {
 		return out, ErrInput
 	}
 	rk := digest([]string{p.Subject, "decide", id, key})
@@ -365,22 +412,23 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 				return ErrForbidden
 			}
 		}
-		if task.Revision != in.Revision || task.State != "waiting" {
+		if !canDecideTask(task, in.Revision) {
 			return ErrConflict
 		}
 		object, e := s.inspect(ctx, p, task.Submission.ObjectID)
 		if e != nil {
 			return e
 		}
-		if object.Kind == "resource" && !slices.Contains([]string{"publish", "hide", "restore", "delete", "dismiss"}, d.Action) {
-			return ErrInput
-		}
-		if object.SchoolID != task.SchoolID || object.Revision != d.Revision || d.ObjectID != object.ID {
-			return ErrConflict
+		if e = validateDecisionTarget(object, task, d); e != nil {
+			return e
 		}
 		d.ID = rk
 		task.Decision = &d
 		task.DecidedBy = p.Subject
+		task.RetriedBy = ""
+		task.ErrorCode = ""
+		task.Attempts = 0
+		task.LeaseUntil = time.Time{}
 		now := s.now()
 		task.DecidedAt = &now
 		task.State = "decided"
@@ -422,7 +470,7 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 	}
 	replayKey := digest([]string{p.Subject, "policy", policy.SchoolID, policy.Kind, key})
 	requestHash := digest(policy)
-	if policy.SchoolID == "" || !slices.Contains([]string{"course", "mentor", "reply", "resource"}, policy.Kind) || !slices.Contains([]string{"published", "pending", "review"}, policy.Mode) || len(policy.BlockedTerms) > 100 {
+	if !keyOK(policy.SchoolID) || !slices.Contains([]string{"course", "mentor", "reply", "resource"}, policy.Kind) || !slices.Contains([]string{"published", "pending", "review"}, policy.Mode) || len(policy.BlockedTerms) > 100 {
 		return ErrInput
 	}
 	for _, term := range policy.BlockedTerms {

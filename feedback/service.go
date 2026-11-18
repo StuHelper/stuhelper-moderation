@@ -55,6 +55,17 @@ func lockCase(tx Tx, id string) error {
 	return tx.Lock()
 }
 
+func validIdempotencyKey(v string) bool {
+	if len(v) < 8 || len(v) > 128 || strings.TrimSpace(v) == "" {
+		return false
+	}
+	for _, c := range v {
+		if c < 32 || c > 126 {
+			return false
+		}
+	}
+	return true
+}
 func (s *Service) allowed(ctx context.Context, actor, action string) error {
 	if actor == "" || s.Access == nil {
 		return ErrDenied
@@ -234,6 +245,7 @@ func (s *Service) List(ctx context.Context, actor string, f Filter) (Page, error
 	if f.Limit < 1 || f.Limit > 50 || len(f.After) > 64 || (f.State != "" && !validState(f.State)) {
 		return Page{}, ErrInvalid
 	}
+	f.Now = s.now()
 	out := Page{Items: []Message{}}
 	e := s.Repo.Transaction(ctx, func(tx Tx) error {
 		rows, e := tx.List(f)
@@ -290,7 +302,7 @@ func (s *Service) Update(ctx context.Context, actor, id, key string, u Update) (
 	if e := s.allowed(ctx, actor, "manage"); e != nil {
 		return Message{}, e
 	}
-	if !validState(u.State) || u.Revision < 1 || !validText(u.Note, 10000) || len(key) < 8 || len(key) > 128 {
+	if !validState(u.State) || u.Revision < 1 || !validText(u.Note, 10000) || !validIdempotencyKey(key) {
 		return Message{}, ErrInvalid
 	}
 	request, _ := json.Marshal(u)
@@ -346,17 +358,34 @@ func (s *Service) Update(ctx context.Context, actor, id, key string, u Update) (
 	return out, e
 }
 func (s *Service) Download(ctx context.Context, actor, id, part string, w io.Writer) error {
-	v, e := s.Get(ctx, actor, id)
+	if e := s.allowed(ctx, actor, "read"); e != nil {
+		return e
+	}
+	if part == "" {
+		return ErrNotFound
+	}
+	var objectID string
+	e := s.Repo.Transaction(ctx, func(tx Tx) error {
+		v, e := tx.Get(id)
+		if e != nil {
+			return e
+		}
+		if !v.Ready || expired(v, s.now()) {
+			return ErrNotFound
+		}
+		for _, a := range v.Attachments {
+			if a.ID == part && a.Status == "stored" && a.ObjectID != "" {
+				if s.Blobs == nil {
+					return ErrUnavailable
+				}
+				objectID = a.ObjectID
+				return tx.Audit(actor, "download", id, s.now())
+			}
+		}
+		return ErrNotFound
+	})
 	if e != nil {
 		return e
 	}
-	for _, a := range v.Attachments {
-		if a.ID == part && a.Status == "stored" && a.ObjectID != "" {
-			if s.Blobs == nil {
-				return ErrUnavailable
-			}
-			return s.Blobs.Download(ctx, a.ObjectID, w)
-		}
-	}
-	return ErrNotFound
+	return s.Blobs.Download(ctx, objectID, w)
 }

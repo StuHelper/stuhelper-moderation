@@ -14,7 +14,7 @@ func (s *Service) Reply(ctx context.Context, actor, id, key, body string) (Reply
 	if s.Sender == nil {
 		return Reply{}, ErrUnavailable
 	}
-	if body == "" || !validText(body, 20000) || len(key) < 8 || len(key) > 128 {
+	if body == "" || !validText(body, 20000) || !validIdempotencyKey(key) {
 		return Reply{}, ErrInvalid
 	}
 	rk := Digest(actor + ":reply:" + id + ":" + key)

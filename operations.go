@@ -109,20 +109,51 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 		return out, ErrInput
 	}
 	out.PreviewToken = batchToken(p, in)
+	mutatingObjects := map[string]bool{}
 	for _, item := range in.Items {
 		result := BatchOutcome{ID: item.ID, State: "ready"}
-		task, e := s.Get(ctx, p, item.ID)
-		if e == nil {
-			e = s.auth(ctx, p, "manage", task.SchoolID)
+		var task Task
+		e := s.tx(ctx, func(t Transaction) error {
+			var err error
+			task, err = t.Task(item.ID)
+			if err != nil {
+				return err
+			}
+			if err = s.auth(ctx, p, "manage", task.SchoolID); err != nil {
+				return err
+			}
+			if task.Submission.Kind == "appeal" {
+				if err = s.auth(ctx, p, "review", task.SchoolID); err != nil {
+					return err
+				}
+				prior, err := t.Task(task.Submission.PreviousTaskID)
+				if err != nil {
+					return err
+				}
+				if prior.DecidedBy == p.Subject {
+					return ErrForbidden
+				}
+			}
+			return nil
+		})
+		if e == nil && !validateDecision(item.Decision) {
+			e = ErrInput
 		}
-		if e == nil && (task.State != "waiting" || task.Revision != item.Revision) {
+		if e == nil && !canDecideTask(task, item.Revision) {
 			e = ErrConflict
 		}
+		var object Object
 		if e == nil {
-			object, err := s.inspect(ctx, p, task.Submission.ObjectID)
-			e = err
-			if e == nil && (object.ID != item.Decision.ObjectID || object.Revision != item.Decision.Revision) {
+			object, e = s.inspect(ctx, p, task.Submission.ObjectID)
+			if e == nil {
+				e = validateDecisionTarget(object, task, item.Decision)
+			}
+		}
+		if e == nil && item.Decision.Action != "dismiss" {
+			if mutatingObjects[object.ID] {
 				e = ErrConflict
+			} else {
+				mutatingObjects[object.ID] = true
 			}
 		}
 		if e != nil {
@@ -168,12 +199,33 @@ func (s *Service) DecideBatch(ctx context.Context, p Principal, key string, in B
 		return out, err
 	}
 	out.PreviewToken = hash
+	mutatingObjects := map[string]bool{}
 	for _, item := range in.Items {
+		if item.Decision.Action != "dismiss" && mutatingObjects[item.Decision.ObjectID] {
+			var checkErr error
+			_ = s.Repo.Transaction(ctx, func(t Transaction) error {
+				task, e := t.Task(item.ID)
+				if e != nil {
+					checkErr = e
+					return nil
+				}
+				checkErr = s.auth(ctx, p, "manage", task.SchoolID)
+				return nil
+			})
+			code := "conflict"
+			if checkErr != nil {
+				code = errorCode(checkErr)
+			}
+			out.Items = append(out.Items, BatchOutcome{ID: item.ID, State: "rejected", Code: code})
+			continue
+		}
 		task, e := s.Decide(ctx, p, item.ID, digest([]string{rk, item.ID}), Decide{Revision: item.Revision, Decision: item.Decision})
 		result := BatchOutcome{ID: item.ID, State: task.State}
 		if e != nil {
 			result.State = "rejected"
 			result.Code = errorCode(e)
+		} else if item.Decision.Action != "dismiss" {
+			mutatingObjects[item.Decision.ObjectID] = true
 		}
 		out.Items = append(out.Items, result)
 	}

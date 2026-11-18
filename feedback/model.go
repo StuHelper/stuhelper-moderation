@@ -60,6 +60,7 @@ type Input struct {
 type Filter struct {
 	After, State string
 	Limit        int
+	Now          time.Time
 }
 type Page struct {
 	Items      []Message `json:"items"`
