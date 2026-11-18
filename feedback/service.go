@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/mail"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -242,7 +243,7 @@ func (s *Service) List(ctx context.Context, actor string, f Filter) (Page, error
 	if f.Limit == 0 {
 		f.Limit = 25
 	}
-	if f.Limit < 1 || f.Limit > 50 || len(f.After) > 64 || (f.State != "" && !validState(f.State)) {
+	if f.Limit < 1 || f.Limit > 50 || len(f.After) > 256 || (f.State != "" && !validState(f.State)) {
 		return Page{}, ErrInvalid
 	}
 	f.Now = s.now()
@@ -253,7 +254,8 @@ func (s *Service) List(ctx context.Context, actor string, f Filter) (Page, error
 			return e
 		}
 		if len(rows) > f.Limit {
-			out.NextCursor = rows[f.Limit-1].ID
+			last := rows[f.Limit-1]
+			out.NextCursor = strconv.FormatInt(last.ReceivedAt.UTC().UnixNano(), 10) + ":" + last.ID
 			rows = rows[:f.Limit]
 		}
 		for i := range rows {

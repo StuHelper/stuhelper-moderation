@@ -1,9 +1,21 @@
 CREATE SCHEMA IF NOT EXISTS moderation;
 CREATE TABLE IF NOT EXISTS moderation.tasks (
- id text PRIMARY KEY, owner text NOT NULL, school_id text NOT NULL,
+ id text PRIMARY KEY, owner text NOT NULL, content_owner text NOT NULL DEFAULT '',
+ content_kind text NOT NULL DEFAULT '', school_id text NOT NULL,
  object_id text NOT NULL, kind text NOT NULL, state text NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now(),
  next_attempt timestamptz NOT NULL, lease_until timestamptz NOT NULL, data jsonb NOT NULL
 );
+ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS content_owner text NOT NULL DEFAULT '';
+ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS content_kind text NOT NULL DEFAULT '';
+ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+UPDATE moderation.tasks
+ SET content_owner=COALESCE(data->>'content_owner',content_owner),
+     content_kind=COALESCE(data->>'content_kind',content_kind),
+     created_at=COALESCE((data->>'created_at')::timestamptz,created_at)
+ WHERE (content_owner,content_kind,created_at) IS DISTINCT FROM
+       (COALESCE(data->>'content_owner',content_owner),COALESCE(data->>'content_kind',content_kind),
+        COALESCE((data->>'created_at')::timestamptz,created_at));
 CREATE UNIQUE INDEX IF NOT EXISTS moderation_active_request ON moderation.tasks(owner,object_id,kind)
  WHERE state IN ('waiting','decided') AND kind IN ('report','edit_request','delete_request');
 CREATE UNIQUE INDEX IF NOT EXISTS moderation_active_appeal ON moderation.tasks(owner,object_id,kind)
@@ -35,6 +47,11 @@ CREATE TRIGGER protect_legacy_repeat_appeal BEFORE INSERT OR UPDATE ON moderatio
  FOR EACH ROW EXECUTE FUNCTION moderation.protect_legacy_repeat_appeal();
 CREATE INDEX IF NOT EXISTS moderation_school_queue ON moderation.tasks(school_id,state,id);
 CREATE INDEX IF NOT EXISTS moderation_owner_queue ON moderation.tasks(owner,id);
+CREATE INDEX IF NOT EXISTS moderation_owner_created ON moderation.tasks(owner,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS moderation_content_owner_created ON moderation.tasks(content_owner,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS moderation_school_state_created ON moderation.tasks(school_id,state,created_at ASC,id ASC);
+CREATE INDEX IF NOT EXISTS moderation_school_created ON moderation.tasks(school_id,created_at ASC,id ASC);
+CREATE INDEX IF NOT EXISTS moderation_school_object_created ON moderation.tasks(school_id,object_id,created_at ASC,id ASC);
 CREATE INDEX IF NOT EXISTS moderation_delivery ON moderation.tasks(next_attempt,lease_until) WHERE state='decided';
 CREATE TABLE IF NOT EXISTS moderation.policies(school_id text NOT NULL,kind text NOT NULL,data jsonb NOT NULL,PRIMARY KEY(school_id,kind));
 CREATE TABLE IF NOT EXISTS moderation.replays(key text PRIMARY KEY,data jsonb NOT NULL);
@@ -89,6 +106,8 @@ CREATE TABLE IF NOT EXISTS moderation.feedback (
 );
 CREATE INDEX IF NOT EXISTS feedback_sender_rate ON moderation.feedback(sender,received_at);
 CREATE INDEX IF NOT EXISTS feedback_expiry ON moderation.feedback(closed_at,id) WHERE closed_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS feedback_ready_order ON moderation.feedback(received_at DESC,id DESC) WHERE ready;
+CREATE INDEX IF NOT EXISTS feedback_ready_state_order ON moderation.feedback(state,received_at DESC,id DESC) WHERE ready;
 CREATE TABLE IF NOT EXISTS moderation.feedback_receipts (
  key text PRIMARY KEY, hash text NOT NULL, target text NOT NULL REFERENCES moderation.feedback(id) ON DELETE CASCADE, data jsonb NOT NULL, created_at timestamptz NOT NULL
 );
@@ -100,6 +119,94 @@ REVOKE ALL ON moderation.feedback, moderation.feedback_receipts, moderation.feed
 
 CREATE TABLE IF NOT EXISTS moderation.feedback_tombstones(id text PRIMARY KEY, dedupe text NOT NULL UNIQUE);
 REVOKE ALL ON moderation.feedback_tombstones FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS moderation.feedback_stats (
+ singleton boolean PRIMARY KEY CHECK(singleton),
+ active_count bigint NOT NULL DEFAULT 0,
+ active_bytes bigint NOT NULL DEFAULT 0,
+ tombstone_count bigint NOT NULL DEFAULT 0
+);
+INSERT INTO moderation.feedback_stats(singleton,active_count,active_bytes,tombstone_count)
+ SELECT true,
+        (SELECT count(*) FROM moderation.feedback),
+        (SELECT coalesce(sum(bytes),0)::bigint FROM moderation.feedback),
+        (SELECT count(*) FROM moderation.feedback_tombstones)
+ ON CONFLICT (singleton) DO NOTHING;
+REVOKE ALL ON moderation.feedback_stats FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION moderation.sync_feedback_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ UPDATE moderation.feedback_stats
+  SET active_count = active_count + s.c, active_bytes = active_bytes + s.b
+  FROM (SELECT count(*) AS c, coalesce(sum(bytes),0)::bigint AS b FROM new_rows) s
+  WHERE singleton AND s.c > 0;
+ RETURN NULL;
+END $$;
+CREATE OR REPLACE FUNCTION moderation.sync_feedback_update() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM new_rows) THEN
+  UPDATE moderation.feedback_stats
+   SET active_bytes = active_bytes + (SELECT coalesce(sum(bytes),0)::bigint FROM new_rows) - (SELECT coalesce(sum(bytes),0)::bigint FROM old_rows)
+   WHERE singleton;
+ END IF;
+ RETURN NULL;
+END $$;
+CREATE OR REPLACE FUNCTION moderation.sync_feedback_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ UPDATE moderation.feedback_stats
+  SET active_count = active_count - s.c, active_bytes = active_bytes - s.b
+  FROM (SELECT count(*) AS c, coalesce(sum(bytes),0)::bigint AS b FROM old_rows) s
+  WHERE singleton AND s.c > 0;
+ RETURN NULL;
+END $$;
+CREATE OR REPLACE FUNCTION moderation.sync_feedback_truncate() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ UPDATE moderation.feedback_stats SET active_count = 0, active_bytes = 0 WHERE singleton;
+ RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS feedback_stats_insert ON moderation.feedback;
+DROP TRIGGER IF EXISTS feedback_stats_update ON moderation.feedback;
+DROP TRIGGER IF EXISTS feedback_stats_delete ON moderation.feedback;
+DROP TRIGGER IF EXISTS feedback_stats_truncate ON moderation.feedback;
+CREATE TRIGGER feedback_stats_insert AFTER INSERT ON moderation.feedback
+ REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION moderation.sync_feedback_insert();
+CREATE TRIGGER feedback_stats_update AFTER UPDATE ON moderation.feedback
+ REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION moderation.sync_feedback_update();
+CREATE TRIGGER feedback_stats_delete AFTER DELETE ON moderation.feedback
+ REFERENCING OLD TABLE AS old_rows FOR EACH STATEMENT EXECUTE FUNCTION moderation.sync_feedback_delete();
+CREATE TRIGGER feedback_stats_truncate AFTER TRUNCATE ON moderation.feedback
+ FOR EACH STATEMENT EXECUTE FUNCTION moderation.sync_feedback_truncate();
+
+CREATE OR REPLACE FUNCTION moderation.sync_tombstone_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ UPDATE moderation.feedback_stats
+  SET tombstone_count = tombstone_count + s.c
+  FROM (SELECT count(*) AS c FROM new_rows) s
+  WHERE singleton AND s.c > 0;
+ RETURN NULL;
+END $$;
+CREATE OR REPLACE FUNCTION moderation.sync_tombstone_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ UPDATE moderation.feedback_stats
+  SET tombstone_count = tombstone_count - s.c
+  FROM (SELECT count(*) AS c FROM old_rows) s
+  WHERE singleton AND s.c > 0;
+ RETURN NULL;
+END $$;
+CREATE OR REPLACE FUNCTION moderation.sync_tombstone_truncate() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ UPDATE moderation.feedback_stats SET tombstone_count = 0 WHERE singleton;
+ RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS tombstone_stats_insert ON moderation.feedback_tombstones;
+DROP TRIGGER IF EXISTS tombstone_stats_delete ON moderation.feedback_tombstones;
+DROP TRIGGER IF EXISTS tombstone_stats_truncate ON moderation.feedback_tombstones;
+CREATE TRIGGER tombstone_stats_insert AFTER INSERT ON moderation.feedback_tombstones
+ REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION moderation.sync_tombstone_insert();
+CREATE TRIGGER tombstone_stats_delete AFTER DELETE ON moderation.feedback_tombstones
+ REFERENCING OLD TABLE AS old_rows FOR EACH STATEMENT EXECUTE FUNCTION moderation.sync_tombstone_delete();
+CREATE TRIGGER tombstone_stats_truncate AFTER TRUNCATE ON moderation.feedback_tombstones
+ FOR EACH STATEMENT EXECUTE FUNCTION moderation.sync_tombstone_truncate();
 
 -- Only this bounded retention operation can delete feedback audit rows. The
 -- application role retains no general UPDATE/DELETE permission on audit.
