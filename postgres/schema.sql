@@ -10,7 +10,10 @@ CREATE INDEX IF NOT EXISTS moderation_school_queue ON moderation.tasks(school_id
 CREATE INDEX IF NOT EXISTS moderation_owner_queue ON moderation.tasks(owner,id);
 CREATE INDEX IF NOT EXISTS moderation_delivery ON moderation.tasks(next_attempt,lease_until) WHERE state='decided';
 CREATE TABLE IF NOT EXISTS moderation.policies(school_id text NOT NULL,kind text NOT NULL,data jsonb NOT NULL,PRIMARY KEY(school_id,kind));
-CREATE TABLE IF NOT EXISTS moderation.replays(key text PRIMARY KEY,data jsonb NOT NULL);
+CREATE TABLE IF NOT EXISTS moderation.replays(key text PRIMARY KEY,until timestamptz,data jsonb NOT NULL);
+ALTER TABLE moderation.replays ADD COLUMN IF NOT EXISTS until timestamptz;
+UPDATE moderation.replays SET until=(data->>'Until')::timestamptz WHERE until IS NULL AND (data ? 'Until');
+CREATE INDEX IF NOT EXISTS moderation_replays_until ON moderation.replays(until) WHERE until IS NOT NULL;
 CREATE TABLE IF NOT EXISTS moderation.audit (
  id text PRIMARY KEY, time timestamptz NOT NULL, data jsonb NOT NULL,
  actor text NOT NULL, target text NOT NULL, action text NOT NULL,
@@ -32,10 +35,12 @@ REVOKE ALL ON SCHEMA moderation FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA moderation FROM PUBLIC;
 
 CREATE TABLE IF NOT EXISTS moderation.submission_limits(owner_key text PRIMARY KEY, started_at timestamptz NOT NULL, used integer NOT NULL CHECK(used>0));
+CREATE INDEX IF NOT EXISTS moderation_submission_limits_started ON moderation.submission_limits(started_at);
 
 ALTER TABLE moderation.outbox ADD COLUMN IF NOT EXISTS sent_at timestamptz;
 UPDATE moderation.outbox SET sent_at=now() WHERE delivered AND sent_at IS NULL;
 CREATE INDEX IF NOT EXISTS moderation_outbox_pending ON moderation.outbox ((data->>'subject'), ((data->'data'->>'revision')::bigint), id) WHERE sent_at IS NULL;
+CREATE INDEX IF NOT EXISTS moderation_outbox_sent ON moderation.outbox(sent_at) WHERE sent_at IS NOT NULL;
 
 -- Feedback is global operator correspondence; school-scoped grants do not
 -- expose a sender's identity or complaint materials.
@@ -73,3 +78,24 @@ BEGIN
  RETURN removed;
 END $$;
 REVOKE ALL ON FUNCTION moderation.cleanup_feedback_audit() FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION moderation.cleanup_task_audit(cutoff timestamptz, max_rows integer) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+DECLARE removed integer;
+BEGIN
+ IF max_rows < 1 OR max_rows > 500 THEN
+  RAISE EXCEPTION 'invalid_limit';
+ END IF;
+ IF NOT EXISTS (
+  SELECT 1 FROM moderation.audit WHERE action NOT LIKE 'feedback.%' AND time < cutoff
+ ) THEN
+  RETURN 0;
+ END IF;
+ DELETE FROM moderation.audit WHERE id IN (
+  SELECT id FROM moderation.audit WHERE action NOT LIKE 'feedback.%'
+   AND time < cutoff ORDER BY time,id LIMIT max_rows
+ );
+ GET DIAGNOSTICS removed = ROW_COUNT;
+ RETURN removed;
+END $$;
+REVOKE ALL ON FUNCTION moderation.cleanup_task_audit(timestamptz, integer) FROM PUBLIC;

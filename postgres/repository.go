@@ -97,7 +97,7 @@ func (t *transaction) Active(owner, object, kind string) (m.Task, error) {
 	return read[m.Task](t, `SELECT data FROM moderation.tasks WHERE owner=$1 AND object_id=$2 AND kind=$3 AND state IN ('waiting','decided')`, owner, object, kind)
 }
 func (t *transaction) SaveTask(v m.Task) error {
-	return t.save(`INSERT INTO moderation.tasks(id,owner,school_id,object_id,kind,state,next_attempt,lease_until,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO UPDATE SET state=excluded.state,next_attempt=excluded.next_attempt,lease_until=excluded.lease_until,data=excluded.data`, v, v.ID, v.Owner, v.SchoolID, v.Submission.ObjectID, v.Submission.Kind, v.State, v.NextAttempt, v.LeaseUntil)
+	return t.save(`INSERT INTO moderation.tasks(id,owner,school_id,object_id,kind,state,next_attempt,lease_until,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,school_id=excluded.school_id,object_id=excluded.object_id,kind=excluded.kind,state=excluded.state,next_attempt=excluded.next_attempt,lease_until=excluded.lease_until,data=excluded.data`, v, v.ID, v.Owner, v.SchoolID, v.Submission.ObjectID, v.Submission.Kind, v.State, v.NextAttempt, v.LeaseUntil)
 }
 func (t *transaction) List(owner, school, state, after string, limit int) ([]m.Task, error) {
 	return list[m.Task](t, `SELECT data FROM moderation.tasks WHERE ($1='' OR owner=$1) AND ($2='' OR school_id=$2) AND ($3='' OR state=$3) AND id>$4 ORDER BY id LIMIT $5`, owner, school, state, after, limit)
@@ -115,7 +115,38 @@ func (t *transaction) Replay(key string) (m.Replay, error) {
 	return read[m.Replay](t, `SELECT data FROM moderation.replays WHERE key=$1`, key)
 }
 func (t *transaction) SaveReplay(key string, v m.Replay) error {
-	return t.save(`INSERT INTO moderation.replays(key,data) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET data=excluded.data`, v, key)
+	var until any
+	if !v.Until.IsZero() {
+		until = v.Until.UTC()
+	}
+	return t.save(`INSERT INTO moderation.replays(key,until,data) VALUES($1,$2,$3) ON CONFLICT(key) DO UPDATE SET until=excluded.until,data=excluded.data`, v, key, until)
+}
+func (r *Repository) Cleanup(ctx context.Context, now time.Time, limit int) error {
+	if limit < 1 || limit > 500 {
+		return m.ErrInput
+	}
+	now = now.UTC()
+	tx, e := r.DB.BeginTx(ctx, nil)
+	if e != nil {
+		return safe(e)
+	}
+	defer tx.Rollback()
+	if _, e = tx.ExecContext(ctx, "SET LOCAL TIME ZONE 'UTC'"); e != nil {
+		return safe(e)
+	}
+	if _, e = tx.ExecContext(ctx, `DELETE FROM moderation.replays WHERE key IN (SELECT key FROM moderation.replays WHERE until IS NOT NULL AND until <= $1 ORDER BY until LIMIT $2)`, now, limit); e != nil {
+		return safe(e)
+	}
+	if _, e = tx.ExecContext(ctx, `DELETE FROM moderation.submission_limits WHERE owner_key IN (SELECT owner_key FROM moderation.submission_limits WHERE started_at <= $1 ORDER BY started_at LIMIT $2)`, now.Add(-24*time.Hour), limit); e != nil {
+		return safe(e)
+	}
+	if _, e = tx.ExecContext(ctx, `DELETE FROM moderation.outbox WHERE id IN (SELECT id FROM moderation.outbox WHERE sent_at IS NOT NULL AND sent_at <= $1 ORDER BY sent_at LIMIT $2)`, now.Add(-90*24*time.Hour), limit); e != nil {
+		return safe(e)
+	}
+	if _, e = tx.ExecContext(ctx, `SELECT moderation.cleanup_task_audit($1::timestamptz - interval '12 months', $2)`, now, limit); e != nil {
+		return safe(e)
+	}
+	return safe(tx.Commit())
 }
 func (t *transaction) Event(v m.Event) error {
 	if e := t.saveAudit(v); e != nil {

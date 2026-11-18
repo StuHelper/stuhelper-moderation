@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -80,6 +81,16 @@ func replay(t Transaction, key, hash string, now time.Time) (TaskView, bool, err
 	}
 	return r.View, true, nil
 }
+func allocateTaskID(t Transaction, base string, now time.Time) (string, error) {
+	_, e := t.Task(base)
+	if errors.Is(e, ErrNotFound) {
+		return base, nil
+	}
+	if e != nil {
+		return "", e
+	}
+	return digest([]string{base, strconv.FormatInt(now.UnixNano(), 10)}), nil
+}
 func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
 	result := "success"
 	if action == "decided" {
@@ -89,10 +100,32 @@ func (s *Service) record(t Transaction, key, hash, action string, p Principal, t
 	if action == "decided" {
 		data = resultData(task)
 	}
-	if e := t.Event(Event{Result: result, Data: data, ID: key, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: s.now()}); e != nil {
+	now := s.now()
+	eventID := digest([]string{"event", key, task.ID, action, strconv.FormatInt(task.Revision, 10)})
+	if e := t.Event(Event{Result: result, Data: data, ID: eventID, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: now}); e != nil {
 		return e
 	}
-	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: view(task), Until: s.now().Add(24 * time.Hour)})
+	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: viewFor(p, task), Until: now.Add(24 * time.Hour)})
+}
+
+type retentionRepository interface {
+	Cleanup(context.Context, time.Time, int) error
+}
+
+// Cleanup removes expired idempotency replays (24h), rate-limit windows (24h),
+// confirmed outbox rows (90d), and non-feedback audit records (12m) in bounded batches.
+func (s *Service) Cleanup(ctx context.Context, limit int) error {
+	if limit == 0 {
+		limit = 200
+	}
+	if limit < 1 || limit > 500 {
+		return ErrInput
+	}
+	cleaner, ok := s.Repo.(retentionRepository)
+	if !ok {
+		return ErrUnavailable
+	}
+	return cleaner.Cleanup(ctx, s.now(), limit)
 }
 
 // Check is read-only. Pending content is handed off by the content module's outbox.
@@ -202,7 +235,12 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 			return ErrConflict
 		}
 		if errors.Is(e, ErrNotFound) {
-			task = Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: rk, SchoolID: object.SchoolID, Owner: p.Subject, Submission: in, ObjectRevision: object.Revision, State: "waiting", CreatedAt: s.now()}
+			now := s.now()
+			taskID, err := allocateTaskID(t, rk, now)
+			if err != nil {
+				return err
+			}
+			task = Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: taskID, SchoolID: object.SchoolID, Owner: p.Subject, Submission: in, ObjectRevision: object.Revision, State: "waiting", CreatedAt: now}
 		} else {
 			if in.Reason != task.Submission.Reason {
 				task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)

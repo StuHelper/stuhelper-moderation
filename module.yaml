@@ -35,6 +35,7 @@ scenario_tests:
   CM-13:
     - object_access_test.go#TestNotificationTaskBatchKeepsReceiptPermissions
     - operations_test.go#TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence
+    - task_columns_replay_retention_test.go#TestSaveTaskSyncsColumnsReplayPreservesCanAppealAndExpiredKeyDoesNotCollide
   ACAD-15:
     - report_test.go#TestNewReportsRequireAdmissionButOwnPendingEvidenceRemainsAvailable
     - report_test.go#TestPendingEvidenceCannotOverwriteConcurrentDecision

@@ -41,7 +41,7 @@ PostgreSQL 测试覆盖举报合并、作者请求限制、策略幂等、学校
 
 审核决定和终态结果按[事件契约](contracts/events.md)写入事务 outbox，并在提交后通知 moderation_outbox。relay 通过公开 Go OutboxReader 读取与确认事件，单批最多 100，并可排除最多 1000 个暂缓投递的主题。backend 的 LISTEN、消费者 inbox 与重试装配由后续任务接入。
 
-受信管理适配器可通过 Repository.ReadAudit 查询[脱敏审计](contracts/audit.md)。查询支持范围先过滤、最多 101 条、事务可见性快照与排他游标。现有审计表需按最终结构建立，本轮不转换历史数据。
+受信管理适配器可通过 Repository.ReadAudit 查询[脱敏审计](contracts/audit.md)。查询支持范围先过滤、最多 101 条、事务可见性快照与排他游标。Service.Cleanup 按有界批次清理到期幂等记录（24 小时）、限流窗口（24 小时）、已确认 outbox 事件（90 天）及常规审核审计（12 个月），未确认事件与未到期记录保留。
 
 ## 反馈收件箱（2026-11-15）
 
