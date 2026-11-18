@@ -20,10 +20,24 @@ type Service struct {
 }
 
 func (s *Service) now() time.Time {
-	if s.Clock != nil {
+	if s != nil && s.Clock != nil {
 		return s.Clock().UTC()
 	}
 	return time.Now().UTC()
+}
+func (s *Service) tx(ctx context.Context, run func(Transaction) error) error {
+	if s == nil || s.Repo == nil {
+		return ErrUnavailable
+	}
+	return s.Repo.Transaction(ctx, run)
+}
+func (s *Service) inspect(ctx context.Context, p Principal, id string) (Object, error) {
+	if s == nil || s.Content == nil {
+		return Object{}, ErrUnavailable
+	}
+	call, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	return s.Content.Inspect(call, p, id)
 }
 func digest(v any) string {
 	b, _ := json.Marshal(v)
@@ -59,7 +73,7 @@ func (s *Service) auth(ctx context.Context, p Principal, action, school string) 
 	if p.Subject == "" {
 		return ErrForbidden
 	}
-	if s.Access == nil {
+	if s == nil || s.Access == nil {
 		return ErrUnavailable
 	}
 	return s.Access.Authorize(ctx, p, action, school)
@@ -101,7 +115,7 @@ func (s *Service) Check(ctx context.Context, school, kind, title, body string) (
 		return "", ErrInput
 	}
 	var policy Policy
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		view, err := effectivePolicy(t, school, kind)
 		policy = view.Effective
 		return err
@@ -139,7 +153,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 		}
 		return s.submitReport(ctx, p, key, in)
 	}
-	object, e := s.Content.Inspect(ctx, p, in.ObjectID)
+	object, e := s.inspect(ctx, p, in.ObjectID)
 	if e != nil {
 		return out, e
 	}
@@ -159,7 +173,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 		if in.PreviousTaskID == "" {
 			return out, ErrInput
 		}
-		err := s.Repo.Transaction(ctx, func(t Transaction) error {
+		err := s.tx(ctx, func(t Transaction) error {
 			previous, e := t.Task(in.PreviousTaskID)
 			if e != nil {
 				return e
@@ -182,7 +196,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	}
 	rk := digest([]string{p.Subject, in.Kind, in.ObjectID, key})
 	h := digest(in)
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
 			return e
 		}
@@ -236,7 +250,7 @@ func (s *Service) Track(ctx context.Context, eventID string, object Object) (Tas
 		return out, ErrInput
 	}
 	id := digest([]string{"content", eventID})
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(id); e != nil {
 			return e
 		}
@@ -262,7 +276,7 @@ func (s *Service) Track(ctx context.Context, eventID string, object Object) (Tas
 }
 func (s *Service) Get(ctx context.Context, p Principal, id string) (TaskView, error) {
 	var out TaskView
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		task, e := t.Task(id)
 		if e != nil {
 			return e
@@ -291,7 +305,7 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 	}
 	rk := digest([]string{p.Subject, "decide", id, key})
 	h := digest(in)
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(id); e != nil {
 			return e
 		}
@@ -325,7 +339,7 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 		if task.Revision != in.Revision || task.State != "waiting" {
 			return ErrConflict
 		}
-		object, e := s.Content.Inspect(ctx, p, task.Submission.ObjectID)
+		object, e := s.inspect(ctx, p, task.Submission.ObjectID)
 		if e != nil {
 			return e
 		}
@@ -380,7 +394,7 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 	if e := s.auth(ctx, p, "configure", policy.SchoolID); e != nil {
 		return e
 	}
-	return s.Repo.Transaction(ctx, func(t Transaction) error {
+	return s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock("policy:" + policy.SchoolID + ":" + policy.Kind); e != nil {
 			return e
 		}

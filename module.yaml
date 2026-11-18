@@ -23,6 +23,8 @@ scenario_tests:
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
   CM-02:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
+    - dependency_worker_test.go#TestMissingDependenciesReturnUnavailableWithoutPanic
+    - dependency_worker_test.go#TestWorkerShutdownPersistsAppliedResultInspectHasTimeoutAndRetryResetsBackoff
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
