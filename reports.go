@@ -14,8 +14,8 @@ func (s *Service) submitReport(ctx context.Context, p Principal, key string, in 
 
 func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Submission, object *Object) (TaskView, error) {
 	var out TaskView
-	if e := s.auth(ctx, p, "submit", ""); e != nil {
-		return out, e
+	if p.Subject == "" {
+		return out, ErrForbidden
 	}
 	if in.Evidence == nil {
 		in.Evidence = []string{}
@@ -36,7 +36,7 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 		out, txErr = s.upsertSubmissionTx(t, p, operation, payload, in, object, needsFacts, checkRateLimit)
 		return txErr
 	}
-	err := s.Repo.Transaction(ctx, apply)
+	err := s.tx(ctx, apply)
 	if !errors.Is(err, needsFacts) {
 		return out, err
 	}
@@ -58,6 +58,6 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 	object = &current
 	// Recheck local state under the same lock: a concurrent creation merges, and
 	// a concurrent decision cannot be overwritten by late evidence.
-	err = s.Repo.Transaction(ctx, apply)
+	err = s.tx(ctx, apply)
 	return out, err
 }

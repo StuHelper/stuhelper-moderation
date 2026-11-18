@@ -12,15 +12,18 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 		return 0, ErrInput
 	}
 	var tasks []Task
-	err := s.Repo.Transaction(ctx, func(t Transaction) error { var e error; tasks, e = t.Ready(s.now(), limit); return e })
+	err := s.tx(ctx, func(t Transaction) error { var e error; tasks, e = t.Ready(s.now(), limit); return e })
 	if err != nil {
 		return 0, err
 	}
 	done := 0
 	for _, candidate := range tasks {
+		if err := ctx.Err(); err != nil {
+			return done, err
+		}
 		var task Task
 		claimed := false
-		err = s.Repo.Transaction(ctx, func(t Transaction) error {
+		err = s.tx(ctx, func(t Transaction) error {
 			if e := t.Lock(candidate.ID); e != nil {
 				return e
 			}
@@ -49,10 +52,16 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 		callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		applyErr := ErrUnavailable
 		if s.Content != nil {
-			applyErr = s.Content.Apply(callCtx, Principal{Subject: task.DecidedBy}, *task.Decision)
+			actor := task.DecidedBy
+			if task.RetriedBy != "" {
+				actor = task.RetriedBy
+			}
+			applyErr = s.Content.Apply(callCtx, Principal{Subject: actor}, *task.Decision)
 		}
 		cancel()
-		err = s.Repo.Transaction(ctx, func(t Transaction) error {
+		// Persist the outcome even if shutdown canceled ctx after Apply executed.
+		persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		err = s.tx(persistCtx, func(t Transaction) error {
 			if e := t.Lock(task.ID); e != nil {
 				return e
 			}
@@ -60,7 +69,7 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 			if e != nil {
 				return e
 			}
-			if current.Attempts != task.Attempts || current.State != "decided" {
+			if current.Revision != task.Revision || current.Attempts != task.Attempts || current.State != "decided" {
 				return nil
 			}
 			current.LeaseUntil = time.Time{}
@@ -72,7 +81,7 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 				done++
 			} else if errors.Is(applyErr, ErrConflict) || errors.Is(applyErr, ErrNotFound) || errors.Is(applyErr, ErrForbidden) {
 				current.State = "failed"
-				current.ErrorCode = applyErr.Error()
+				current.ErrorCode = errorCode(applyErr)
 			} else {
 				current.ErrorCode = "unavailable"
 				delay := 5 * time.Second
@@ -95,6 +104,7 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 			}
 			return nil
 		})
+		persistCancel()
 		if err != nil {
 			return done, err
 		}

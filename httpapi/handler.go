@@ -99,6 +99,10 @@ func (h Handler) principal(w http.ResponseWriter, r *http.Request) (m.Principal,
 		_ = json.NewEncoder(w).Encode(map[string]string{"code": "unauthenticated"})
 		return p, false
 	}
+	if h.Service == nil {
+		respond(w, nil, m.ErrUnavailable)
+		return p, false
+	}
 	return p, true
 }
 func (h Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +120,12 @@ func (h Handler) list(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	admin := q.Get("admin") == "true"
+	rawAdmin := q.Get("admin")
+	if rawAdmin != "" && rawAdmin != "true" && rawAdmin != "false" {
+		respond(w, nil, m.ErrInput)
+		return
+	}
+	admin := rawAdmin == "true"
 	filter := m.TaskFilter{School: q.Get("school_id"), State: q.Get("state"), After: q.Get("after"), Limit: n, Admin: admin, Kind: q.Get("kind"), ContentKind: q.Get("content_kind"), ObjectID: q.Get("object_id")}
 	for key, dest := range map[string]**time.Time{"from": &filter.From, "until": &filter.Until} {
 		if q.Get(key) != "" {
@@ -147,6 +156,10 @@ func (h Handler) submit(w http.ResponseWriter, r *http.Request) {
 	var in m.Submission
 	if e := decode(w, r, &in); e != nil {
 		respond(w, nil, e)
+		return
+	}
+	if in.Evidence == nil {
+		respond(w, nil, m.ErrInput)
 		return
 	}
 	v, e := h.Service.Submit(r.Context(), p, r.Header.Get("Idempotency-Key"), in)

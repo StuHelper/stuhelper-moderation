@@ -31,6 +31,12 @@ func TestAuthenticationFailureKeepsItsStatus(t *testing.T) {
 			t.Fatalf("authentication response: %d %v", response.Code, body)
 		}
 	}
+	h := Handler{Authenticate: func(*http.Request) (m.Principal, error) { return m.Principal{Subject: "user"}, nil }}
+	response := httptest.NewRecorder()
+	h.Routes().ServeHTTP(response, httptest.NewRequest("GET", "/api/v1/moderation/tasks", nil))
+	if response.Code != 503 {
+		t.Fatalf("expected 503 when Handler.Service is nil, got: %d %s", response.Code, response.Body.String())
+	}
 }
 
 func TestHTTPBoundaryGuardsOriginBodySizeUnknownFieldsAndQueryValidation(t *testing.T) {

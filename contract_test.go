@@ -383,10 +383,10 @@ func TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance(t *testing.T) {
 		Items: []sdk.BatchItem{{
 			Id:       taskID,
 			Revision: 1,
-			Decision: sdk.Decision{Id: "", ObjectId: "review", Revision: 1, Action: sdk.DecisionAction("hide"), Reason: "Batch hide"},
+			Decision: sdk.DecisionInput{ObjectId: "review", Revision: 1, Action: sdk.DecisionInputAction("hide"), Reason: "Batch hide"},
 		}},
 	}
-	prev200, err := client.PreviewBatchWithResponse(ctx, &sdk.PreviewBatchParams{IdempotencyKey: "prev-1"}, batchReq, asActor("admin"))
+	prev200, err := client.PreviewBatchWithResponse(ctx, &sdk.PreviewBatchParams{}, sdk.BatchPreviewRequest{Items: batchReq.Items}, asActor("admin"))
 	if err != nil || prev200.StatusCode() != 200 || prev200.JSON200 == nil {
 		t.Fatalf("previewBatch 200 failed: %v %+v", err, prev200)
 	}
@@ -411,7 +411,7 @@ func TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance(t *testing.T) {
 	}
 
 	retry200, err := client.RetryTaskWithResponse(ctx, taskID, &sdk.RetryTaskParams{IdempotencyKey: "retry-1"}, sdk.RetryTaskJSONRequestBody{
-		Revision: int(failedView.Revision),
+		Revision: failedView.Revision,
 	}, asActor("admin"))
 	if err != nil || retry200.StatusCode() != 200 {
 		t.Fatalf("retryTask 200 failed: %v %+v", err, retry200)
@@ -419,7 +419,7 @@ func TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance(t *testing.T) {
 	validateJSONBytes(t, doc, "TaskView", retry200.Body)
 
 	retry409, err := client.RetryTaskWithResponse(ctx, taskID, &sdk.RetryTaskParams{IdempotencyKey: "retry-stale"}, sdk.RetryTaskJSONRequestBody{
-		Revision: int(failedView.Revision),
+		Revision: failedView.Revision,
 	}, asActor("admin"))
 	if err != nil || retry409.StatusCode() != 409 {
 		t.Fatalf("expected 409 on retry of decided task, got %v %+v", err, retry409)
@@ -441,11 +441,11 @@ func TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance(t *testing.T) {
 		t.Fatalf("submit review failed: %v %+v", err, reviewTask)
 	}
 	c.mu.Lock()
-	curRev := int(c.revision)
+	curRev := c.revision
 	c.mu.Unlock()
 	dec403, err := client.DecideTaskWithResponse(ctx, reviewTask.JSON200.Id, &sdk.DecideTaskParams{IdempotencyKey: "dec-403"}, sdk.Decide{
 		Revision: 1,
-		Decision: sdk.Decision{Id: "", ObjectId: "review", Revision: curRev, Action: sdk.DecisionAction("dismiss"), Reason: "Denied"},
+		Decision: sdk.DecisionInput{ObjectId: "review", Revision: curRev, Action: sdk.DecisionInputAction("dismiss"), Reason: "Denied"},
 	}, asActor("reporter"))
 	if err != nil || dec403.StatusCode() != 403 {
 		t.Fatalf("expected 403 on decideTask, got %v %+v", err, dec403)
@@ -454,7 +454,7 @@ func TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance(t *testing.T) {
 
 	dec200, err := client.DecideTaskWithResponse(ctx, reviewTask.JSON200.Id, &sdk.DecideTaskParams{IdempotencyKey: "dec-200"}, sdk.Decide{
 		Revision: 1,
-		Decision: sdk.Decision{Id: "", ObjectId: "review", Revision: curRev, Action: sdk.DecisionAction("dismiss"), Reason: "Closed"},
+		Decision: sdk.DecisionInput{ObjectId: "review", Revision: curRev, Action: sdk.DecisionInputAction("dismiss"), Reason: "Closed"},
 	}, asActor("admin"))
 	if err != nil || dec200.StatusCode() != 200 {
 		t.Fatalf("decideTask 200 failed: %v %+v", err, dec200)

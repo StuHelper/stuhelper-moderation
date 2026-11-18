@@ -180,12 +180,12 @@ func TestPolicyScopeReplayAndPrivateDecisionProjection(t *testing.T) {
 		t.Fatal("event duplicated")
 	}
 	body := "Private edited text"
-	d := m.Decide{Revision: 1, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "edit", Body: &body, Subject: "anonymous-account", Reason: "Correction"}}
+	d := m.Decide{Revision: 1, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "edit", Body: &body, Subject: "anonymous-account", AuthorHandle: "handle-1", EvidenceRevision: "enrollment-rev-1", Signed: true, Reason: "Correction"}}
 	decided, e := s.Decide(ctx, m.Principal{Subject: "admin"}, task.ID, "decide", d)
 	if e != nil {
 		t.Fatal(e)
 	}
-	if decided.Decision.Body != nil || decided.Decision.Subject != "" {
-		t.Fatal("decision leaked private identity or gated body")
+	if decided.Decision.Body != nil || decided.Decision.Subject != "" || decided.Decision.AuthorHandle != "" || decided.Decision.EvidenceRevision != "" || decided.Decision.Signed {
+		t.Fatal("decision leaked private identity, enrollment evidence, or gated body")
 	}
 }
