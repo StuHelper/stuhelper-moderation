@@ -2,14 +2,19 @@ package moderation_test
 
 import (
 	"context"
+	"errors"
 	m "github.com/StuHelper/stuhelper-moderation"
+	"github.com/jackc/pgx/v5/pgconn"
 	"testing"
 	"time"
 )
 
 func TestSaveTaskSyncsColumnsReplayPreservesCanAppealAndExpiredKeyDoesNotCollide(t *testing.T) {
 	repo, migration := database(t)
-	now := time.Date(2026, 11, 18, 8, 0, 0, 0, time.UTC)
+	var now time.Time
+	if err := migration.QueryRow("SELECT current_timestamp - interval '2 years'").Scan(&now); err != nil {
+		t.Fatal(err)
+	}
 	c := &content{revision: 1, applied: map[string]bool{}}
 	s := &m.Service{Repo: repo, Content: c, Access: access{}, Clock: func() time.Time { return now }}
 	ctx := context.Background()
@@ -142,4 +147,56 @@ func (authorAdminAccess) Authorize(_ context.Context, p m.Principal, _, _ string
 		return m.ErrForbidden
 	}
 	return nil
+}
+
+func TestCleanupPreservesConcurrentRenewals(t *testing.T) {
+	repo, db := database(t)
+	now := time.Now().UTC()
+	if _, err := db.Exec(`INSERT INTO moderation.replays(key,until,data) VALUES('key',$1,'{}')`, now.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO moderation.submission_limits VALUES('owner',$1,1)`, now.Add(-48*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	writer, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Rollback()
+	if _, err = writer.Exec("UPDATE moderation.replays SET until=$1 WHERE key='key'", now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = writer.Exec("UPDATE moderation.submission_limits SET started_at=$1 WHERE owner_key='owner'", now); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err = repo.Cleanup(ctx, now, 10); err != nil {
+		t.Fatal(err)
+	}
+	if err = writer.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.Cleanup(ctx, now, 10); err != nil {
+		t.Fatal(err)
+	}
+	var rows int
+	if err = db.QueryRow("SELECT (SELECT count(*) FROM moderation.replays)+(SELECT count(*) FROM moderation.submission_limits)").Scan(&rows); err != nil || rows != 2 {
+		t.Fatal("renewed rows", rows, err)
+	}
+}
+
+func TestAuditRetentionValidatesArguments(t *testing.T) {
+	repo, _ := database(t)
+	for _, tc := range []struct {
+		cutoff any
+		limit  any
+	}{{nil, 1}, {time.Now().UTC(), 1}, {time.Now().UTC().AddDate(-2, 0, 0), nil}} {
+		var n int
+		err := repo.DB.QueryRow("SELECT moderation.cleanup_task_audit($1,$2)", tc.cutoff, tc.limit).Scan(&n)
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "22023" {
+			t.Fatal("expected invalid argument", err)
+		}
+	}
 }
