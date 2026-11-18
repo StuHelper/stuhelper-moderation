@@ -14,7 +14,7 @@ func (s *Service) Reply(ctx context.Context, actor, id, key, body string) (Reply
 	if s.Sender == nil {
 		return Reply{}, ErrUnavailable
 	}
-	if body == "" || !validText(body, 20000) || len(key) < 8 || len(key) > 128 {
+	if body == "" || !validText(body, 20000) || !validIdempotencyKey(key) {
 		return Reply{}, ErrInvalid
 	}
 	rk := Digest(actor + ":reply:" + id + ":" + key)
@@ -23,7 +23,7 @@ func (s *Service) Reply(ctx context.Context, actor, id, key, body string) (Reply
 	var message Message
 	send := false
 	e := s.Repo.Transaction(ctx, func(tx Tx) error {
-		if e := tx.Lock(); e != nil {
+		if e := lockCase(tx, id); e != nil {
 			return e
 		}
 		v, e := tx.Get(id)
@@ -98,7 +98,7 @@ func (s *Service) Reply(ctx context.Context, actor, id, key, body string) (Reply
 	persist, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	e = s.Repo.Transaction(persist, func(tx Tx) error {
-		if e := tx.Lock(); e != nil {
+		if e := lockCase(tx, id); e != nil {
 			return e
 		}
 		v, e := tx.Get(id)
@@ -121,7 +121,8 @@ func (s *Service) Reply(ctx context.Context, actor, id, key, body string) (Reply
 }
 
 // Cleanup removes only closed cases older than twelve calendar months. External
-// deletion is repeatable and precedes metadata removal. Each run is bounded.
+// deletion is repeatable and runs outside DB transactions so slow object storage
+// cannot block active mailbox or operator workflows. Each run is bounded.
 func (s *Service) Cleanup(ctx context.Context) error {
 	var rows []Message
 	e := s.Repo.Transaction(ctx, func(tx Tx) error { var e error; rows, e = tx.Expired(s.now(), 50); return e })
@@ -129,9 +130,13 @@ func (s *Service) Cleanup(ctx context.Context) error {
 		return e
 	}
 	for _, v := range rows {
-		// Hold the same lock as state updates so a reopened case cannot lose files.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		var objects []string
+		eligible := false
 		e = s.Repo.Transaction(ctx, func(tx Tx) error {
-			if e := tx.Lock(); e != nil {
+			if e := lockCase(tx, v.ID); e != nil {
 				return e
 			}
 			current, e := tx.Get(v.ID)
@@ -144,15 +149,44 @@ func (s *Service) Cleanup(ctx context.Context) error {
 			if !expired(current, s.now()) {
 				return nil
 			}
+			eligible = true
 			for _, a := range current.Attachments {
 				if a.ObjectID != "" {
-					if s.Blobs == nil {
-						return ErrUnavailable
-					}
-					if e = s.Blobs.Delete(ctx, a.ObjectID); e != nil {
-						return ErrUnavailable
-					}
+					objects = append(objects, a.ObjectID)
 				}
+			}
+			return nil
+		})
+		if e != nil {
+			return e
+		}
+		if !eligible {
+			continue
+		}
+		for _, objectID := range objects {
+			if s.Blobs == nil {
+				return ErrUnavailable
+			}
+			delCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			delErr := s.Blobs.Delete(delCtx, objectID)
+			cancel()
+			if delErr != nil {
+				return ErrUnavailable
+			}
+		}
+		e = s.Repo.Transaction(ctx, func(tx Tx) error {
+			if e := lockCase(tx, v.ID); e != nil {
+				return e
+			}
+			current, e := tx.Get(v.ID)
+			if errors.Is(e, ErrNotFound) {
+				return nil
+			}
+			if e != nil {
+				return e
+			}
+			if !expired(current, s.now()) {
+				return nil
 			}
 			if e = tx.Delete(v.ID); e != nil {
 				return e
