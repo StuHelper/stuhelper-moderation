@@ -38,17 +38,32 @@ func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) (
 		f.Owner = ""
 	}
 	out := []TaskView{}
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		tasks, e := t.FilteredTasks(f)
 		if e != nil {
 			return e
 		}
+		var candidateIDs []string
 		for _, task := range tasks {
 			v := viewFor(p, task)
 			if !f.Admin {
 				v = recipientView(p, task)
 			}
+			if v.CanAppeal {
+				candidateIDs = append(candidateIDs, task.ID)
+			}
 			out = append(out, v)
+		}
+		if len(candidateIDs) > 0 {
+			appealed, e := appealedTasks(t, candidateIDs)
+			if e != nil {
+				return e
+			}
+			for i := range out {
+				if appealed[out[i].ID] {
+					out[i].CanAppeal = false
+				}
+			}
 		}
 		return nil
 	})
@@ -98,7 +113,7 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 	for _, item := range in.Items {
 		result := BatchOutcome{ID: item.ID, State: "ready"}
 		var task Task
-		e := s.Repo.Transaction(ctx, func(t Transaction) error {
+		e := s.tx(ctx, func(t Transaction) error {
 			var err error
 			task, err = t.Task(item.ID)
 			if err != nil {
@@ -129,13 +144,9 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 		}
 		var object Object
 		if e == nil {
-			if s.Content == nil {
-				e = ErrUnavailable
-			} else {
-				object, e = s.Content.Inspect(ctx, p, task.Submission.ObjectID)
-				if e == nil {
-					e = validateDecisionTarget(object, task, item.Decision)
-				}
+			object, e = s.inspect(ctx, p, task.Submission.ObjectID)
+			if e == nil {
+				e = validateDecisionTarget(object, task, item.Decision)
 			}
 		}
 		if e == nil && item.Decision.Action != "dismiss" {
@@ -168,7 +179,7 @@ func (s *Service) DecideBatch(ctx context.Context, p Principal, key string, in B
 	}
 	rk := digest([]string{p.Subject, "batch", key})
 	hash := batchToken(p, in)
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(rk); e != nil {
 			return e
 		}

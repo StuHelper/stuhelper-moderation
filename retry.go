@@ -12,7 +12,7 @@ func (s *Service) Retry(ctx context.Context, p Principal, id, key string, revisi
 	}
 	rk := digest([]string{p.Subject, "retry", id, key})
 	h := digest(revision)
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(id); e != nil {
 			return e
 		}
@@ -51,6 +51,7 @@ func (s *Service) Retry(ctx context.Context, p Principal, id, key string, revisi
 		}
 		task.State = "decided"
 		task.RetriedBy = p.Subject
+		task.Attempts = 0
 		task.NextAttempt = s.now()
 		task.LeaseUntil = time.Time{}
 		task.ErrorCode = ""

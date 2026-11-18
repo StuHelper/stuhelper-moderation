@@ -1,6 +1,7 @@
 package moderation_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	m "github.com/StuHelper/stuhelper-moderation"
@@ -162,6 +163,53 @@ func TestBatchValidationSameObjectConflictRedecideAndRevokedModeratorRetry(t *te
 	}
 }
 
+type applyCallback struct {
+	m.Content
+	run func() error
+}
+
+func (c applyCallback) Apply(context.Context, m.Principal, m.Decision) error { return c.run() }
+
+func TestReplacedDecisionRejectsStaleWorkerResult(t *testing.T) {
+	s, c, _ := fixture(t)
+	ctx := context.Background()
+	admin := m.Principal{Subject: "admin"}
+	task, err := s.Submit(ctx, m.Principal{Subject: "reporter"}, "submit-stale", m.Submission{ObjectID: "review", Kind: "report", Reason: "review"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.Decide(ctx, admin, task.ID, "decide-stale", m.Decide{Revision: task.Revision, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "hide", Reason: "check"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Model the persisted state after a failure, a replacement decision, and its
+	// first claim. The original network call then returns its obsolete result.
+	s.Content = applyCallback{c, func() error {
+		err := s.Repo.Transaction(ctx, func(tx m.Transaction) error {
+			v, err := tx.Task(task.ID)
+			if err != nil {
+				return err
+			}
+			v.Decision.ID = "replacement"
+			v.Revision += 2
+			v.Attempts = 1
+			return tx.SaveTask(v)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}}
+	_, err = s.Work(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Get(ctx, admin, task.ID)
+	if err != nil || view.State != "decided" || view.Decision.ID != "replacement" {
+		t.Fatal("stale worker changed replacement", view.State, err)
+	}
+}
+
 func TestInputValidationFeedbackClockDownloadAuditAndCheckRuntime(t *testing.T) {
 	repo, migration := database(t)
 	now := time.Date(2026, 11, 18, 5, 0, 0, 0, time.UTC)
@@ -228,6 +276,17 @@ func TestInputValidationFeedbackClockDownloadAuditAndCheckRuntime(t *testing.T) 
 		t.Fatalf("expected 1 feedback.download audit, got %d (%v)", downloadAudits, err)
 	}
 
+	// Deny the audit write and verify the attachment never reaches the caller.
+	if _, err = migration.Exec(`ALTER TABLE moderation.audit ADD CONSTRAINT fixture_deny_download CHECK (action <> 'feedback.download') NOT VALID`); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err = fbSvc.Download(ctx, "operator", msg.ID, "one", &buf); err == nil || buf.Len() != 0 {
+		t.Fatal("bytes released before audit committed", buf.Len(), err)
+	}
+	if _, err = migration.Exec("ALTER TABLE moderation.audit DROP CONSTRAINT fixture_deny_download"); err != nil {
+		t.Fatal(err)
+	}
 	// Close case and advance injected clock past 12 months: List must immediately exclude it just like Get.
 	msg, err = fbSvc.Update(ctx, "operator", msg.ID, "close-clock-case", f.Update{Revision: msg.Revision, State: "resolved"})
 	if err != nil {
