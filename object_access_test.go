@@ -47,4 +47,8 @@ func TestNotificationTaskBatchKeepsReceiptPermissions(t *testing.T) {
 	if err != nil || len(got) != 0 {
 		t.Fatal("stale content author", got, err)
 	}
+	gotReporter, err := s.AccessibleTasks(ctx, m.Principal{Subject: "reporter"}, []string{task.ID})
+	if err != nil || len(gotReporter) != 0 {
+		t.Fatal("stale reporter owner column", gotReporter, err)
+	}
 }

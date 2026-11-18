@@ -5,29 +5,38 @@ import (
 	"encoding/json"
 	"errors"
 	m "github.com/StuHelper/stuhelper-moderation"
+	f "github.com/StuHelper/stuhelper-moderation/feedback"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Authenticate func(*http.Request) (m.Principal, error)
 type Handler struct {
 	Service      *m.Service
+	Feedback     *f.Service
 	Authenticate Authenticate
 }
 
 func (h Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	h.batchRoutes(mux)
+	if h.Feedback != nil {
+		(FeedbackHandler{Service: h.Feedback, Authenticate: h.Authenticate}).registerRoutes(mux)
+	}
 	mux.HandleFunc("GET /api/v1/moderation/tasks", h.list)
+	mux.HandleFunc("GET /api/v1/moderation/tasks/page", h.listPage)
+	mux.HandleFunc("GET /api/v1/moderation/tasks/summary", h.summary)
 	mux.HandleFunc("POST /api/v1/moderation/tasks", h.submit)
 	mux.HandleFunc("GET /api/v1/moderation/tasks/{id}", h.get)
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/decisions", h.decide)
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/retry", h.retry)
 	mux.HandleFunc("PUT /api/v1/moderation/policies", h.policy)
 	mux.HandleFunc("GET /api/v1/moderation/health", h.health)
+	mux.HandleFunc("POST /api/v1/moderation/policies/preview", h.previewPolicy)
 	mux.HandleFunc("GET /api/v1/moderation/policies", func(w http.ResponseWriter, r *http.Request) {
 		p, ok := h.principal(w, r)
 		if !ok {
@@ -46,7 +55,11 @@ func (h Handler) Routes() http.Handler {
 				return
 			}
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		timeout := 15 * time.Second
+		if strings.HasPrefix(r.URL.Path, "/api/v1/moderation/feedback") {
+			timeout = 40 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 		mux.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -85,7 +98,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	return nil
 }
 func (h Handler) principal(w http.ResponseWriter, r *http.Request) (m.Principal, bool) {
-	if h.Authenticate == nil {
+	if h.Authenticate == nil || h.Service == nil {
 		respond(w, nil, m.ErrUnavailable)
 		return m.Principal{}, false
 	}
@@ -100,36 +113,83 @@ func (h Handler) principal(w http.ResponseWriter, r *http.Request) (m.Principal,
 		_ = json.NewEncoder(w).Encode(map[string]string{"code": "unauthenticated"})
 		return p, false
 	}
+	if h.Service == nil {
+		respond(w, nil, m.ErrUnavailable)
+		return p, false
+	}
 	return p, true
 }
-func (h Handler) list(w http.ResponseWriter, r *http.Request) {
-	p, ok := h.principal(w, r)
-	if !ok {
-		return
-	}
+func parseTaskFilter(r *http.Request) (m.TaskFilter, error) {
 	q := r.URL.Query()
 	n := 20
 	if q.Get("limit") != "" {
 		var e error
 		n, e = strconv.Atoi(q.Get("limit"))
 		if e != nil {
-			respond(w, nil, m.ErrInput)
-			return
+			return m.TaskFilter{}, m.ErrInput
 		}
 	}
-	admin := q.Get("admin") == "true"
-	filter := m.TaskFilter{School: q.Get("school_id"), State: q.Get("state"), After: q.Get("after"), Limit: n, Admin: admin, Kind: q.Get("kind"), ContentKind: q.Get("content_kind"), ObjectID: q.Get("object_id")}
+	rawAdmin := q.Get("admin")
+	if rawAdmin != "" && rawAdmin != "true" && rawAdmin != "false" {
+		return m.TaskFilter{}, m.ErrInput
+	}
+	filter := m.TaskFilter{
+		School:      q.Get("school_id"),
+		State:       q.Get("state"),
+		After:       q.Get("after"),
+		Order:       q.Get("order"),
+		Limit:       n,
+		Admin:       rawAdmin == "true",
+		Kind:        q.Get("kind"),
+		ContentKind: q.Get("content_kind"),
+		ObjectID:    q.Get("object_id"),
+	}
 	for key, dest := range map[string]**time.Time{"from": &filter.From, "until": &filter.Until} {
 		if q.Get(key) != "" {
 			v, e := time.Parse(time.RFC3339, q.Get(key))
 			if e != nil {
-				respond(w, nil, m.ErrInput)
-				return
+				return m.TaskFilter{}, m.ErrInput
 			}
 			*dest = &v
 		}
 	}
-	v, e := h.Service.FilteredList(r.Context(), p, filter)
+	return filter, nil
+}
+func (h Handler) list(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	filter, err := parseTaskFilter(r)
+	if err != nil {
+		respond(w, nil, err)
+		return
+	}
+	page, e := h.Service.FilteredPage(r.Context(), p, filter)
+	if e == nil && page.NextCursor != "" {
+		w.Header().Set("X-Next-Cursor", page.NextCursor)
+	}
+	respond(w, page.Items, e)
+}
+func (h Handler) listPage(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	filter, err := parseTaskFilter(r)
+	if err != nil {
+		respond(w, nil, err)
+		return
+	}
+	page, e := h.Service.FilteredPage(r.Context(), p, filter)
+	respond(w, page, e)
+}
+func (h Handler) summary(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	v, e := h.Service.QueueSummary(r.Context(), p, r.URL.Query().Get("school_id"))
 	respond(w, v, e)
 }
 func (h Handler) get(w http.ResponseWriter, r *http.Request) {
@@ -148,6 +208,10 @@ func (h Handler) submit(w http.ResponseWriter, r *http.Request) {
 	var in m.Submission
 	if e := decode(w, r, &in); e != nil {
 		respond(w, nil, e)
+		return
+	}
+	if in.Evidence == nil {
+		respond(w, nil, m.ErrInput)
 		return
 	}
 	v, e := h.Service.Submit(r.Context(), p, r.Header.Get("Idempotency-Key"), in)
@@ -200,5 +264,18 @@ func (h Handler) health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, e := h.Service.Health(r.Context(), p)
+	respond(w, v, e)
+}
+func (h Handler) previewPolicy(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	var in m.PolicyPreviewInput
+	if e := decode(w, r, &in); e != nil {
+		respond(w, nil, e)
+		return
+	}
+	v, e := h.Service.PreviewPolicy(r.Context(), p, in)
 	respond(w, v, e)
 }

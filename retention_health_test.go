@@ -96,7 +96,7 @@ func TestNonFeedbackRetentionBoundedCleanupAndAuditSnapshotSafety(t *testing.T) 
 	}
 
 	// Run bounded cleanup with batchLimit=2: should delete 2 of 3 expired replays, 2 expired limits, 1 expired outbox, 1 expired audit.
-	res1, err := s.Cleanup(ctx, 2)
+	res1, err := s.CleanupRetention(ctx, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestNonFeedbackRetentionBoundedCleanupAndAuditSnapshotSafety(t *testing.T) 
 		t.Fatalf("unexpected remaining audit records: %+v %v", auditPage1, err)
 	}
 
-	res2, err := s.Cleanup(ctx, 2)
+	res2, err := s.CleanupRetention(ctx, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,24 +178,10 @@ func TestModerationHealthSnapshotAndHTTPAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create a second task that fails permanently (conflict).
-	now = now.Add(time.Minute)
-	t2, err := s.Submit(ctx, m.Principal{Subject: "reporter-2"}, "h-r2", m.Submission{
-		ObjectID: "review",
-		Kind:     "report",
-		Reason:   "Second",
-		Evidence: []string{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = s.Decide(ctx, m.Principal{Subject: "admin"}, t2.ID, "h-d2", m.Decide{
-		Revision: t2.Revision,
-		Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "hide", Reason: "Hide duplicate"},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	// Bump content revision so t2 fails with conflict while keeping t1 decided by delaying t1's next_attempt? Instead run Work on both: t1 applies (rev->2), t2 fails (conflict), then create t3 in decided!
+	// An external content edit makes the first decision stale before delivery.
+	c.mu.Lock()
+	c.revision++
+	c.mu.Unlock()
 	if _, err = s.Work(ctx, 10); err != nil {
 		t.Fatal(err)
 	}

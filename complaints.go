@@ -12,7 +12,7 @@ func (s *Service) SubmitResourceComplaint(ctx context.Context, p Principal, key 
 	if p.Subject == "" {
 		return TaskView{}, ErrUnauthenticated
 	}
-	if !keyOK(key) || in.Kind != "report" || in.PreviousTaskID != "" || in.ProposedBody != "" || object.Kind != "resource" || object.ID != in.ObjectID || object.ID == "" || len(object.ID) > 128 || object.Revision < 1 || object.Owner == "" || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || len(in.Evidence) < 2 || len(in.Evidence) > 5 {
+	if !keyOK(key) || in.Kind != "report" || in.PreviousTaskID != "" || in.ProposedBody != "" || object.Kind != "resource" || object.ID != in.ObjectID || !keyOK(object.ID) || !keyOK(object.SchoolID) || object.Revision < 1 || strings.TrimSpace(object.Owner) == "" || !textOK(object.Owner, 256) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || len(in.Evidence) < 2 || len(in.Evidence) > 5 {
 		return TaskView{}, ErrInput
 	}
 	for _, value := range in.Evidence {

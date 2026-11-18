@@ -16,6 +16,15 @@
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "X-Next-Cursor": {
+                "description": "Opaque cursor for the next page, empty when no further items exist.",
+                "schema": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -112,7 +121,21 @@
             "in": "query",
             "name": "after",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "description": "Sort order: oldest (created_at ASC, default for admin), newest (created_at DESC), or updated_desc (updated_at DESC, default for user).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "oldest",
+                "newest",
+                "updated_desc"
+              ]
             }
           },
           {
@@ -248,12 +271,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -287,6 +305,228 @@
           }
         ],
         "description": "Creating a report requires current content admission. The authenticated reporter may add evidence to their own waiting report after qualification expires or facts become unavailable. Closed reports require admission again. Responses contain only the request receipt and never target content. Resource copyright complaints are registered by the resources module through its trusted port using the same report receipt and idempotency format; this generic HTTP report endpoint still requires admission."
+      }
+    },
+    "/api/v1/moderation/tasks/page": {
+      "get": {
+        "operationId": "listTaskPage",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "school_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "oldest",
+                "newest",
+                "updated_desc"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "content_kind",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "object_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/moderation/tasks/summary": {
+      "get": {
+        "operationId": "getQueueSummary",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "school_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/v1/moderation/tasks/{id}": {
@@ -582,7 +822,8 @@
                 "additionalProperties": false,
                 "properties": {
                   "revision": {
-                    "type": "integer"
+                    "type": "integer",
+                    "format": "int64"
                   }
                 },
                 "required": [
@@ -816,6 +1057,78 @@
         ]
       }
     },
+    "/api/v1/moderation/policies/preview": {
+      "post": {
+        "operationId": "previewPolicy",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyPreviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/moderation/tasks/batch-preview": {
       "post": {
         "operationId": "previewBatch",
@@ -901,7 +1214,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BatchRequest"
+                "$ref": "#/components/schemas/BatchPreviewRequest"
               }
             }
           }
@@ -910,7 +1223,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string",
               "minLength": 1,
@@ -1024,6 +1337,592 @@
         ]
       }
     },
+    "/api/v1/moderation/feedback": {
+      "get": {
+        "operationId": "listFeedback",
+        "summary": "listFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "new",
+                "processing",
+                "resolved",
+                "spam"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "assignee",
+            "description": "Filter by assignee; pass an empty value (?assignee=) to list unassigned items.",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "query",
+            "name": "suspicious",
+            "description": "Filter by suspicious sender verification flag.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Capacity exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/moderation/feedback/{id}": {
+      "get": {
+        "operationId": "getFeedback",
+        "summary": "getFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feedback"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Capacity exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateFeedback",
+        "summary": "updateFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feedback"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Capacity exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/moderation/feedback/{id}/replies": {
+      "post": {
+        "operationId": "replyFeedback",
+        "summary": "replyFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackReply"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Capacity exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackReplyInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/moderation/feedback/{id}/attachments/{attachment}": {
+      "get": {
+        "operationId": "downloadFeedbackAttachment",
+        "summary": "Download attachment with current feedback permission",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/moderation/health": {
       "get": {
         "operationId": "getModerationHealth",
@@ -1072,307 +1971,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/v1/moderation/feedback": {
-      "get": {
-        "operationId": "listFeedback",
-        "summary": "listFeedback",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "after",
-            "schema": {
-              "type": "string",
-              "maxLength": 256
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 50
-            }
-          },
-          {
-            "in": "query",
-            "name": "state",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "new",
-                "processing",
-                "resolved",
-                "spam"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeedbackPage"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Permission denied"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "409": {
-            "description": "Revision or idempotency conflict"
-          },
-          "429": {
-            "description": "Capacity exceeded"
-          },
-          "503": {
-            "description": "Dependency unavailable"
-          }
-        }
-      }
-    },
-    "/api/v1/moderation/feedback/{id}": {
-      "get": {
-        "operationId": "getFeedback",
-        "summary": "getFeedback",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 256
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Feedback"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Permission denied"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "409": {
-            "description": "Revision or idempotency conflict"
-          },
-          "429": {
-            "description": "Capacity exceeded"
-          },
-          "503": {
-            "description": "Dependency unavailable"
-          }
-        }
-      },
-      "patch": {
-        "operationId": "updateFeedback",
-        "summary": "updateFeedback",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 256
-            }
-          },
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 8,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Feedback"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Permission denied"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "409": {
-            "description": "Revision or idempotency conflict"
-          },
-          "429": {
-            "description": "Capacity exceeded"
-          },
-          "503": {
-            "description": "Dependency unavailable"
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FeedbackUpdate"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/moderation/feedback/{id}/replies": {
-      "post": {
-        "operationId": "replyFeedback",
-        "summary": "replyFeedback",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 256
-            }
-          },
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 8,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeedbackReply"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Permission denied"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "409": {
-            "description": "Revision or idempotency conflict"
-          },
-          "429": {
-            "description": "Capacity exceeded"
-          },
-          "503": {
-            "description": "Dependency unavailable"
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FeedbackReplyInput"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/moderation/feedback/{id}/attachments/{attachment}": {
-      "get": {
-        "operationId": "downloadFeedbackAttachment",
-        "summary": "Download attachment with current feedback permission",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 256
-            }
-          },
-          {
-            "in": "path",
-            "name": "attachment",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 256
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Download",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Permission denied"
           }
         }
       }
@@ -1451,7 +2049,8 @@
             "type": "string"
           },
           "revision": {
-            "type": "integer"
+            "type": "integer",
+            "format": "int64"
           },
           "action": {
             "type": "string",
@@ -1500,6 +2099,66 @@
           "reason"
         ]
       },
+      "DecisionInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "publish",
+              "hide",
+              "restore",
+              "delete",
+              "edit",
+              "identity",
+              "dismiss",
+              "feature",
+              "unfeature",
+              "reassign"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "signed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "author_handle": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Discussion-local public author handle, used instead of a private account ID for identity moderation."
+          },
+          "teacher_id": {
+            "type": "string"
+          },
+          "evidence_revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id",
+          "revision",
+          "action",
+          "reason"
+        ]
+      },
       "Policy": {
         "type": "object",
         "additionalProperties": false,
@@ -1526,7 +2185,8 @@
             }
           },
           "revision": {
-            "type": "integer"
+            "type": "integer",
+            "format": "int64"
           }
         },
         "required": [
@@ -1591,10 +2251,12 @@
             "$ref": "#/components/schemas/TaskSubmission"
           },
           "object_revision": {
-            "type": "integer"
+            "type": "integer",
+            "format": "int64"
           },
           "revision": {
-            "type": "integer"
+            "type": "integer",
+            "format": "int64"
           },
           "state": {
             "type": "string"
@@ -1622,6 +2284,11 @@
           },
           "can_appeal": {
             "type": "boolean"
+          },
+          "related_waiting_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of other waiting tasks on the same target object, visible only to authorized moderators."
           }
         },
         "required": [
@@ -1640,10 +2307,11 @@
         "additionalProperties": false,
         "properties": {
           "revision": {
-            "type": "integer"
+            "type": "integer",
+            "format": "int64"
           },
           "decision": {
-            "$ref": "#/components/schemas/Decision"
+            "$ref": "#/components/schemas/DecisionInput"
           }
         },
         "required": [
@@ -1680,7 +2348,8 @@
                 }
               },
               "revision": {
-                "type": "integer"
+                "type": "integer",
+                "format": "int64"
               }
             },
             "required": [
@@ -1710,6 +2379,96 @@
           "source"
         ]
       },
+      "PolicyPreviewInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "school_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "course",
+              "mentor",
+              "reply",
+              "resource"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 16000
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "published",
+              "pending",
+              "review"
+            ]
+          },
+          "blocked_terms": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "school_id",
+          "kind",
+          "body"
+        ]
+      },
+      "PolicyPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "string",
+            "enum": [
+              "published",
+              "pending",
+              "review",
+              "blocked"
+            ]
+          },
+          "matched_terms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "effective_mode": {
+            "type": "string",
+            "enum": [
+              "published",
+              "pending",
+              "review"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "default",
+              "global",
+              "school",
+              "candidate"
+            ]
+          }
+        },
+        "required": [
+          "result",
+          "matched_terms",
+          "effective_mode",
+          "source"
+        ]
+      },
       "Saved": {
         "type": "object",
         "additionalProperties": false,
@@ -1730,16 +2489,37 @@
             "type": "string"
           },
           "revision": {
-            "type": "integer"
+            "type": "integer",
+            "format": "int64"
           },
           "decision": {
-            "$ref": "#/components/schemas/Decision"
+            "$ref": "#/components/schemas/DecisionInput"
           }
         },
         "required": [
           "id",
           "revision",
           "decision"
+        ]
+      },
+      "BatchPreviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/BatchItem"
+            }
+          },
+          "preview_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
         ]
       },
       "BatchRequest": {
@@ -1916,6 +2696,14 @@
             "type": "string",
             "maxLength": 256
           },
+          "related_task_id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "related_object_id": {
+            "type": "string",
+            "maxLength": 128
+          },
           "note": {
             "type": "string",
             "maxLength": 10000
@@ -1984,6 +2772,19 @@
           "note": {
             "type": "string",
             "maxLength": 10000
+          },
+          "assignee": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional target assignee; pass an empty string to unassign or omit to retain current assignee."
+          },
+          "related_task_id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "related_object_id": {
+            "type": "string",
+            "maxLength": 128
           }
         },
         "required": [
@@ -2003,6 +2804,142 @@
         },
         "required": [
           "body"
+        ]
+      },
+      "TaskPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskView"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "QueueContentCounts": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "course": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mentor": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reply": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resource": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "course",
+          "mentor",
+          "reply",
+          "resource"
+        ]
+      },
+      "QueueRequestCounts": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "review": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "report": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "edit_request": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "delete_request": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "appeal": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "review",
+          "report",
+          "edit_request",
+          "delete_request",
+          "appeal"
+        ]
+      },
+      "QueueSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "school_id": {
+            "type": "string"
+          },
+          "waiting": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "decided": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "by_content_kind": {
+            "$ref": "#/components/schemas/QueueContentCounts"
+          },
+          "by_request_kind": {
+            "$ref": "#/components/schemas/QueueRequestCounts"
+          }
+        },
+        "required": [
+          "school_id",
+          "waiting",
+          "decided",
+          "failed",
+          "by_content_kind",
+          "by_request_kind"
+        ]
+      },
+      "FeedbackPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Feedback"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
         ]
       },
       "HealthSnapshot": {
@@ -2054,26 +2991,6 @@
           "feedback_active_count",
           "feedback_active_bytes",
           "feedback_tombstone_count"
-        ]
-      },
-      "FeedbackPage": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Feedback"
-            }
-          },
-          "next_cursor": {
-            "type": "string",
-            "maxLength": 256
-          }
-        },
-        "required": [
-          "items",
-          "next_cursor"
         ]
       }
     }

@@ -29,14 +29,14 @@ type MaintenanceRepository interface {
 	HealthSnapshot(ctx context.Context, now time.Time) (HealthSnapshot, error)
 }
 
-func (s *Service) Cleanup(ctx context.Context, batchLimit int) (CleanupResult, error) {
+func (s *Service) CleanupRetention(ctx context.Context, batchLimit int) (CleanupResult, error) {
 	if batchLimit == 0 {
 		batchLimit = 200
 	}
 	if batchLimit < 1 || batchLimit > 500 {
 		return CleanupResult{}, ErrInput
 	}
-	if s.Repo == nil {
+	if s == nil || s.Repo == nil {
 		return CleanupResult{}, ErrUnavailable
 	}
 	port, ok := s.Repo.(MaintenanceRepository)
@@ -47,7 +47,7 @@ func (s *Service) Cleanup(ctx context.Context, batchLimit int) (CleanupResult, e
 }
 
 func (s *Service) HealthSnapshot(ctx context.Context) (HealthSnapshot, error) {
-	if s.Repo == nil {
+	if s == nil || s.Repo == nil {
 		return HealthSnapshot{}, ErrUnavailable
 	}
 	port, ok := s.Repo.(MaintenanceRepository)

@@ -21,56 +21,55 @@ func (r *Repository) CleanupRetention(ctx context.Context, now time.Time, batchL
 	now = now.UTC()
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return out, safe(err)
+		return m.CleanupResult{}, safe(err)
 	}
 	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, "SET LOCAL TIME ZONE 'UTC'"); err != nil {
+		return out, safe(err)
+	}
 
 	res, err := tx.ExecContext(ctx, `DELETE FROM moderation.replays WHERE key IN (
-  SELECT key FROM moderation.replays WHERE until IS NOT NULL AND until <= $1::timestamptz ORDER BY until, key LIMIT $2
+  SELECT key FROM moderation.replays WHERE until IS NOT NULL AND until <= $1::timestamptz ORDER BY until, key LIMIT $2 FOR UPDATE SKIP LOCKED
  )`, now, batchLimit)
 	if err != nil {
-		return out, safe(err)
+		return m.CleanupResult{}, safe(err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return out, safe(err)
+		return m.CleanupResult{}, safe(err)
 	}
 	out.ReplaysDeleted = int(n)
 
 	res, err = tx.ExecContext(ctx, `DELETE FROM moderation.submission_limits WHERE owner_key IN (
-  SELECT owner_key FROM moderation.submission_limits WHERE started_at <= $1::timestamptz - interval '24 hours' ORDER BY started_at, owner_key LIMIT $2
+  SELECT owner_key FROM moderation.submission_limits WHERE started_at <= $1::timestamptz - interval '24 hours' ORDER BY started_at, owner_key LIMIT $2 FOR UPDATE SKIP LOCKED
  )`, now, batchLimit)
 	if err != nil {
-		return out, safe(err)
+		return m.CleanupResult{}, safe(err)
 	}
 	n, err = res.RowsAffected()
 	if err != nil {
-		return out, safe(err)
+		return m.CleanupResult{}, safe(err)
 	}
 	out.LimitsDeleted = int(n)
 
 	res, err = tx.ExecContext(ctx, `DELETE FROM moderation.outbox WHERE id IN (
-  SELECT id FROM moderation.outbox WHERE sent_at IS NOT NULL AND sent_at <= $1::timestamptz - interval '90 days' ORDER BY sent_at, id LIMIT $2
+  SELECT id FROM moderation.outbox WHERE sent_at IS NOT NULL AND sent_at <= $1::timestamptz - interval '90 days' ORDER BY sent_at, id LIMIT $2 FOR UPDATE SKIP LOCKED
  )`, now, batchLimit)
 	if err != nil {
-		return out, safe(err)
+		return m.CleanupResult{}, safe(err)
 	}
 	n, err = res.RowsAffected()
 	if err != nil {
-		return out, safe(err)
+		return m.CleanupResult{}, safe(err)
 	}
 	out.OutboxDeleted = int(n)
 
-	var canPruneAudit bool
-	if err = tx.QueryRowContext(ctx, `SELECT has_function_privilege(current_user, 'moderation.cleanup_moderation_audit()', 'EXECUTE')`).Scan(&canPruneAudit); err != nil || !canPruneAudit {
-		return out, m.ErrUnavailable
-	}
-	if err = tx.QueryRowContext(ctx, `SELECT moderation.cleanup_moderation_audit()`).Scan(&out.AuditDeleted); err != nil {
-		return out, safe(err)
+	if err = tx.QueryRowContext(ctx, `SELECT moderation.cleanup_task_audit(LEAST($1::timestamptz,current_timestamp) - interval '12 months', $2)`, now, batchLimit).Scan(&out.AuditDeleted); err != nil {
+		return m.CleanupResult{}, safe(err)
 	}
 
 	if err = tx.Commit(); err != nil {
-		return out, safe(err)
+		return m.CleanupResult{}, safe(err)
 	}
 	return out, nil
 }
@@ -109,10 +108,8 @@ func (r *Repository) HealthSnapshot(ctx context.Context, now time.Time) (m.Healt
 	}
 
 	if err = tx.QueryRowContext(ctx, `SELECT
-  count(*),
-  coalesce(sum(bytes), 0),
-  (SELECT count(*) FROM moderation.feedback_tombstones)
- FROM moderation.feedback`).Scan(&out.FeedbackActiveCount, &out.FeedbackActiveBytes, &out.FeedbackTombstoneCount); err != nil {
+  active_count, active_bytes, tombstone_count
+ FROM moderation.feedback_stats WHERE singleton`).Scan(&out.FeedbackActiveCount, &out.FeedbackActiveBytes, &out.FeedbackTombstoneCount); err != nil {
 		return out, safe(err)
 	}
 

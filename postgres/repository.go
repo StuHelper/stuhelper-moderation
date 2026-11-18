@@ -93,14 +93,43 @@ func (t *transaction) save(q string, v any, args ...any) error {
 func (t *transaction) Task(id string) (m.Task, error) {
 	return read[m.Task](t, `SELECT data FROM moderation.tasks WHERE id=$1`, id)
 }
+func (t *transaction) HasAppeals(ids []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, e := t.tx.QueryContext(t.ctx, `SELECT DISTINCT data->'submission'->>'previous_task_id' FROM moderation.tasks WHERE kind='appeal' AND (data->'submission'->>'previous_task_id') = ANY($1::text[])`, ids)
+	if e != nil {
+		return nil, safe(e)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) != nil {
+			return nil, m.ErrUnavailable
+		}
+		out[id] = true
+	}
+	return out, safe(rows.Err())
+}
 func (t *transaction) Active(owner, object, kind string) (m.Task, error) {
 	return read[m.Task](t, `SELECT data FROM moderation.tasks WHERE owner=$1 AND object_id=$2 AND kind=$3 AND state IN ('waiting','decided')`, owner, object, kind)
 }
 func (t *transaction) SaveTask(v m.Task) error {
-	return t.save(`INSERT INTO moderation.tasks(id,owner,school_id,object_id,kind,state,next_attempt,lease_until,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO UPDATE SET state=excluded.state,next_attempt=excluded.next_attempt,lease_until=excluded.lease_until,data=excluded.data`, v, v.ID, v.Owner, v.SchoolID, v.Submission.ObjectID, v.Submission.Kind, v.State, v.NextAttempt, v.LeaseUntil)
+	createdAt := v.CreatedAt.UTC().Truncate(time.Microsecond)
+	if createdAt.IsZero() {
+		createdAt = time.Unix(0, 0).UTC()
+	}
+	updatedAt := v.UpdatedAt.UTC().Truncate(time.Microsecond)
+	if updatedAt.IsZero() {
+		updatedAt = createdAt
+	}
+	v.CreatedAt = createdAt
+	v.UpdatedAt = updatedAt
+	return t.save(`INSERT INTO moderation.tasks(id,owner,school_id,object_id,kind,state,next_attempt,lease_until,created_at,updated_at,content_owner,content_kind,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,school_id=excluded.school_id,object_id=excluded.object_id,kind=excluded.kind,state=excluded.state,next_attempt=excluded.next_attempt,lease_until=excluded.lease_until,created_at=excluded.created_at,updated_at=excluded.updated_at,content_owner=excluded.content_owner,content_kind=excluded.content_kind,data=excluded.data`, v, v.ID, v.Owner, v.SchoolID, v.Submission.ObjectID, v.Submission.Kind, v.State, v.NextAttempt, v.LeaseUntil, createdAt, updatedAt, v.ContentOwner, v.ContentKind)
 }
 func (t *transaction) List(owner, school, state, after string, limit int) ([]m.Task, error) {
-	return list[m.Task](t, `SELECT data FROM moderation.tasks WHERE ($1='' OR owner=$1) AND ($2='' OR school_id=$2) AND ($3='' OR state=$3) AND id>$4 ORDER BY id LIMIT $5`, owner, school, state, after, limit)
+	return t.FilteredTasks(m.TaskFilter{Owner: owner, School: school, State: state, After: after, Limit: limit, Admin: owner == ""})
 }
 func (t *transaction) Ready(now time.Time, limit int) ([]m.Task, error) {
 	return list[m.Task](t, `SELECT data FROM moderation.tasks WHERE state='decided' AND next_attempt<=$1 AND lease_until<=$1 ORDER BY next_attempt,id LIMIT $2`, now, limit)
@@ -120,6 +149,13 @@ func (t *transaction) SaveReplay(key string, v m.Replay) error {
 		until = v.Until.UTC()
 	}
 	return t.save(`INSERT INTO moderation.replays(key,until,data) VALUES($1,$2,$3) ON CONFLICT(key) DO UPDATE SET until=excluded.until,data=excluded.data`, v, key, until)
+}
+func (r *Repository) Cleanup(ctx context.Context, now time.Time, limit int) error {
+	if limit < 1 || limit > 500 {
+		return m.ErrInput
+	}
+	_, err := r.CleanupRetention(ctx, now, limit)
+	return err
 }
 func (t *transaction) Event(v m.Event) error {
 	if e := t.saveAudit(v); e != nil {
