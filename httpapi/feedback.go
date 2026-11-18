@@ -241,9 +241,10 @@ func (h FeedbackHandler) download(w http.ResponseWriter, r *http.Request) {
 	stream := &attachmentStreamWriter{w: w}
 	_, err := h.Service.DownloadAttachment(r.Context(), actor, r.PathValue("id"), r.PathValue("attachment"), stream)
 	if err != nil {
-		if !stream.wroteHeader {
-			respondFeedback(w, nil, err)
+		if stream.wroteHeader {
+			panic(http.ErrAbortHandler)
 		}
+		respondFeedback(w, nil, err)
 		return
 	}
 	stream.applySecurityHeaders()

@@ -19,40 +19,82 @@ import (
 
 // Defines values for DecisionAction.
 const (
-	Delete    DecisionAction = "delete"
-	Dismiss   DecisionAction = "dismiss"
-	Edit      DecisionAction = "edit"
-	Feature   DecisionAction = "feature"
-	Hide      DecisionAction = "hide"
-	Identity  DecisionAction = "identity"
-	Publish   DecisionAction = "publish"
-	Reassign  DecisionAction = "reassign"
-	Restore   DecisionAction = "restore"
-	Unfeature DecisionAction = "unfeature"
+	DecisionActionDelete    DecisionAction = "delete"
+	DecisionActionDismiss   DecisionAction = "dismiss"
+	DecisionActionEdit      DecisionAction = "edit"
+	DecisionActionFeature   DecisionAction = "feature"
+	DecisionActionHide      DecisionAction = "hide"
+	DecisionActionIdentity  DecisionAction = "identity"
+	DecisionActionPublish   DecisionAction = "publish"
+	DecisionActionReassign  DecisionAction = "reassign"
+	DecisionActionRestore   DecisionAction = "restore"
+	DecisionActionUnfeature DecisionAction = "unfeature"
 )
 
 // Valid indicates whether the value is a known member of the DecisionAction enum.
 func (e DecisionAction) Valid() bool {
 	switch e {
-	case Delete:
+	case DecisionActionDelete:
 		return true
-	case Dismiss:
+	case DecisionActionDismiss:
 		return true
-	case Edit:
+	case DecisionActionEdit:
 		return true
-	case Feature:
+	case DecisionActionFeature:
 		return true
-	case Hide:
+	case DecisionActionHide:
 		return true
-	case Identity:
+	case DecisionActionIdentity:
 		return true
-	case Publish:
+	case DecisionActionPublish:
 		return true
-	case Reassign:
+	case DecisionActionReassign:
 		return true
-	case Restore:
+	case DecisionActionRestore:
 		return true
-	case Unfeature:
+	case DecisionActionUnfeature:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DecisionInputAction.
+const (
+	DecisionInputActionDelete    DecisionInputAction = "delete"
+	DecisionInputActionDismiss   DecisionInputAction = "dismiss"
+	DecisionInputActionEdit      DecisionInputAction = "edit"
+	DecisionInputActionFeature   DecisionInputAction = "feature"
+	DecisionInputActionHide      DecisionInputAction = "hide"
+	DecisionInputActionIdentity  DecisionInputAction = "identity"
+	DecisionInputActionPublish   DecisionInputAction = "publish"
+	DecisionInputActionReassign  DecisionInputAction = "reassign"
+	DecisionInputActionRestore   DecisionInputAction = "restore"
+	DecisionInputActionUnfeature DecisionInputAction = "unfeature"
+)
+
+// Valid indicates whether the value is a known member of the DecisionInputAction enum.
+func (e DecisionInputAction) Valid() bool {
+	switch e {
+	case DecisionInputActionDelete:
+		return true
+	case DecisionInputActionDismiss:
+		return true
+	case DecisionInputActionEdit:
+		return true
+	case DecisionInputActionFeature:
+		return true
+	case DecisionInputActionHide:
+		return true
+	case DecisionInputActionIdentity:
+		return true
+	case DecisionInputActionPublish:
+		return true
+	case DecisionInputActionReassign:
+		return true
+	case DecisionInputActionRestore:
+		return true
+	case DecisionInputActionUnfeature:
 		return true
 	default:
 		return false
@@ -170,6 +212,120 @@ func (e PolicyMode) Valid() bool {
 	}
 }
 
+// Defines values for PolicyPreviewEffectiveMode.
+const (
+	PolicyPreviewEffectiveModePending   PolicyPreviewEffectiveMode = "pending"
+	PolicyPreviewEffectiveModePublished PolicyPreviewEffectiveMode = "published"
+	PolicyPreviewEffectiveModeReview    PolicyPreviewEffectiveMode = "review"
+)
+
+// Valid indicates whether the value is a known member of the PolicyPreviewEffectiveMode enum.
+func (e PolicyPreviewEffectiveMode) Valid() bool {
+	switch e {
+	case PolicyPreviewEffectiveModePending:
+		return true
+	case PolicyPreviewEffectiveModePublished:
+		return true
+	case PolicyPreviewEffectiveModeReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyPreviewResult.
+const (
+	PolicyPreviewResultBlocked   PolicyPreviewResult = "blocked"
+	PolicyPreviewResultPending   PolicyPreviewResult = "pending"
+	PolicyPreviewResultPublished PolicyPreviewResult = "published"
+	PolicyPreviewResultReview    PolicyPreviewResult = "review"
+)
+
+// Valid indicates whether the value is a known member of the PolicyPreviewResult enum.
+func (e PolicyPreviewResult) Valid() bool {
+	switch e {
+	case PolicyPreviewResultBlocked:
+		return true
+	case PolicyPreviewResultPending:
+		return true
+	case PolicyPreviewResultPublished:
+		return true
+	case PolicyPreviewResultReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyPreviewSource.
+const (
+	PolicyPreviewSourceCandidate PolicyPreviewSource = "candidate"
+	PolicyPreviewSourceDefault   PolicyPreviewSource = "default"
+	PolicyPreviewSourceGlobal    PolicyPreviewSource = "global"
+	PolicyPreviewSourceSchool    PolicyPreviewSource = "school"
+)
+
+// Valid indicates whether the value is a known member of the PolicyPreviewSource enum.
+func (e PolicyPreviewSource) Valid() bool {
+	switch e {
+	case PolicyPreviewSourceCandidate:
+		return true
+	case PolicyPreviewSourceDefault:
+		return true
+	case PolicyPreviewSourceGlobal:
+		return true
+	case PolicyPreviewSourceSchool:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyPreviewInputKind.
+const (
+	Course   PolicyPreviewInputKind = "course"
+	Mentor   PolicyPreviewInputKind = "mentor"
+	Reply    PolicyPreviewInputKind = "reply"
+	Resource PolicyPreviewInputKind = "resource"
+)
+
+// Valid indicates whether the value is a known member of the PolicyPreviewInputKind enum.
+func (e PolicyPreviewInputKind) Valid() bool {
+	switch e {
+	case Course:
+		return true
+	case Mentor:
+		return true
+	case Reply:
+		return true
+	case Resource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyPreviewInputMode.
+const (
+	PolicyPreviewInputModePending   PolicyPreviewInputMode = "pending"
+	PolicyPreviewInputModePublished PolicyPreviewInputMode = "published"
+	PolicyPreviewInputModeReview    PolicyPreviewInputMode = "review"
+)
+
+// Valid indicates whether the value is a known member of the PolicyPreviewInputMode enum.
+func (e PolicyPreviewInputMode) Valid() bool {
+	switch e {
+	case PolicyPreviewInputModePending:
+		return true
+	case PolicyPreviewInputModePublished:
+		return true
+	case PolicyPreviewInputModeReview:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PolicyViewConfiguredMode.
 const (
 	PolicyViewConfiguredModePending   PolicyViewConfiguredMode = "pending"
@@ -193,19 +349,19 @@ func (e PolicyViewConfiguredMode) Valid() bool {
 
 // Defines values for PolicyViewSource.
 const (
-	Default PolicyViewSource = "default"
-	Global  PolicyViewSource = "global"
-	School  PolicyViewSource = "school"
+	PolicyViewSourceDefault PolicyViewSource = "default"
+	PolicyViewSourceGlobal  PolicyViewSource = "global"
+	PolicyViewSourceSchool  PolicyViewSource = "school"
 )
 
 // Valid indicates whether the value is a known member of the PolicyViewSource enum.
 func (e PolicyViewSource) Valid() bool {
 	switch e {
-	case Default:
+	case PolicyViewSourceDefault:
 		return true
-	case Global:
+	case PolicyViewSourceGlobal:
 		return true
-	case School:
+	case PolicyViewSourceSchool:
 		return true
 	default:
 		return false
@@ -290,11 +446,53 @@ func (e ListFeedbackParamsState) Valid() bool {
 	}
 }
 
+// Defines values for ListTasksParamsOrder.
+const (
+	ListTasksParamsOrderNewest      ListTasksParamsOrder = "newest"
+	ListTasksParamsOrderOldest      ListTasksParamsOrder = "oldest"
+	ListTasksParamsOrderUpdatedDesc ListTasksParamsOrder = "updated_desc"
+)
+
+// Valid indicates whether the value is a known member of the ListTasksParamsOrder enum.
+func (e ListTasksParamsOrder) Valid() bool {
+	switch e {
+	case ListTasksParamsOrderNewest:
+		return true
+	case ListTasksParamsOrderOldest:
+		return true
+	case ListTasksParamsOrderUpdatedDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListTaskPageParamsOrder.
+const (
+	ListTaskPageParamsOrderNewest      ListTaskPageParamsOrder = "newest"
+	ListTaskPageParamsOrderOldest      ListTaskPageParamsOrder = "oldest"
+	ListTaskPageParamsOrderUpdatedDesc ListTaskPageParamsOrder = "updated_desc"
+)
+
+// Valid indicates whether the value is a known member of the ListTaskPageParamsOrder enum.
+func (e ListTaskPageParamsOrder) Valid() bool {
+	switch e {
+	case ListTaskPageParamsOrderNewest:
+		return true
+	case ListTaskPageParamsOrderOldest:
+		return true
+	case ListTaskPageParamsOrderUpdatedDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // BatchItem defines model for BatchItem.
 type BatchItem struct {
-	Decision Decision `json:"decision"`
-	Id       string   `json:"id"`
-	Revision int      `json:"revision"`
+	Decision DecisionInput `json:"decision"`
+	Id       string        `json:"id"`
+	Revision int64         `json:"revision"`
 }
 
 // BatchOutcome defines model for BatchOutcome.
@@ -310,6 +508,12 @@ type BatchPreview struct {
 	PreviewToken string         `json:"preview_token"`
 }
 
+// BatchPreviewRequest defines model for BatchPreviewRequest.
+type BatchPreviewRequest struct {
+	Items        []BatchItem `json:"items"`
+	PreviewToken *string     `json:"preview_token,omitempty"`
+}
+
 // BatchRequest defines model for BatchRequest.
 type BatchRequest struct {
 	Items        []BatchItem `json:"items"`
@@ -318,8 +522,8 @@ type BatchRequest struct {
 
 // Decide defines model for Decide.
 type Decide struct {
-	Decision Decision `json:"decision"`
-	Revision int      `json:"revision"`
+	Decision DecisionInput `json:"decision"`
+	Revision int64         `json:"revision"`
 }
 
 // Decision defines model for Decision.
@@ -333,7 +537,7 @@ type Decision struct {
 	Id               string  `json:"id"`
 	ObjectId         string  `json:"object_id"`
 	Reason           string  `json:"reason"`
-	Revision         int     `json:"revision"`
+	Revision         int64   `json:"revision"`
 	Signed           *bool   `json:"signed,omitempty"`
 	Subject          *string `json:"subject,omitempty"`
 	TeacherId        *string `json:"teacher_id,omitempty"`
@@ -341,6 +545,26 @@ type Decision struct {
 
 // DecisionAction defines model for Decision.Action.
 type DecisionAction string
+
+// DecisionInput defines model for DecisionInput.
+type DecisionInput struct {
+	Action DecisionInputAction `json:"action"`
+
+	// AuthorHandle Discussion-local public author handle, used instead of a private account ID for identity moderation.
+	AuthorHandle     *string `json:"author_handle,omitempty"`
+	Body             *string `json:"body,omitempty"`
+	EvidenceRevision *string `json:"evidence_revision,omitempty"`
+	Id               *string `json:"id,omitempty"`
+	ObjectId         string  `json:"object_id"`
+	Reason           string  `json:"reason"`
+	Revision         int64   `json:"revision"`
+	Signed           *bool   `json:"signed,omitempty"`
+	Subject          *string `json:"subject,omitempty"`
+	TeacherId        *string `json:"teacher_id,omitempty"`
+}
+
+// DecisionInputAction defines model for DecisionInput.Action.
+type DecisionInputAction string
 
 // Error defines model for Error.
 type Error struct {
@@ -426,12 +650,45 @@ type Policy struct {
 	// Kind Content kind: course, mentor, reply, or resource. Resources default to pending review.
 	Kind     string     `json:"kind"`
 	Mode     PolicyMode `json:"mode"`
-	Revision int        `json:"revision"`
+	Revision int64      `json:"revision"`
 	SchoolId string     `json:"school_id"`
 }
 
 // PolicyMode defines model for Policy.Mode.
 type PolicyMode string
+
+// PolicyPreview defines model for PolicyPreview.
+type PolicyPreview struct {
+	EffectiveMode PolicyPreviewEffectiveMode `json:"effective_mode"`
+	MatchedTerms  []string                   `json:"matched_terms"`
+	Result        PolicyPreviewResult        `json:"result"`
+	Source        PolicyPreviewSource        `json:"source"`
+}
+
+// PolicyPreviewEffectiveMode defines model for PolicyPreview.EffectiveMode.
+type PolicyPreviewEffectiveMode string
+
+// PolicyPreviewResult defines model for PolicyPreview.Result.
+type PolicyPreviewResult string
+
+// PolicyPreviewSource defines model for PolicyPreview.Source.
+type PolicyPreviewSource string
+
+// PolicyPreviewInput defines model for PolicyPreviewInput.
+type PolicyPreviewInput struct {
+	BlockedTerms *[]string               `json:"blocked_terms,omitempty"`
+	Body         string                  `json:"body"`
+	Kind         PolicyPreviewInputKind  `json:"kind"`
+	Mode         *PolicyPreviewInputMode `json:"mode,omitempty"`
+	SchoolId     string                  `json:"school_id"`
+	Title        *string                 `json:"title,omitempty"`
+}
+
+// PolicyPreviewInputKind defines model for PolicyPreviewInput.Kind.
+type PolicyPreviewInputKind string
+
+// PolicyPreviewInputMode defines model for PolicyPreviewInput.Mode.
+type PolicyPreviewInputMode string
 
 // PolicyView defines model for PolicyView.
 type PolicyView struct {
@@ -439,7 +696,7 @@ type PolicyView struct {
 		BlockedTerms []string                 `json:"blocked_terms"`
 		Kind         string                   `json:"kind"`
 		Mode         PolicyViewConfiguredMode `json:"mode"`
-		Revision     int                      `json:"revision"`
+		Revision     int64                    `json:"revision"`
 		SchoolId     string                   `json:"school_id"`
 	} `json:"configured"`
 	Effective Policy           `json:"effective"`
@@ -451,6 +708,33 @@ type PolicyViewConfiguredMode string
 
 // PolicyViewSource defines model for PolicyView.Source.
 type PolicyViewSource string
+
+// QueueContentCounts defines model for QueueContentCounts.
+type QueueContentCounts struct {
+	Course   int `json:"course"`
+	Mentor   int `json:"mentor"`
+	Reply    int `json:"reply"`
+	Resource int `json:"resource"`
+}
+
+// QueueRequestCounts defines model for QueueRequestCounts.
+type QueueRequestCounts struct {
+	Appeal        int `json:"appeal"`
+	DeleteRequest int `json:"delete_request"`
+	EditRequest   int `json:"edit_request"`
+	Report        int `json:"report"`
+	Review        int `json:"review"`
+}
+
+// QueueSummary defines model for QueueSummary.
+type QueueSummary struct {
+	ByContentKind QueueContentCounts `json:"by_content_kind"`
+	ByRequestKind QueueRequestCounts `json:"by_request_kind"`
+	Decided       int                `json:"decided"`
+	Failed        int                `json:"failed"`
+	SchoolId      string             `json:"school_id"`
+	Waiting       int                `json:"waiting"`
+}
 
 // Saved defines model for Saved.
 type Saved struct {
@@ -472,6 +756,12 @@ type Submission struct {
 // SubmissionKind defines model for Submission.Kind.
 type SubmissionKind string
 
+// TaskPage defines model for TaskPage.
+type TaskPage struct {
+	Items      []TaskView `json:"items"`
+	NextCursor string     `json:"next_cursor"`
+}
+
 // TaskSubmission defines model for TaskSubmission.
 type TaskSubmission struct {
 	Evidence       []string           `json:"evidence"`
@@ -490,18 +780,21 @@ type TaskView struct {
 	CanAppeal *bool `json:"can_appeal,omitempty"`
 
 	// ContentKind Owning content type, including resource for learning materials.
-	ContentKind    *string        `json:"content_kind,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	Decision       *Decision      `json:"decision,omitempty"`
-	ErrorCode      *string        `json:"error_code,omitempty"`
-	Id             string         `json:"id"`
-	ObjectRevision int            `json:"object_revision"`
-	PreviousTaskId *string        `json:"previous_task_id,omitempty"`
-	Revision       int            `json:"revision"`
-	SchoolId       string         `json:"school_id"`
-	State          string         `json:"state"`
-	Submission     TaskSubmission `json:"submission"`
-	UpdatedAt      time.Time      `json:"updated_at"`
+	ContentKind    *string   `json:"content_kind,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	Decision       *Decision `json:"decision,omitempty"`
+	ErrorCode      *string   `json:"error_code,omitempty"`
+	Id             string    `json:"id"`
+	ObjectRevision int64     `json:"object_revision"`
+	PreviousTaskId *string   `json:"previous_task_id,omitempty"`
+
+	// RelatedWaitingCount Number of other waiting tasks on the same target object, visible only to authorized moderators.
+	RelatedWaitingCount *int           `json:"related_waiting_count,omitempty"`
+	Revision            int64          `json:"revision"`
+	SchoolId            string         `json:"school_id"`
+	State               string         `json:"state"`
+	Submission          TaskSubmission `json:"submission"`
+	UpdatedAt           time.Time      `json:"updated_at"`
 }
 
 // ListFeedbackParams defines parameters for ListFeedback.
@@ -546,8 +839,11 @@ type ListTasksParams struct {
 	SchoolId *string `form:"school_id,omitempty" json:"school_id,omitempty"`
 	State    *string `form:"state,omitempty" json:"state,omitempty"`
 	After    *string `form:"after,omitempty" json:"after,omitempty"`
-	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
-	Admin    *string `form:"admin,omitempty" json:"admin,omitempty"`
+
+	// Order Sort order: oldest (created_at ASC, default for admin), newest (created_at DESC), or updated_desc (updated_at DESC, default for user).
+	Order *ListTasksParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Limit *int                  `form:"limit,omitempty" json:"limit,omitempty"`
+	Admin *string               `form:"admin,omitempty" json:"admin,omitempty"`
 
 	// ContentKind Filter by course, mentor, reply, or resource.
 	ContentKind *string `form:"content_kind,omitempty" json:"content_kind,omitempty"`
@@ -556,6 +852,9 @@ type ListTasksParams struct {
 	From        *string `form:"from,omitempty" json:"from,omitempty"`
 	Until       *string `form:"until,omitempty" json:"until,omitempty"`
 }
+
+// ListTasksParamsOrder defines parameters for ListTasks.
+type ListTasksParamsOrder string
 
 // SubmitTaskParams defines parameters for SubmitTask.
 type SubmitTaskParams struct {
@@ -569,7 +868,30 @@ type DecideBatchParams struct {
 
 // PreviewBatchParams defines parameters for PreviewBatch.
 type PreviewBatchParams struct {
-	IdempotencyKey string `json:"Idempotency-Key"`
+	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
+}
+
+// ListTaskPageParams defines parameters for ListTaskPage.
+type ListTaskPageParams struct {
+	SchoolId    *string                  `form:"school_id,omitempty" json:"school_id,omitempty"`
+	State       *string                  `form:"state,omitempty" json:"state,omitempty"`
+	After       *string                  `form:"after,omitempty" json:"after,omitempty"`
+	Order       *ListTaskPageParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Limit       *int                     `form:"limit,omitempty" json:"limit,omitempty"`
+	Admin       *string                  `form:"admin,omitempty" json:"admin,omitempty"`
+	ContentKind *string                  `form:"content_kind,omitempty" json:"content_kind,omitempty"`
+	Kind        *string                  `form:"kind,omitempty" json:"kind,omitempty"`
+	ObjectId    *string                  `form:"object_id,omitempty" json:"object_id,omitempty"`
+	From        *string                  `form:"from,omitempty" json:"from,omitempty"`
+	Until       *string                  `form:"until,omitempty" json:"until,omitempty"`
+}
+
+// ListTaskPageParamsOrder defines parameters for ListTaskPage.
+type ListTaskPageParamsOrder string
+
+// GetQueueSummaryParams defines parameters for GetQueueSummary.
+type GetQueueSummaryParams struct {
+	SchoolId string `form:"school_id" json:"school_id"`
 }
 
 // DecideTaskParams defines parameters for DecideTask.
@@ -579,7 +901,7 @@ type DecideTaskParams struct {
 
 // RetryTaskJSONBody defines parameters for RetryTask.
 type RetryTaskJSONBody struct {
-	Revision int `json:"revision"`
+	Revision int64 `json:"revision"`
 }
 
 // RetryTaskParams defines parameters for RetryTask.
@@ -596,6 +918,9 @@ type ReplyFeedbackJSONRequestBody = FeedbackReplyInput
 // SetPolicyJSONRequestBody defines body for SetPolicy for application/json ContentType.
 type SetPolicyJSONRequestBody = Policy
 
+// PreviewPolicyJSONRequestBody defines body for PreviewPolicy for application/json ContentType.
+type PreviewPolicyJSONRequestBody = PolicyPreviewInput
+
 // SubmitTaskJSONRequestBody defines body for SubmitTask for application/json ContentType.
 type SubmitTaskJSONRequestBody = Submission
 
@@ -603,7 +928,7 @@ type SubmitTaskJSONRequestBody = Submission
 type DecideBatchJSONRequestBody = BatchRequest
 
 // PreviewBatchJSONRequestBody defines body for PreviewBatch for application/json ContentType.
-type PreviewBatchJSONRequestBody = BatchRequest
+type PreviewBatchJSONRequestBody = BatchPreviewRequest
 
 // DecideTaskJSONRequestBody defines body for DecideTask for application/json ContentType.
 type DecideTaskJSONRequestBody = Decide
@@ -739,6 +1064,14 @@ type ClientInterface interface {
 	// Takes a body of the `application/json` content type.
 	SetPolicy(ctx context.Context, params *SetPolicyParams, body SetPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PreviewPolicyWithBody performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request,
+	// with any type of body and a specified content type.
+	PreviewPolicyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreviewPolicy performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request.
+	// Takes a body of the `application/json` content type.
+	PreviewPolicy(ctx context.Context, body PreviewPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListTasks performs a GET /api/v1/moderation/tasks (the `ListTasks` operationId) request.
 	ListTasks(ctx context.Context, params *ListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -769,6 +1102,12 @@ type ClientInterface interface {
 	// PreviewBatch performs a POST /api/v1/moderation/tasks/batch-preview (the `PreviewBatch` operationId) request.
 	// Takes a body of the `application/json` content type.
 	PreviewBatch(ctx context.Context, params *PreviewBatchParams, body PreviewBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListTaskPage performs a GET /api/v1/moderation/tasks/page (the `ListTaskPage` operationId) request.
+	ListTaskPage(ctx context.Context, params *ListTaskPageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetQueueSummary performs a GET /api/v1/moderation/tasks/summary (the `GetQueueSummary` operationId) request.
+	GetQueueSummary(ctx context.Context, params *GetQueueSummaryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTask performs a GET /api/v1/moderation/tasks/{id} (the `GetTask` operationId) request.
 	GetTask(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -944,6 +1283,34 @@ func (c *Client) SetPolicy(ctx context.Context, params *SetPolicyParams, body Se
 	return c.Client.Do(req)
 }
 
+// PreviewPolicyWithBody performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request,
+// with any type of body and a specified content type.
+func (c *Client) PreviewPolicyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewPolicyRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PreviewPolicy performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request.
+// Takes a body of the `application/json` content type.
+func (c *Client) PreviewPolicy(ctx context.Context, body PreviewPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewPolicyRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ListTasks performs a GET /api/v1/moderation/tasks (the `ListTasks` operationId) request.
 func (c *Client) ListTasks(ctx context.Context, params *ListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListTasksRequest(c.Server, params)
@@ -1035,6 +1402,32 @@ func (c *Client) PreviewBatchWithBody(ctx context.Context, params *PreviewBatchP
 // Takes a body of the `application/json` content type.
 func (c *Client) PreviewBatch(ctx context.Context, params *PreviewBatchParams, body PreviewBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPreviewBatchRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListTaskPage performs a GET /api/v1/moderation/tasks/page (the `ListTaskPage` operationId) request.
+func (c *Client) ListTaskPage(ctx context.Context, params *ListTaskPageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTaskPageRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetQueueSummary performs a GET /api/v1/moderation/tasks/summary (the `GetQueueSummary` operationId) request.
+func (c *Client) GetQueueSummary(ctx context.Context, params *GetQueueSummaryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetQueueSummaryRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1522,6 +1915,46 @@ func NewSetPolicyRequestWithBody(server string, params *SetPolicyParams, content
 	return req, nil
 }
 
+// NewPreviewPolicyRequest calls the generic PreviewPolicy builder with application/json body
+func NewPreviewPolicyRequest(server string, body PreviewPolicyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPreviewPolicyRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPreviewPolicyRequestWithBody constructs an http.Request for the PreviewPolicy method, with any body, and a specified content type
+func NewPreviewPolicyRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/policies/preview")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListTasksRequest constructs an http.Request for the ListTasks method
 func NewListTasksRequest(server string, params *ListTasksParams) (*http.Request, error) {
 	var err error
@@ -1577,6 +2010,18 @@ func NewListTasksRequest(server string, params *ListTasksParams) (*http.Request,
 		if params.After != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "after", *params.After, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Order != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "order", *params.Order, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -1829,15 +2274,241 @@ func NewPreviewBatchRequestWithBody(server string, params *PreviewBatchParams, c
 
 	if params != nil {
 
-		var headerParam0 string
+		if params.IdempotencyKey != nil {
+			var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-		if err != nil {
-			return nil, err
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", *params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Idempotency-Key", headerParam0)
 		}
 
-		req.Header.Set("Idempotency-Key", headerParam0)
+	}
 
+	return req, nil
+}
+
+// NewListTaskPageRequest constructs an http.Request for the ListTaskPage method
+func NewListTaskPageRequest(server string, params *ListTaskPageParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/tasks/page")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.SchoolId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "school_id", *params.SchoolId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.State != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.After != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "after", *params.After, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Order != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "order", *params.Order, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Admin != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "admin", *params.Admin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ContentKind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "content_kind", *params.ContentKind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Kind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", *params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ObjectId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "object_id", *params.ObjectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "until", *params.Until, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetQueueSummaryRequest constructs an http.Request for the GetQueueSummary method
+func NewGetQueueSummaryRequest(server string, params *GetQueueSummaryParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/tasks/summary")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "school_id", params.SchoolId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil
@@ -2105,6 +2776,16 @@ type ClientWithResponsesInterface interface {
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	SetPolicyWithResponse(ctx context.Context, params *SetPolicyParams, body SetPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*SetPolicyResponse, error)
 
+	// PreviewPolicyWithBodyWithResponse performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request,
+	// with any type of body and a specified content type.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	PreviewPolicyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewPolicyResponse, error)
+
+	// PreviewPolicyWithResponse performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request.
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	PreviewPolicyWithResponse(ctx context.Context, body PreviewPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*PreviewPolicyResponse, error)
+
 	// ListTasksWithResponse performs a GET /api/v1/moderation/tasks (the `ListTasks` operationId) request.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -2143,6 +2824,16 @@ type ClientWithResponsesInterface interface {
 	// PreviewBatchWithResponse performs a POST /api/v1/moderation/tasks/batch-preview (the `PreviewBatch` operationId) request.
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	PreviewBatchWithResponse(ctx context.Context, params *PreviewBatchParams, body PreviewBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*PreviewBatchResponse, error)
+
+	// ListTaskPageWithResponse performs a GET /api/v1/moderation/tasks/page (the `ListTaskPage` operationId) request.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	ListTaskPageWithResponse(ctx context.Context, params *ListTaskPageParams, reqEditors ...RequestEditorFn) (*ListTaskPageResponse, error)
+
+	// GetQueueSummaryWithResponse performs a GET /api/v1/moderation/tasks/summary (the `GetQueueSummary` operationId) request.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	GetQueueSummaryWithResponse(ctx context.Context, params *GetQueueSummaryParams, reqEditors ...RequestEditorFn) (*GetQueueSummaryResponse, error)
 
 	// GetTaskWithResponse performs a GET /api/v1/moderation/tasks/{id} (the `GetTask` operationId) request.
 	//
@@ -2765,6 +3456,80 @@ func (r SetPolicyResponse) ContentType() string {
 	return ""
 }
 
+type PreviewPolicyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PolicyPreview
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PreviewPolicyResponse) GetJSON200() *PolicyPreview {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PreviewPolicyResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PreviewPolicyResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PreviewPolicyResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PreviewPolicyResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r PreviewPolicyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PreviewPolicyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreviewPolicyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PreviewPolicyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListTasksResponse200Headers the declared response headers of an HTTP 200 response for ListTasks
+type ListTasksResponse200Headers struct {
+	XNextCursor *string
+}
+
 type ListTasksResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2782,6 +3547,8 @@ type ListTasksResponse struct {
 	JSON409 *Error
 	// JSON503 the response for an HTTP 503 `application/json` response
 	JSON503 *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListTasksResponse200Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -2864,9 +3631,7 @@ type SubmitTaskResponse struct {
 	// JSON409 the response for an HTTP 409 `application/json` response
 	JSON409 *Error
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *struct {
-		Code *string `json:"code,omitempty"`
-	}
+	JSON429 *Error
 	// JSON503 the response for an HTTP 503 `application/json` response
 	JSON503 *Error
 }
@@ -2902,9 +3667,7 @@ func (r SubmitTaskResponse) GetJSON409() *Error {
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r SubmitTaskResponse) GetJSON429() *struct {
-	Code *string `json:"code,omitempty"`
-} {
+func (r SubmitTaskResponse) GetJSON429() *Error {
 	return r.JSON429
 }
 
@@ -3102,6 +3865,144 @@ func (r PreviewBatchResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PreviewBatchResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListTaskPageResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *TaskPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListTaskPageResponse) GetJSON200() *TaskPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListTaskPageResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListTaskPageResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ListTaskPageResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListTaskPageResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListTaskPageResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListTaskPageResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListTaskPageResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListTaskPageResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetQueueSummaryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *QueueSummary
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetQueueSummaryResponse) GetJSON200() *QueueSummary {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetQueueSummaryResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetQueueSummaryResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetQueueSummaryResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetQueueSummaryResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetQueueSummaryResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetQueueSummaryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetQueueSummaryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetQueueSummaryResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -3481,6 +4382,28 @@ func (c *ClientWithResponses) SetPolicyWithResponse(ctx context.Context, params 
 	return ParseSetPolicyResponse(rsp)
 }
 
+// PreviewPolicyWithBodyWithResponse performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request,
+// with any type of body and a specified content type.
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) PreviewPolicyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewPolicyResponse, error) {
+	rsp, err := c.PreviewPolicyWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreviewPolicyResponse(rsp)
+}
+
+// PreviewPolicyWithResponse performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request.
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) PreviewPolicyWithResponse(ctx context.Context, body PreviewPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*PreviewPolicyResponse, error) {
+	rsp, err := c.PreviewPolicy(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreviewPolicyResponse(rsp)
+}
+
 // ListTasksWithResponse performs a GET /api/v1/moderation/tasks (the `ListTasks` operationId) request.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -3560,6 +4483,28 @@ func (c *ClientWithResponses) PreviewBatchWithResponse(ctx context.Context, para
 		return nil, err
 	}
 	return ParsePreviewBatchResponse(rsp)
+}
+
+// ListTaskPageWithResponse performs a GET /api/v1/moderation/tasks/page (the `ListTaskPage` operationId) request.
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) ListTaskPageWithResponse(ctx context.Context, params *ListTaskPageParams, reqEditors ...RequestEditorFn) (*ListTaskPageResponse, error) {
+	rsp, err := c.ListTaskPage(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListTaskPageResponse(rsp)
+}
+
+// GetQueueSummaryWithResponse performs a GET /api/v1/moderation/tasks/summary (the `GetQueueSummary` operationId) request.
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) GetQueueSummaryWithResponse(ctx context.Context, params *GetQueueSummaryParams, reqEditors ...RequestEditorFn) (*GetQueueSummaryResponse, error) {
+	rsp, err := c.GetQueueSummary(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetQueueSummaryResponse(rsp)
 }
 
 // GetTaskWithResponse performs a GET /api/v1/moderation/tasks/{id} (the `GetTask` operationId) request.
@@ -4107,6 +5052,60 @@ func ParseSetPolicyResponse(rsp *http.Response) (*SetPolicyResponse, error) {
 	return response, nil
 }
 
+// ParsePreviewPolicyResponse parses an HTTP response from a PreviewPolicyWithResponse call
+func ParsePreviewPolicyResponse(rsp *http.Response) (*PreviewPolicyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PreviewPolicyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PolicyPreview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListTasksResponse parses an HTTP response from a ListTasksWithResponse call
 func ParseListTasksResponse(rsp *http.Response) (*ListTasksResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4172,6 +5171,19 @@ func ParseListTasksResponse(rsp *http.Response) (*ListTasksResponse, error) {
 
 	}
 
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListTasksResponse200Headers
+		if values := rsp.Header.Values("X-Next-Cursor"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Next-Cursor", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XNextCursor = &value
+		}
+		response.Headers200 = &headers
+	}
+
 	return response, nil
 }
 
@@ -4232,9 +5244,7 @@ func ParseSubmitTaskResponse(rsp *http.Response) (*SubmitTaskResponse, error) {
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest struct {
-			Code *string `json:"code,omitempty"`
-		}
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4375,6 +5385,114 @@ func ParsePreviewBatchResponse(rsp *http.Response) (*PreviewBatchResponse, error
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListTaskPageResponse parses an HTTP response from a ListTaskPageWithResponse call
+func ParseListTaskPageResponse(rsp *http.Response) (*ListTaskPageResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListTaskPageResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TaskPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetQueueSummaryResponse parses an HTTP response from a GetQueueSummaryWithResponse call
+func ParseGetQueueSummaryResponse(rsp *http.Response) (*GetQueueSummaryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetQueueSummaryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest QueueSummary
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest Error

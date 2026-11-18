@@ -8,6 +8,7 @@ import (
 	"github.com/StuHelper/stuhelper-moderation/httpapi"
 	pg "github.com/StuHelper/stuhelper-moderation/postgres"
 	"github.com/StuHelper/stuhelper-moderation/sdk"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -221,4 +222,18 @@ func TestFeedbackHTTPHandlerAssignmentRelatedLinksAndSpamReplyGuard(t *testing.T
 	if err = migration.QueryRow(`SELECT count(*) FROM moderation.audit WHERE action='feedback.download'`).Scan(&downloadAudits); err != nil || downloadAudits != 1 {
 		t.Fatalf("expected 1 feedback.download audit record, got %d (%v)", downloadAudits, err)
 	}
+	// A storage error after a partial write must be visible to a real HTTP client.
+	svc.Blobs = interruptedAttachment{blobs}
+	if partial, err := client.DownloadFeedbackAttachmentWithResponse(ctx, msgSuspicious.ID, "att-html", asActor("alice")); err == nil {
+		t.Fatalf("client accepted truncated download: %v", partial.StatusCode())
+	}
+}
+
+type interruptedAttachment struct{ *feedbackBlobs }
+
+func (interruptedAttachment) Download(_ context.Context, _ string, w io.Writer) error {
+	if _, err := w.Write([]byte("part")); err != nil {
+		return err
+	}
+	return io.ErrUnexpectedEOF
 }
