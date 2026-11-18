@@ -25,7 +25,22 @@ CREATE TABLE IF NOT EXISTS moderation.audit_retention(singleton boolean PRIMARY 
 INSERT INTO moderation.audit_retention VALUES(true,1) ON CONFLICT DO NOTHING;
 CREATE OR REPLACE FUNCTION moderation.invalidate_audit_snapshot() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN UPDATE moderation.audit_retention SET revision=revision+1 WHERE singleton; RETURN NULL; END $$;
-CREATE OR REPLACE TRIGGER audit_changed AFTER UPDATE OR DELETE OR TRUNCATE ON moderation.audit
+CREATE OR REPLACE FUNCTION moderation.invalidate_audit_snapshot_rows() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM old_rows) THEN
+  UPDATE moderation.audit_retention SET revision=revision+1 WHERE singleton;
+ END IF;
+ RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS audit_changed ON moderation.audit;
+DROP TRIGGER IF EXISTS audit_updated ON moderation.audit;
+DROP TRIGGER IF EXISTS audit_deleted ON moderation.audit;
+DROP TRIGGER IF EXISTS audit_truncated ON moderation.audit;
+CREATE TRIGGER audit_updated AFTER UPDATE ON moderation.audit
+ REFERENCING OLD TABLE AS old_rows FOR EACH STATEMENT EXECUTE FUNCTION moderation.invalidate_audit_snapshot_rows();
+CREATE TRIGGER audit_deleted AFTER DELETE ON moderation.audit
+ REFERENCING OLD TABLE AS old_rows FOR EACH STATEMENT EXECUTE FUNCTION moderation.invalidate_audit_snapshot_rows();
+CREATE TRIGGER audit_truncated AFTER TRUNCATE ON moderation.audit
  FOR EACH STATEMENT EXECUTE FUNCTION moderation.invalidate_audit_snapshot();
 CREATE TABLE IF NOT EXISTS moderation.outbox(id text PRIMARY KEY,data jsonb NOT NULL,delivered boolean NOT NULL DEFAULT false);
 REVOKE ALL ON SCHEMA moderation FROM PUBLIC;
@@ -65,6 +80,12 @@ CREATE OR REPLACE FUNCTION moderation.cleanup_feedback_audit() RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
 DECLARE removed integer;
 BEGIN
+ IF NOT EXISTS (
+  SELECT 1 FROM moderation.audit WHERE action LIKE 'feedback.%'
+   AND time < current_timestamp - interval '12 months'
+ ) THEN
+  RETURN 0;
+ END IF;
  DELETE FROM moderation.audit WHERE id IN (
   SELECT id FROM moderation.audit WHERE action LIKE 'feedback.%'
    AND time < current_timestamp - interval '12 months' ORDER BY time,id LIMIT 100
