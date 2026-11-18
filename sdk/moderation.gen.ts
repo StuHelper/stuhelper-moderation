@@ -21,6 +21,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/moderation/tasks/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTaskPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/moderation/tasks/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getQueueSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/moderation/tasks/{id}": {
         parameters: {
             query?: never;
@@ -405,6 +437,31 @@ export interface components {
         FeedbackReplyInput: {
             body: string;
         };
+        TaskPage: {
+            items: components["schemas"]["TaskView"][];
+            next_cursor: string;
+        };
+        QueueContentCounts: {
+            course: number;
+            mentor: number;
+            reply: number;
+            resource: number;
+        };
+        QueueRequestCounts: {
+            review: number;
+            report: number;
+            edit_request: number;
+            delete_request: number;
+            appeal: number;
+        };
+        QueueSummary: {
+            school_id: string;
+            waiting: number;
+            decided: number;
+            failed: number;
+            by_content_kind: components["schemas"]["QueueContentCounts"];
+            by_request_kind: components["schemas"]["QueueRequestCounts"];
+        };
         FeedbackPage: {
             items: components["schemas"]["Feedback"][];
             next_cursor: string;
@@ -424,6 +481,8 @@ export interface operations {
                 school_id?: string;
                 state?: string;
                 after?: string;
+                /** @description Sort order: oldest (created_at ASC, default for admin), newest (created_at DESC), or updated_desc (updated_at DESC, default for user). */
+                order?: "oldest" | "newest" | "updated_desc";
                 limit?: number;
                 admin?: string;
                 /** @description Filter by course, mentor, reply, or resource. */
@@ -442,6 +501,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Opaque cursor for the next page, empty when no further items exist. */
+                    "X-Next-Cursor"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -575,6 +636,132 @@ export interface operations {
             };
             /** @description 请求过于频繁，稍后重试 */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Required dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listTaskPage: {
+        parameters: {
+            query?: {
+                school_id?: string;
+                state?: string;
+                after?: string;
+                order?: "oldest" | "newest" | "updated_desc";
+                limit?: number;
+                admin?: string;
+                content_kind?: string;
+                kind?: string;
+                object_id?: string;
+                from?: string;
+                until?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not permitted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Required dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getQueueSummary: {
+        parameters: {
+            query: {
+                school_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueSummary"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not permitted */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

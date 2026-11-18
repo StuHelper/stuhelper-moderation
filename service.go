@@ -23,9 +23,9 @@ type Service struct {
 
 func (s *Service) now() time.Time {
 	if s != nil && s.Clock != nil {
-		return s.Clock().UTC()
+		return s.Clock().UTC().Truncate(time.Microsecond)
 	}
-	return time.Now().UTC()
+	return time.Now().UTC().Truncate(time.Microsecond)
 }
 func (s *Service) tx(ctx context.Context, run func(Transaction) error) error {
 	if s == nil || s.Repo == nil {

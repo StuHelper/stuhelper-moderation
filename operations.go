@@ -2,49 +2,173 @@ package moderation
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 )
 
 type TaskFilter struct {
-	Owner, School, State, After, Kind, ContentKind, ObjectID string
-	From, Until                                              *time.Time
-	Limit                                                    int
-	Admin                                                    bool
+	Owner, School, State, After, Order, Kind, ContentKind, ObjectID string
+	From, Until, CursorAt                                           *time.Time
+	CursorID                                                        string
+	Limit                                                           int
+	Admin                                                           bool
 }
 
-func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) ([]TaskView, error) {
+type TaskPage struct {
+	Items      []TaskView `json:"items"`
+	NextCursor string     `json:"next_cursor"`
+}
+
+type QueueContentCounts struct {
+	Course   int `json:"course"`
+	Mentor   int `json:"mentor"`
+	Reply    int `json:"reply"`
+	Resource int `json:"resource"`
+}
+
+type QueueRequestCounts struct {
+	Review        int `json:"review"`
+	Report        int `json:"report"`
+	EditRequest   int `json:"edit_request"`
+	DeleteRequest int `json:"delete_request"`
+	Appeal        int `json:"appeal"`
+}
+
+type QueueSummary struct {
+	SchoolID      string             `json:"school_id"`
+	Waiting       int                `json:"waiting"`
+	Decided       int                `json:"decided"`
+	Failed        int                `json:"failed"`
+	ByContentKind QueueContentCounts `json:"by_content_kind"`
+	ByRequestKind QueueRequestCounts `json:"by_request_kind"`
+}
+
+type QueuePaginationTransaction interface {
+	TaskCursorAnchor(id string) (createdAt, updatedAt time.Time, err error)
+	QueueSummary(school string) (QueueSummary, error)
+}
+
+type taskCursorPayload struct {
+	Order string `json:"o"`
+	Micro int64  `json:"u"`
+	ID    string `json:"i"`
+}
+
+func encodeTaskCursor(order string, at time.Time, id string) string {
+	raw, _ := json.Marshal(taskCursorPayload{
+		Order: order,
+		Micro: at.UTC().Truncate(time.Microsecond).UnixMicro(),
+		ID:    id,
+	})
+	return "t1." + base64.RawURLEncoding.EncodeToString(raw)
+}
+
+func decodeTaskCursor(token, expectedOrder string) (time.Time, string, bool, error) {
+	if token == "" {
+		return time.Time{}, "", false, nil
+	}
+	if !strings.HasPrefix(token, "t1.") {
+		if !keyOK(token) {
+			return time.Time{}, "", false, ErrInput
+		}
+		return time.Time{}, token, false, nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(token, "t1."))
+	if err != nil {
+		return time.Time{}, "", true, ErrInput
+	}
+	var p taskCursorPayload
+	if err = json.Unmarshal(raw, &p); err != nil || p.Order != expectedOrder || !keyOK(p.ID) {
+		return time.Time{}, "", true, ErrInput
+	}
+	return time.UnixMicro(p.Micro).UTC(), p.ID, true, nil
+}
+
+func (s *Service) FilteredPage(ctx context.Context, p Principal, f TaskFilter) (TaskPage, error) {
+	out := TaskPage{Items: []TaskView{}}
 	if p.Subject == "" {
-		return nil, ErrForbidden
+		return out, ErrForbidden
 	}
-	if f.Limit < 1 || f.Limit > 100 || len(f.After) > 128 || len(f.ObjectID) > 128 || f.From != nil && f.Until != nil && !f.From.Before(*f.Until) {
-		return nil, ErrInput
+	if f.Limit < 1 || f.Limit > 100 || len(f.After) > 256 || len(f.ObjectID) > 128 || f.From != nil && f.Until != nil && !f.From.Before(*f.Until) {
+		return out, ErrInput
 	}
-	f.Owner = p.Subject
 	if f.State != "" && !slices.Contains([]string{"waiting", "decided", "applied", "failed"}, f.State) {
-		return nil, ErrInput
+		return out, ErrInput
+	}
+	if f.Order != "" && !slices.Contains([]string{"oldest", "newest", "updated_desc"}, f.Order) {
+		return out, ErrInput
 	}
 	if f.Kind != "" && !slices.Contains([]string{"review", "report", "edit_request", "delete_request", "appeal"}, f.Kind) {
-		return nil, ErrInput
+		return out, ErrInput
 	}
 	if f.ContentKind != "" && !slices.Contains([]string{"course", "mentor", "reply", "resource"}, f.ContentKind) {
-		return nil, ErrInput
+		return out, ErrInput
 	}
+	f.Owner = p.Subject
 	if f.Admin {
-		if f.School == "" {
-			return nil, ErrInput
+		if f.School == "" || !keyOK(f.School) {
+			return out, ErrInput
 		}
 		if err := s.auth(ctx, p, "manage", f.School); err != nil {
-			return nil, err
+			return out, err
 		}
 		f.Owner = ""
 	}
-	out := []TaskView{}
-	err := s.tx(ctx, func(t Transaction) error {
+	effectiveOrder := f.Order
+	if effectiveOrder == "" {
+		if f.Admin {
+			effectiveOrder = "oldest"
+		} else {
+			effectiveOrder = "updated_desc"
+		}
+	}
+	cursorAt, cursorID, isComposite, err := decodeTaskCursor(f.After, effectiveOrder)
+	if err != nil {
+		return out, err
+	}
+	pageLimit := f.Limit
+	f.Order = effectiveOrder
+	f.Limit = pageLimit + 1
+	err = s.tx(ctx, func(t Transaction) error {
+		if f.After != "" {
+			if isComposite {
+				at := cursorAt
+				f.CursorAt = &at
+				f.CursorID = cursorID
+			} else if port, ok := t.(QueuePaginationTransaction); ok {
+				createdAt, updatedAt, anchorErr := port.TaskCursorAnchor(cursorID)
+				if errors.Is(anchorErr, ErrNotFound) {
+					return ErrInput
+				}
+				if anchorErr != nil {
+					return anchorErr
+				}
+				at := createdAt
+				if effectiveOrder == "updated_desc" {
+					at = updatedAt
+				}
+				f.CursorAt = &at
+				f.CursorID = cursorID
+			} else {
+				return ErrUnavailable
+			}
+		}
 		tasks, e := t.FilteredTasks(f)
 		if e != nil {
 			return e
+		}
+		if len(tasks) > pageLimit {
+			last := tasks[pageLimit-1]
+			anchorTime := last.CreatedAt
+			if effectiveOrder == "updated_desc" {
+				anchorTime = last.UpdatedAt
+			}
+			out.NextCursor = encodeTaskCursor(effectiveOrder, anchorTime, last.ID)
+			tasks = tasks[:pageLimit]
 		}
 		var waitingCounts map[string]int
 		if f.Admin && len(tasks) > 0 {
@@ -78,20 +202,51 @@ func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) (
 			if v.CanAppeal {
 				candidateIDs = append(candidateIDs, task.ID)
 			}
-			out = append(out, v)
+			out.Items = append(out.Items, v)
 		}
 		if len(candidateIDs) > 0 {
 			appealed, e := appealedTasks(t, candidateIDs)
 			if e != nil {
 				return e
 			}
-			for i := range out {
-				if appealed[out[i].ID] {
-					out[i].CanAppeal = false
+			for i := range out.Items {
+				if appealed[out.Items[i].ID] {
+					out.Items[i].CanAppeal = false
 				}
 			}
 		}
 		return nil
+	})
+	return out, err
+}
+
+func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) ([]TaskView, error) {
+	page, err := s.FilteredPage(ctx, p, f)
+	if err != nil {
+		return nil, err
+	}
+	return page.Items, nil
+}
+
+func (s *Service) QueueSummary(ctx context.Context, p Principal, school string) (QueueSummary, error) {
+	var out QueueSummary
+	if p.Subject == "" {
+		return out, ErrForbidden
+	}
+	if !keyOK(school) {
+		return out, ErrInput
+	}
+	if err := s.auth(ctx, p, "manage", school); err != nil {
+		return out, err
+	}
+	err := s.tx(ctx, func(t Transaction) error {
+		port, ok := t.(QueuePaginationTransaction)
+		if !ok {
+			return ErrUnavailable
+		}
+		var err error
+		out, err = port.QueueSummary(school)
+		return err
 	})
 	return out, err
 }
@@ -259,7 +414,7 @@ func (s *Service) DecideBatch(ctx context.Context, p Principal, key string, in B
 	for _, item := range in.Items {
 		if item.Decision.Action != "dismiss" && mutatingObjects[item.Decision.ObjectID] {
 			var checkErr error
-			_ = s.Repo.Transaction(ctx, func(t Transaction) error {
+			_ = s.tx(ctx, func(t Transaction) error {
 				task, e := t.Task(item.ID)
 				if e != nil {
 					checkErr = e

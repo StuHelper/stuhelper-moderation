@@ -3,6 +3,7 @@ package feedback
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,47 @@ import (
 	"unicode"
 	"unicode/utf8"
 )
+
+type feedbackCursorPayload struct {
+	Micro int64  `json:"u"`
+	ID    string `json:"i"`
+}
+
+func encodeFeedbackCursor(at time.Time, id string) string {
+	raw, _ := json.Marshal(feedbackCursorPayload{
+		Micro: at.UTC().Truncate(time.Microsecond).UnixMicro(),
+		ID:    id,
+	})
+	return "f1." + base64.RawURLEncoding.EncodeToString(raw)
+}
+
+func decodeFeedbackCursor(token string) (time.Time, string, bool, error) {
+	if token == "" {
+		return time.Time{}, "", false, nil
+	}
+	if !strings.HasPrefix(token, "f1.") {
+		if prefix, id, ok := strings.Cut(token, ":"); ok {
+			ns, err := strconv.ParseInt(prefix, 10, 64)
+			if err != nil || id == "" || !validClean(id, 128) {
+				return time.Time{}, "", true, ErrInvalid
+			}
+			return time.Unix(0, ns).UTC(), id, true, nil
+		}
+		if len(token) > 128 || !validText(token, 128) || strings.TrimSpace(token) == "" {
+			return time.Time{}, "", false, ErrInvalid
+		}
+		return time.Time{}, token, false, nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(token, "f1."))
+	if err != nil {
+		return time.Time{}, "", true, ErrInvalid
+	}
+	var p feedbackCursorPayload
+	if err = json.Unmarshal(raw, &p); err != nil || p.ID == "" || len(p.ID) > 128 || !validText(p.ID, 128) {
+		return time.Time{}, "", true, ErrInvalid
+	}
+	return time.UnixMicro(p.Micro).UTC(), p.ID, true, nil
+}
 
 func Digest(v string) string { h := sha256.Sum256([]byte(v)); return hex.EncodeToString(h[:]) }
 func validText(v string, max int) bool {
@@ -246,16 +288,39 @@ func (s *Service) List(ctx context.Context, actor string, f Filter) (Page, error
 	if f.Limit < 1 || f.Limit > 50 || len(f.After) > 256 || (f.State != "" && !validState(f.State)) {
 		return Page{}, ErrInvalid
 	}
-	f.Now = s.now()
+	cursorAt, cursorID, isComposite, err := decodeFeedbackCursor(f.After)
+	if err != nil {
+		return Page{}, err
+	}
+	now := s.now()
+	f.Now = now
 	out := Page{Items: []Message{}}
 	e := s.Repo.Transaction(ctx, func(tx Tx) error {
+		if f.After != "" {
+			if isComposite {
+				at := cursorAt
+				f.CursorAt = &at
+				f.CursorID = cursorID
+			} else {
+				anchor, err := tx.Get(cursorID)
+				if errors.Is(err, ErrNotFound) || (err == nil && (!anchor.Ready || expired(anchor, now))) {
+					return tx.Audit(actor, "list", "mailbox", now)
+				}
+				if err != nil {
+					return err
+				}
+				at := anchor.ReceivedAt.UTC().Truncate(time.Microsecond)
+				f.CursorAt = &at
+				f.CursorID = cursorID
+			}
+		}
 		rows, e := tx.List(f)
 		if e != nil {
 			return e
 		}
 		if len(rows) > f.Limit {
 			last := rows[f.Limit-1]
-			out.NextCursor = strconv.FormatInt(last.ReceivedAt.UTC().UnixNano(), 10) + ":" + last.ID
+			out.NextCursor = encodeFeedbackCursor(last.ReceivedAt, last.ID)
 			rows = rows[:f.Limit]
 		}
 		for i := range rows {
@@ -266,7 +331,7 @@ func (s *Service) List(ctx context.Context, actor string, f Filter) (Page, error
 			rows[i].Replies = []Reply{}
 		}
 		out.Items = rows
-		return tx.Audit(actor, "list", "mailbox", s.now())
+		return tx.Audit(actor, "list", "mailbox", now)
 	})
 	return out, e
 }

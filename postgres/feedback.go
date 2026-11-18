@@ -8,7 +8,6 @@ import (
 	"fmt"
 	f "github.com/StuHelper/stuhelper-moderation/feedback"
 	"github.com/google/uuid"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -98,6 +97,11 @@ func (t *feedbackTx) Find(key string) (f.Message, error) {
 	return f.Message{ID: id, Ready: true}, feedbackError(e)
 }
 func (t *feedbackTx) Save(v f.Message) error {
+	v.ReceivedAt = v.ReceivedAt.UTC().Truncate(time.Microsecond)
+	if v.ClosedAt != nil {
+		closed := v.ClosedAt.UTC().Truncate(time.Microsecond)
+		v.ClosedAt = &closed
+	}
 	objects := map[string]string{}
 	for _, a := range v.Attachments {
 		objects[a.ID] = a.ObjectID
@@ -142,10 +146,10 @@ func buildFeedbackListQuery(state string, hasCursor bool, cursorTime time.Time, 
 	if hasCursor {
 		ctArg := add(cursorTime)
 		idArg := add(cursorID)
-		conds = append(conds, fmt.Sprintf("(received_at<=%s AND (received_at,id)<(%s,%s))", ctArg, ctArg, idArg))
+		conds = append(conds, fmt.Sprintf(`(received_at<=%s AND (received_at,id COLLATE "C")<(%s,%s))`, ctArg, ctArg, idArg))
 	}
 	limitArg := add(limit)
-	return fmt.Sprintf(`SELECT data FROM moderation.feedback WHERE %s ORDER BY received_at DESC,id DESC LIMIT %s`, strings.Join(conds, " AND "), limitArg), args
+	return fmt.Sprintf(`SELECT data FROM moderation.feedback WHERE %s ORDER BY received_at DESC,id COLLATE "C" DESC LIMIT %s`, strings.Join(conds, " AND "), limitArg), args
 }
 
 func (t *feedbackTx) List(v f.Filter) ([]f.Message, error) {
@@ -153,29 +157,11 @@ func (t *feedbackTx) List(v f.Filter) ([]f.Message, error) {
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
-	hasCursor := false
 	var cursorTime time.Time
-	cursorID := ""
-	if v.After != "" {
-		if sep := strings.IndexByte(v.After, ':'); sep > 0 {
-			ns, err := strconv.ParseInt(v.After[:sep], 10, 64)
-			if err != nil || sep+1 >= len(v.After) {
-				return nil, f.ErrInvalid
-			}
-			cursorTime = time.Unix(0, ns).UTC()
-			cursorID = v.After[sep+1:]
-		} else {
-			if err := t.tx.QueryRowContext(t.ctx, `SELECT received_at FROM moderation.feedback WHERE id=$1`, v.After).Scan(&cursorTime); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return []f.Message{}, nil
-				}
-				return nil, feedbackError(err)
-			}
-			cursorID = v.After
-		}
-		hasCursor = true
+	if v.CursorAt != nil {
+		cursorTime = *v.CursorAt
 	}
-	q, args := buildFeedbackListQuery(v.State, hasCursor, cursorTime, cursorID, v.Limit+1, now)
+	q, args := buildFeedbackListQuery(v.State, v.CursorAt != nil, cursorTime, v.CursorID, v.Limit+1, now)
 	return t.many(q, args...)
 }
 func (t *feedbackTx) Usage(sender string, since time.Time) (int, int64, int, error) {

@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	m "github.com/StuHelper/stuhelper-moderation"
@@ -39,54 +38,98 @@ func buildTaskQuery(f m.TaskFilter, hasCursor bool, cursorTime time.Time) (strin
 		extraConds = append(extraConds, "created_at<"+add(*f.Until))
 	}
 
+	column, direction, cmp := "created_at", "ASC", ">"
+	if f.Order == "updated_desc" || (f.Order == "" && f.Owner != "") {
+		column, direction, cmp = "updated_at", "DESC", "<"
+	} else if f.Order == "newest" {
+		direction, cmp = "DESC", "<"
+	}
+	// Only the fixed order choices above enter SQL. All filter values are parameters.
+	order := column + " " + direction + ", id COLLATE \"C\" " + direction
+	if hasCursor {
+		at, id := add(cursorTime), add(f.CursorID)
+		extraConds = append(extraConds, fmt.Sprintf("(%s,id COLLATE \"C\") %s (%s,%s)", column, cmp, at, id))
+	}
+	limitArg := add(f.Limit)
 	if f.Owner != "" {
-		ownerArg := add(f.Owner)
-		if hasCursor {
-			ctArg := add(cursorTime)
-			idArg := add(f.After)
-			extraConds = append(extraConds, fmt.Sprintf("(created_at<=%s AND (created_at,id)<(%s,%s))", ctArg, ctArg, idArg))
-		}
-		limitArg := add(f.Limit)
+		owner := add(f.Owner)
 		suffix := ""
 		if len(extraConds) > 0 {
 			suffix = " AND " + strings.Join(extraConds, " AND ")
 		}
-		q := fmt.Sprintf(`SELECT t.data FROM (
- (SELECT id,created_at FROM moderation.tasks WHERE owner=%s%s ORDER BY created_at DESC,id DESC LIMIT %s)
- UNION
- (SELECT id,created_at FROM moderation.tasks WHERE content_owner=%s%s ORDER BY created_at DESC,id DESC LIMIT %s)
-) ids JOIN moderation.tasks t ON t.id=ids.id ORDER BY ids.created_at DESC,ids.id DESC LIMIT %s`,
-			ownerArg, suffix, limitArg, ownerArg, suffix, limitArg, limitArg)
+		branch := func(ownerColumn string) string {
+			return fmt.Sprintf("(SELECT id,%s FROM moderation.tasks WHERE %s=%s%s ORDER BY %s LIMIT %s)", column, ownerColumn, owner, suffix, order, limitArg)
+		}
+		q := fmt.Sprintf(`SELECT t.data || jsonb_build_object('created_at', t.created_at, 'updated_at', t.updated_at) FROM (%s UNION %s) ids JOIN moderation.tasks t ON t.id=ids.id ORDER BY ids.%s %s, ids.id COLLATE "C" %s LIMIT %s`, branch("owner"), branch("content_owner"), column, direction, direction, limitArg)
 		return q, args
 	}
-
-	if hasCursor {
-		ctArg := add(cursorTime)
-		idArg := add(f.After)
-		extraConds = append(extraConds, fmt.Sprintf("(created_at>=%s AND (created_at,id)>(%s,%s))", ctArg, ctArg, idArg))
-	}
-	limitArg := add(f.Limit)
 	where := ""
 	if len(extraConds) > 0 {
 		where = " WHERE " + strings.Join(extraConds, " AND ")
 	}
-	return fmt.Sprintf(`SELECT data FROM moderation.tasks%s ORDER BY created_at ASC,id ASC LIMIT %s`, where, limitArg), args
+	return "SELECT data || jsonb_build_object('created_at', created_at, 'updated_at', updated_at) FROM moderation.tasks" + where + " ORDER BY " + order + " LIMIT " + limitArg, args
 }
 
 func (t *transaction) FilteredTasks(f m.TaskFilter) ([]m.Task, error) {
 	var cursorTime time.Time
-	hasCursor := false
-	if f.After != "" {
-		if e := t.tx.QueryRowContext(t.ctx, `SELECT created_at FROM moderation.tasks WHERE id=$1`, f.After).Scan(&cursorTime); e != nil {
-			if errors.Is(e, sql.ErrNoRows) {
-				return []m.Task{}, nil
-			}
-			return nil, safe(e)
-		}
-		hasCursor = true
+	if f.CursorAt != nil {
+		cursorTime = *f.CursorAt
 	}
-	q, args := buildTaskQuery(f, hasCursor, cursorTime)
+	if f.After != "" && f.CursorAt == nil {
+		created, updated, err := t.TaskCursorAnchor(f.After)
+		if errors.Is(err, m.ErrNotFound) {
+			return []m.Task{}, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		cursorTime = created
+		if f.Order == "updated_desc" || (f.Order == "" && f.Owner != "") {
+			cursorTime = updated
+		}
+		f.CursorAt = &cursorTime
+		f.CursorID = f.After
+	}
+	q, args := buildTaskQuery(f, f.CursorAt != nil, cursorTime)
 	return list[m.Task](t, q, args...)
+}
+
+func (t *transaction) TaskCursorAnchor(id string) (time.Time, time.Time, error) {
+	var createdAt, updatedAt time.Time
+	err := t.tx.QueryRowContext(t.ctx, `SELECT created_at, updated_at FROM moderation.tasks WHERE id=$1`, id).Scan(&createdAt, &updatedAt)
+	return createdAt.UTC(), updatedAt.UTC(), safe(err)
+}
+
+func (t *transaction) QueueSummary(school string) (m.QueueSummary, error) {
+	out := m.QueueSummary{SchoolID: school}
+	err := t.tx.QueryRowContext(t.ctx, `SELECT
+ count(*) FILTER (WHERE state='waiting'),
+ count(*) FILTER (WHERE state='decided'),
+ count(*) FILTER (WHERE state='failed'),
+ count(*) FILTER (WHERE state='waiting' AND content_kind='course'),
+ count(*) FILTER (WHERE state='waiting' AND content_kind='mentor'),
+ count(*) FILTER (WHERE state='waiting' AND content_kind='reply'),
+ count(*) FILTER (WHERE state='waiting' AND content_kind='resource'),
+ count(*) FILTER (WHERE state='waiting' AND kind='review'),
+ count(*) FILTER (WHERE state='waiting' AND kind='report'),
+ count(*) FILTER (WHERE state='waiting' AND kind='edit_request'),
+ count(*) FILTER (WHERE state='waiting' AND kind='delete_request'),
+ count(*) FILTER (WHERE state='waiting' AND kind='appeal')
+ FROM moderation.tasks WHERE school_id=$1`, school).Scan(
+		&out.Waiting,
+		&out.Decided,
+		&out.Failed,
+		&out.ByContentKind.Course,
+		&out.ByContentKind.Mentor,
+		&out.ByContentKind.Reply,
+		&out.ByContentKind.Resource,
+		&out.ByRequestKind.Review,
+		&out.ByRequestKind.Report,
+		&out.ByRequestKind.EditRequest,
+		&out.ByRequestKind.DeleteRequest,
+		&out.ByRequestKind.Appeal,
+	)
+	return out, safe(err)
 }
 
 func (t *transaction) RelatedWaitingCounts(school string, objectIDs []string) (map[string]int, error) {

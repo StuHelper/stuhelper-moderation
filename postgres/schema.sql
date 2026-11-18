@@ -54,6 +54,16 @@ CREATE INDEX IF NOT EXISTS moderation_school_state_created ON moderation.tasks(s
 CREATE INDEX IF NOT EXISTS moderation_school_created ON moderation.tasks(school_id,created_at ASC,id ASC);
 CREATE INDEX IF NOT EXISTS moderation_school_object_created ON moderation.tasks(school_id,object_id,created_at ASC,id ASC);
 CREATE INDEX IF NOT EXISTS moderation_delivery ON moderation.tasks(next_attempt,lease_until) WHERE state='decided';
+ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+UPDATE moderation.tasks SET updated_at=COALESCE((data->>'updated_at')::timestamptz,created_at) WHERE updated_at IS NULL;
+ALTER TABLE moderation.tasks ALTER COLUMN updated_at SET DEFAULT now();
+ALTER TABLE moderation.tasks ALTER COLUMN updated_at SET NOT NULL;
+CREATE INDEX IF NOT EXISTS moderation_school_created_asc ON moderation.tasks(school_id,created_at ASC,id COLLATE "C" ASC);
+CREATE INDEX IF NOT EXISTS moderation_school_created_desc ON moderation.tasks(school_id,created_at DESC,id COLLATE "C" DESC);
+CREATE INDEX IF NOT EXISTS moderation_school_state_created_asc ON moderation.tasks(school_id,state,created_at ASC,id COLLATE "C" ASC);
+CREATE INDEX IF NOT EXISTS moderation_owner_updated_desc ON moderation.tasks(owner,updated_at DESC,id COLLATE "C" DESC);
+CREATE INDEX IF NOT EXISTS moderation_content_owner_updated_desc ON moderation.tasks(content_owner,updated_at DESC,id COLLATE "C" DESC) WHERE content_owner<>'';
+CREATE INDEX IF NOT EXISTS moderation_object_history ON moderation.tasks(school_id,object_id,created_at DESC,id COLLATE "C" DESC);
 CREATE TABLE IF NOT EXISTS moderation.policies(school_id text NOT NULL,kind text NOT NULL,data jsonb NOT NULL,PRIMARY KEY(school_id,kind));
 CREATE TABLE IF NOT EXISTS moderation.replays(key text PRIMARY KEY,until timestamptz,data jsonb NOT NULL);
 ALTER TABLE moderation.replays ADD COLUMN IF NOT EXISTS until timestamptz;
@@ -111,6 +121,8 @@ CREATE TABLE IF NOT EXISTS moderation.feedback (
  bytes bigint NOT NULL CHECK(bytes>=0), data jsonb NOT NULL
 );
 CREATE INDEX IF NOT EXISTS feedback_sender_rate ON moderation.feedback(sender,received_at);
+CREATE INDEX IF NOT EXISTS feedback_inbox_order ON moderation.feedback(received_at DESC,id COLLATE "C" DESC) WHERE ready;
+CREATE INDEX IF NOT EXISTS feedback_state_order ON moderation.feedback(state,received_at DESC,id COLLATE "C" DESC) WHERE ready;
 CREATE INDEX IF NOT EXISTS feedback_expiry ON moderation.feedback(closed_at,id) WHERE closed_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS feedback_ready_order ON moderation.feedback(received_at DESC,id DESC) WHERE ready;
 CREATE INDEX IF NOT EXISTS feedback_ready_state_order ON moderation.feedback(state,received_at DESC,id DESC) WHERE ready;

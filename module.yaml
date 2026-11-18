@@ -32,6 +32,8 @@ scenario_tests:
     - linked_reports_test.go#TestDismissCascadesOnlyForReportOrReviewAndRespectsObjectRevision
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
+    - pagination_test.go#TestTimeOrderedTaskPaginationAndQueueSummary
+    - pagination_test.go#TestMigratedTimestampCursorUsesDatabasePrecision
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
     - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
     - privacy_events_test.go#TestDecisionProjectionHidesEnrollmentEvidenceAndSignedState
@@ -84,6 +86,7 @@ scenario_tests:
     - postgres/outbox_test.go#TestPendingOutboxPlanUsesPartialIndex
   CM-19:
     - feedback_test.go#TestFeedbackConcurrentIngestAuthorizationAndAudit
+    - pagination_test.go#TestFeedbackTimeOrderedCursorPagination
   CM-20:
     - feedback_test.go#TestFeedbackReplyUnknownIsNeverResentAndRetentionDeletesMaterials
     - feedback_test.go#TestFeedbackLeapDayRetentionMatchesDatabaseCalendarMonths
