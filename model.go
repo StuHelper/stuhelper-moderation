@@ -3,6 +3,7 @@ package moderation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -60,7 +61,7 @@ type Decision struct {
 	Body             *string `json:"body,omitempty"`
 	Subject          string  `json:"subject,omitempty"`
 	AuthorHandle     string  `json:"author_handle,omitempty"`
-	Signed           bool    `json:"signed,omitempty"`
+	Signed           bool    `json:"signed"`
 	Reason           string  `json:"reason"`
 }
 type Task struct {
@@ -97,6 +98,25 @@ type TaskView struct {
 	Decision       *Decision  `json:"decision,omitempty"`
 	ErrorCode      string     `json:"error_code,omitempty"`
 }
+
+// Signed participates in the canonical hashes of decisions and batch previews.
+// Only the public view omits it, including for receipts persisted before upgrade.
+func (v TaskView) MarshalJSON() ([]byte, error) {
+	type plainView TaskView
+	type wireDecision struct {
+		Decision
+		Signed *bool `json:"signed,omitempty"`
+	}
+	var decision *wireDecision
+	if safe := publicDecision(v.Decision); safe != nil {
+		decision = &wireDecision{Decision: *safe}
+	}
+	return json.Marshal(struct {
+		plainView
+		Decision *wireDecision `json:"decision,omitempty"`
+	}{plainView(v), decision})
+}
+
 type Decide struct {
 	Revision int64    `json:"revision"`
 	Decision Decision `json:"decision"`

@@ -171,3 +171,20 @@ func TestDismissEmitsStrictlyIncreasingRevisionsInOrder(t *testing.T) {
 		t.Fatalf("decided TaskView mismatch: %+v (last event rev=%d)", decided, prevRev)
 	}
 }
+
+func TestDecisionAndBatchReplayWireCompatibility(t *testing.T) {
+	decision := m.Decision{ObjectID: "doc", Revision: 1, Action: "hide", Reason: "review"}
+	const oldDecision = `{"id":"","object_id":"doc","revision":1,"action":"hide","signed":false,"reason":"review"}`
+	for _, tc := range []struct {
+		value any
+		want  string
+	}{
+		{m.Decide{Revision: 2, Decision: decision}, `{"revision":2,"decision":` + oldDecision + `}`},
+		{[]any{"admin", []m.BatchItem{{ID: "task", Revision: 2, Decision: decision}}}, `["admin",[{"id":"task","revision":2,"decision":` + oldDecision + `}]]`},
+	} {
+		got, err := json.Marshal(tc.value)
+		if err != nil || string(got) != tc.want {
+			t.Fatalf("request digest input changed: %s, %v", got, err)
+		}
+	}
+}
