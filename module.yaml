@@ -50,6 +50,7 @@ scenario_tests:
     - query_plan_ordering_test.go#TestTasksAndFeedbackUseTimeOrderedPaginationWithoutMissingNewArrivals
     - query_plan_ordering_test.go#TestOwnerlessTaskMetadataBackfill
     - postgres/query_plan_test.go#TestTasksAndFeedbackQueriesAvoidSeqScanOnPopulatedTables
+    - task_columns_replay_retention_test.go#TestSaveTaskSyncsColumnsReplayPreservesCanAppealAndExpiredKeyDoesNotCollide
   ACAD-15:
     - report_test.go#TestNewReportsRequireAdmissionButOwnPendingEvidenceRemainsAvailable
     - report_test.go#TestPendingEvidenceCannotOverwriteConcurrentDecision
@@ -62,6 +63,8 @@ scenario_tests:
     - outbox_delivery_test.go#TestDecisionOutboxFailureRollsBackDecision
     - privacy_events_test.go#TestDismissEmitsStrictlyIncreasingRevisionsInOrder
   CM-17:
+    - task_columns_replay_retention_test.go#TestAuditRetentionValidatesArguments
+    - task_columns_replay_retention_test.go#TestCleanupPreservesConcurrentRenewals
     - audit_test.go#TestAuditFiltersScopesAndProjection
     - audit_test.go#TestAuditSnapshotExcludesBackfillAndLateCommit
     - audit_test.go#TestAuditDefaultsAndTransactionRollback

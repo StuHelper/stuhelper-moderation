@@ -39,7 +39,12 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 			if object == nil {
 				return needsFacts
 			}
-			task = Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: operation, SchoolID: object.SchoolID, Owner: p.Subject, Submission: in, ObjectRevision: object.Revision, State: "waiting", CreatedAt: s.now()}
+			now := s.now()
+			taskID, err := allocateTaskID(t, operation, now)
+			if err != nil {
+				return err
+			}
+			task = Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: taskID, SchoolID: object.SchoolID, Owner: p.Subject, Submission: in, ObjectRevision: object.Revision, State: "waiting", CreatedAt: now}
 		} else {
 			if e = t.Lock(task.ID); e != nil {
 				return e

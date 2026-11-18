@@ -138,7 +138,38 @@ func (t *transaction) Replay(key string) (m.Replay, error) {
 	return read[m.Replay](t, `SELECT data FROM moderation.replays WHERE key=$1`, key)
 }
 func (t *transaction) SaveReplay(key string, v m.Replay) error {
-	return t.save(`INSERT INTO moderation.replays(key,data) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET data=excluded.data`, v, key)
+	var until any
+	if !v.Until.IsZero() {
+		until = v.Until.UTC()
+	}
+	return t.save(`INSERT INTO moderation.replays(key,until,data) VALUES($1,$2,$3) ON CONFLICT(key) DO UPDATE SET until=excluded.until,data=excluded.data`, v, key, until)
+}
+func (r *Repository) Cleanup(ctx context.Context, now time.Time, limit int) error {
+	if limit < 1 || limit > 500 {
+		return m.ErrInput
+	}
+	now = now.UTC()
+	tx, e := r.DB.BeginTx(ctx, nil)
+	if e != nil {
+		return safe(e)
+	}
+	defer tx.Rollback()
+	if _, e = tx.ExecContext(ctx, "SET LOCAL TIME ZONE 'UTC'"); e != nil {
+		return safe(e)
+	}
+	if _, e = tx.ExecContext(ctx, `DELETE FROM moderation.replays WHERE key IN (SELECT key FROM moderation.replays WHERE until IS NOT NULL AND until <= $1 ORDER BY until,key LIMIT $2 FOR UPDATE SKIP LOCKED)`, now, limit); e != nil {
+		return safe(e)
+	}
+	if _, e = tx.ExecContext(ctx, `DELETE FROM moderation.submission_limits WHERE owner_key IN (SELECT owner_key FROM moderation.submission_limits WHERE started_at <= $1 ORDER BY started_at,owner_key LIMIT $2 FOR UPDATE SKIP LOCKED)`, now.Add(-24*time.Hour), limit); e != nil {
+		return safe(e)
+	}
+	if _, e = tx.ExecContext(ctx, `DELETE FROM moderation.outbox WHERE id IN (SELECT id FROM moderation.outbox WHERE sent_at IS NOT NULL AND sent_at <= $1 ORDER BY sent_at,id LIMIT $2 FOR UPDATE SKIP LOCKED)`, now.Add(-90*24*time.Hour), limit); e != nil {
+		return safe(e)
+	}
+	if _, e = tx.ExecContext(ctx, `SELECT moderation.cleanup_task_audit(LEAST($1::timestamptz,current_timestamp) - interval '12 months', $2)`, now, limit); e != nil {
+		return safe(e)
+	}
+	return safe(tx.Commit())
 }
 func (t *transaction) Event(v m.Event) error {
 	if e := t.saveAudit(v); e != nil {

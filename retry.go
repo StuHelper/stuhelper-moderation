@@ -65,7 +65,7 @@ func (s *Service) Retry(ctx context.Context, p Principal, id, key string, revisi
 		if e = s.record(t, rk, h, "retried", p, task); e != nil {
 			return e
 		}
-		out = view(task)
+		out = viewFor(p, task)
 		return nil
 	})
 	return out, err
