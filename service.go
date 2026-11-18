@@ -160,7 +160,7 @@ func allocateTaskID(t Transaction, base string, now time.Time) (string, error) {
 	}
 	return digest([]string{base, strconv.FormatInt(now.UnixNano(), 10)}), nil
 }
-func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
+func (s *Service) recordWithView(t Transaction, key, hash, action string, p Principal, task Task, v TaskView) error {
 	result := "success"
 	if action == "decided" {
 		result = "unknown"
@@ -174,7 +174,119 @@ func (s *Service) record(t Transaction, key, hash, action string, p Principal, t
 	if e := t.Event(Event{Result: result, Data: data, ID: eventID, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: now}); e != nil {
 		return e
 	}
-	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: viewFor(p, task), Until: now.Add(24 * time.Hour)})
+	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: v, Until: now.Add(24 * time.Hour)})
+}
+func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
+	return s.recordWithView(t, key, hash, action, p, task, viewFor(p, task))
+}
+
+func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payload string, in Submission, object *Object, missingObjectErr error, beforeSave func(Transaction) error) (TaskView, error) {
+	var out TaskView
+	if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
+		return out, e
+	}
+	now := s.now()
+	cached, found, e := replay(t, operation, payload, now)
+	if errors.Is(e, ErrConflict) && len(in.Evidence) == 0 {
+		// Older receipts hashed omitted evidence as null instead of an empty array.
+		legacy := in
+		legacy.Evidence = nil
+		cached, found, e = replay(t, operation, digest(legacy), now)
+	}
+	if e != nil {
+		return out, e
+	}
+	if found {
+		return cached, nil
+	}
+	if in.Kind == "appeal" {
+		if e := t.Lock("appeal:" + in.PreviousTaskID); e != nil {
+			return out, e
+		}
+		previous, e := t.Task(in.PreviousTaskID)
+		if e != nil {
+			return out, e
+		}
+		if previous.Submission.ObjectID != in.ObjectID || previous.Submission.Kind == "appeal" || previous.Decision == nil || previous.State != "applied" {
+			return out, ErrConflict
+		}
+	}
+	task, e := t.Active(p.Subject, in.ObjectID, in.Kind)
+	if e != nil && !errors.Is(e, ErrNotFound) {
+		return out, e
+	}
+	if errors.Is(e, ErrNotFound) {
+		if object == nil {
+			return out, missingObjectErr
+		}
+		if in.Evidence == nil {
+			in.Evidence = []string{}
+		}
+		if in.Kind == "appeal" {
+			appealed, e := appealedTasks(t, []string{in.PreviousTaskID})
+			if e != nil {
+				return out, e
+			}
+			if appealed[in.PreviousTaskID] {
+				return out, ErrConflict
+			}
+		}
+		now := s.now()
+		taskID, err := allocateTaskID(t, operation, now)
+		if err != nil {
+			return out, err
+		}
+		task = Task{
+			ContentOwner:   object.Owner,
+			ContentKind:    object.Kind,
+			ID:             taskID,
+			SchoolID:       object.SchoolID,
+			Owner:          p.Subject,
+			Submission:     in,
+			ObjectRevision: object.Revision,
+			State:          "waiting",
+			CreatedAt:      now,
+		}
+	} else {
+		if e = t.Lock(task.ID); e != nil {
+			return out, e
+		}
+		task, e = t.Task(task.ID)
+		if e != nil {
+			return out, e
+		}
+		if task.State != "waiting" || (in.Kind == "appeal" && task.Submission.PreviousTaskID != in.PreviousTaskID) {
+			return out, ErrConflict
+		}
+		if task.Submission.Evidence == nil {
+			task.Submission.Evidence = []string{}
+		}
+		if in.Reason != task.Submission.Reason {
+			task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)
+		}
+		task.Submission.Evidence = append(task.Submission.Evidence, in.Evidence...)
+		if len(task.Submission.Evidence) > 20 {
+			return out, ErrInput
+		}
+		if in.Kind == "edit_request" {
+			task.Submission.ProposedBody = in.ProposedBody
+		}
+	}
+	if beforeSave != nil {
+		if e = beforeSave(t); e != nil {
+			return out, e
+		}
+	}
+	task.Revision++
+	task.UpdatedAt = s.now()
+	if e = t.SaveTask(task); e != nil {
+		return out, e
+	}
+	out = viewFor(p, task)
+	if e = s.recordWithView(t, operation, payload, "submitted", p, task, out); e != nil {
+		return out, e
+	}
+	return out, nil
 }
 
 type retentionRepository interface {
@@ -227,9 +339,6 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	if p.Subject == "" {
 		return out, ErrForbidden
 	}
-	if in.Evidence == nil {
-		in.Evidence = []string{}
-	}
 	if !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || !slices.Contains([]string{"report", "edit_request", "delete_request", "review", "appeal"}, in.Kind) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
 		return out, ErrInput
 	}
@@ -237,6 +346,9 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 		if !textOK(v, 2000) {
 			return out, ErrInput
 		}
+	}
+	if in.Evidence == nil {
+		in.Evidence = []string{}
 	}
 	if in.Kind == "report" {
 		if in.PreviousTaskID != "" {
@@ -275,82 +387,9 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	rk := digest([]string{p.Subject, in.Kind, in.ObjectID, key})
 	h := digest(in)
 	err := s.tx(ctx, func(t Transaction) error {
-		if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
-			return e
-		}
-		cached, ok, e := replay(t, rk, h, s.now())
-		if e != nil {
-			return e
-		}
-		if ok {
-			out = cached
-			return nil
-		}
-		if in.Kind == "appeal" {
-			if e := t.Lock("appeal:" + in.PreviousTaskID); e != nil {
-				return e
-			}
-			previous, e := t.Task(in.PreviousTaskID)
-			if e != nil {
-				return e
-			}
-			if previous.Submission.ObjectID != in.ObjectID || previous.Submission.Kind == "appeal" || previous.Decision == nil || previous.State != "applied" {
-				return ErrConflict
-			}
-		}
-		task, e := t.Active(p.Subject, in.ObjectID, in.Kind)
-		if e != nil && !errors.Is(e, ErrNotFound) {
-			return e
-		}
-		if errors.Is(e, ErrNotFound) {
-			if in.Kind == "appeal" {
-				if appealed, e := appealedTasks(t, []string{in.PreviousTaskID}); e != nil {
-					return e
-				} else if appealed[in.PreviousTaskID] {
-					return ErrConflict
-				}
-			}
-			now := s.now()
-			taskID, err := allocateTaskID(t, rk, now)
-			if err != nil {
-				return err
-			}
-			task = Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: taskID, SchoolID: object.SchoolID, Owner: p.Subject, Submission: in, ObjectRevision: object.Revision, State: "waiting", CreatedAt: now}
-		} else {
-			if e = t.Lock(task.ID); e != nil {
-				return e
-			}
-			task, e = t.Task(task.ID)
-			if e != nil {
-				return e
-			}
-			if task.State != "waiting" {
-				return ErrConflict
-			}
-			if in.Kind == "appeal" && task.Submission.PreviousTaskID != in.PreviousTaskID {
-				return ErrConflict
-			}
-			if in.Reason != task.Submission.Reason {
-				task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)
-			}
-			task.Submission.Evidence = append(task.Submission.Evidence, in.Evidence...)
-			if len(task.Submission.Evidence) > 20 {
-				return ErrInput
-			}
-			if in.Kind == "edit_request" {
-				task.Submission.ProposedBody = in.ProposedBody
-			}
-		}
-		task.Revision++
-		task.UpdatedAt = s.now()
-		if e = t.SaveTask(task); e != nil {
-			return e
-		}
-		if e = s.record(t, rk, h, "submitted", p, task); e != nil {
-			return e
-		}
-		out = viewFor(p, task)
-		return nil
+		var txErr error
+		out, txErr = s.upsertSubmissionTx(t, p, rk, h, in, &object, ErrUnavailable, nil)
+		return txErr
 	})
 	return out, err
 }

@@ -19,6 +19,7 @@ capability_requires:
       api: 1
 scenario_tests:
   CM-01:
+    - submission_replay_test.go#TestSubmissionReplaysLegacyNilEvidence
     - complaints_test.go#TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
     - submission_safety_test.go#TestAuthorRequestSupplementCannotOverwriteConcurrentDecision
@@ -39,6 +40,8 @@ scenario_tests:
     - submission_safety_test.go#TestAppealEnforcesSingleAppealAppliedStateAndRecusal
     - submission_safety_test.go#TestAppealMigrationPreservesHistoricalDuplicates
     - contract_alignment_test.go#TestOpenAPIAndHTTPHandlerAlignment
+    - contract_test.go#TestConvergedEditRequestCannotOverwriteConcurrentDecision
+    - contract_test.go#TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance
   CM-12:
     - batch_validation_runtime_test.go#TestReplacedDecisionRejectsStaleWorkerResult
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
