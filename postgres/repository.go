@@ -97,10 +97,14 @@ func (t *transaction) Active(owner, object, kind string) (m.Task, error) {
 	return read[m.Task](t, `SELECT data FROM moderation.tasks WHERE owner=$1 AND object_id=$2 AND kind=$3 AND state IN ('waiting','decided')`, owner, object, kind)
 }
 func (t *transaction) SaveTask(v m.Task) error {
-	return t.save(`INSERT INTO moderation.tasks(id,owner,school_id,object_id,kind,state,next_attempt,lease_until,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO UPDATE SET state=excluded.state,next_attempt=excluded.next_attempt,lease_until=excluded.lease_until,data=excluded.data`, v, v.ID, v.Owner, v.SchoolID, v.Submission.ObjectID, v.Submission.Kind, v.State, v.NextAttempt, v.LeaseUntil)
+	createdAt := v.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+	}
+	return t.save(`INSERT INTO moderation.tasks(id,owner,content_owner,content_kind,school_id,object_id,kind,state,created_at,next_attempt,lease_until,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,content_owner=excluded.content_owner,content_kind=excluded.content_kind,school_id=excluded.school_id,object_id=excluded.object_id,kind=excluded.kind,state=excluded.state,created_at=excluded.created_at,next_attempt=excluded.next_attempt,lease_until=excluded.lease_until,data=excluded.data`, v, v.ID, v.Owner, v.ContentOwner, v.ContentKind, v.SchoolID, v.Submission.ObjectID, v.Submission.Kind, v.State, createdAt, v.NextAttempt, v.LeaseUntil)
 }
 func (t *transaction) List(owner, school, state, after string, limit int) ([]m.Task, error) {
-	return list[m.Task](t, `SELECT data FROM moderation.tasks WHERE ($1='' OR owner=$1) AND ($2='' OR school_id=$2) AND ($3='' OR state=$3) AND id>$4 ORDER BY id LIMIT $5`, owner, school, state, after, limit)
+	return t.FilteredTasks(m.TaskFilter{Owner: owner, School: school, State: state, After: after, Limit: limit, Admin: owner == ""})
 }
 func (t *transaction) Ready(now time.Time, limit int) ([]m.Task, error) {
 	return list[m.Task](t, `SELECT data FROM moderation.tasks WHERE state='decided' AND next_attempt<=$1 AND lease_until<=$1 ORDER BY next_attempt,id LIMIT $2`, now, limit)

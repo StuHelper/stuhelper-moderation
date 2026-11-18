@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	f "github.com/StuHelper/stuhelper-moderation/feedback"
 	"github.com/google/uuid"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -122,13 +125,59 @@ func (t *feedbackTx) many(q string, args ...any) ([]f.Message, error) {
 	}
 	return out, feedbackError(rows.Err())
 }
+func buildFeedbackListQuery(state string, hasCursor bool, cursorTime time.Time, cursorID string, limit int) (string, []any) {
+	args := []any{}
+	add := func(v any) string {
+		args = append(args, v)
+		return fmt.Sprintf("$%d", len(args))
+	}
+	conds := []string{"ready", "(closed_at IS NULL OR closed_at+interval '12 months'>now())"}
+	if state != "" {
+		conds = append(conds, "state="+add(state))
+	}
+	if hasCursor {
+		ctArg := add(cursorTime)
+		idArg := add(cursorID)
+		conds = append(conds, fmt.Sprintf("(received_at<=%s AND (received_at,id)<(%s,%s))", ctArg, ctArg, idArg))
+	}
+	limitArg := add(limit)
+	return fmt.Sprintf(`SELECT data FROM moderation.feedback WHERE %s ORDER BY received_at DESC,id DESC LIMIT %s`, strings.Join(conds, " AND "), limitArg), args
+}
+
 func (t *feedbackTx) List(v f.Filter) ([]f.Message, error) {
-	return t.many(`SELECT data FROM moderation.feedback WHERE ready AND id>$1 AND ($2='' OR state=$2) AND (closed_at IS NULL OR closed_at+interval '12 months'>now()) ORDER BY id LIMIT $3`, v.After, v.State, v.Limit+1)
+	hasCursor := false
+	var cursorTime time.Time
+	cursorID := ""
+	if v.After != "" {
+		if sep := strings.IndexByte(v.After, ':'); sep > 0 {
+			ns, err := strconv.ParseInt(v.After[:sep], 10, 64)
+			if err != nil || sep+1 >= len(v.After) {
+				return nil, f.ErrInvalid
+			}
+			cursorTime = time.Unix(0, ns).UTC()
+			cursorID = v.After[sep+1:]
+		} else {
+			if err := t.tx.QueryRowContext(t.ctx, `SELECT received_at FROM moderation.feedback WHERE id=$1`, v.After).Scan(&cursorTime); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return []f.Message{}, nil
+				}
+				return nil, feedbackError(err)
+			}
+			cursorID = v.After
+		}
+		hasCursor = true
+	}
+	q, args := buildFeedbackListQuery(v.State, hasCursor, cursorTime, cursorID, v.Limit+1)
+	return t.many(q, args...)
 }
 func (t *feedbackTx) Usage(sender string, since time.Time) (int, int64, int, error) {
 	var count, rate int
 	var bytes int64
-	e := t.tx.QueryRowContext(t.ctx, `SELECT CASE WHEN (SELECT count(*) FROM moderation.feedback_tombstones)>=1000000 THEN 100000 ELSE count(*) END,coalesce(sum(bytes),0),count(*) FILTER(WHERE sender=$1 AND received_at>=$2) FROM moderation.feedback`, sender, since).Scan(&count, &bytes, &rate)
+	e := t.tx.QueryRowContext(t.ctx, `SELECT CASE WHEN tombstone_count>=1000000 THEN 100000 ELSE active_count END,active_bytes FROM moderation.feedback_stats WHERE singleton`).Scan(&count, &bytes)
+	if e != nil {
+		return 0, 0, 0, feedbackError(e)
+	}
+	e = t.tx.QueryRowContext(t.ctx, `SELECT count(*) FROM moderation.feedback WHERE sender=$1 AND received_at>=$2`, sender, since).Scan(&rate)
 	return count, bytes, rate, feedbackError(e)
 }
 func (t *feedbackTx) Audit(actor, action, id string, now time.Time) error {
