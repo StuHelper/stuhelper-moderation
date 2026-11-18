@@ -49,6 +49,6 @@ func (s *Service) GetPolicy(ctx context.Context, p Principal, school, kind strin
 	if err := s.auth(ctx, p, "configure", school); err != nil {
 		return out, err
 	}
-	err := s.Repo.Transaction(ctx, func(t Transaction) error { var err error; out, err = effectivePolicy(t, school, kind); return err })
+	err := s.tx(ctx, func(t Transaction) error { var err error; out, err = effectivePolicy(t, school, kind); return err })
 	return out, err
 }

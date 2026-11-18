@@ -56,7 +56,11 @@ func (r *FeedbackRepository) Transaction(ctx context.Context, run func(f.Tx) err
 	return feedbackError(tx.Commit())
 }
 func (t *feedbackTx) Lock() error {
-	_, e := t.tx.ExecContext(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended('moderation:feedback',0))`)
+	_, e := t.tx.ExecContext(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended('moderation:feedback:intake',0))`)
+	return feedbackError(e)
+}
+func (t *feedbackTx) LockCase(id string) error {
+	_, e := t.tx.ExecContext(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "moderation:feedback:case:"+id)
 	return feedbackError(e)
 }
 func decodeFeedback(b []byte) (f.Message, error) {
@@ -125,13 +129,13 @@ func (t *feedbackTx) many(q string, args ...any) ([]f.Message, error) {
 	}
 	return out, feedbackError(rows.Err())
 }
-func buildFeedbackListQuery(state string, hasCursor bool, cursorTime time.Time, cursorID string, limit int) (string, []any) {
+func buildFeedbackListQuery(state string, hasCursor bool, cursorTime time.Time, cursorID string, limit int, now time.Time) (string, []any) {
 	args := []any{}
 	add := func(v any) string {
 		args = append(args, v)
 		return fmt.Sprintf("$%d", len(args))
 	}
-	conds := []string{"ready", "(closed_at IS NULL OR closed_at+interval '12 months'>now())"}
+	conds := []string{"ready", "(closed_at IS NULL OR closed_at+interval '12 months'>" + add(now) + ")"}
 	if state != "" {
 		conds = append(conds, "state="+add(state))
 	}
@@ -145,6 +149,10 @@ func buildFeedbackListQuery(state string, hasCursor bool, cursorTime time.Time, 
 }
 
 func (t *feedbackTx) List(v f.Filter) ([]f.Message, error) {
+	now := v.Now
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
 	hasCursor := false
 	var cursorTime time.Time
 	cursorID := ""
@@ -167,7 +175,7 @@ func (t *feedbackTx) List(v f.Filter) ([]f.Message, error) {
 		}
 		hasCursor = true
 	}
-	q, args := buildFeedbackListQuery(v.State, hasCursor, cursorTime, cursorID, v.Limit+1)
+	q, args := buildFeedbackListQuery(v.State, hasCursor, cursorTime, cursorID, v.Limit+1, now)
 	return t.many(q, args...)
 }
 func (t *feedbackTx) Usage(sender string, since time.Time) (int, int64, int, error) {

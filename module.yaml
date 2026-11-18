@@ -21,37 +21,53 @@ scenario_tests:
   CM-01:
     - complaints_test.go#TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
+    - submission_safety_test.go#TestAuthorRequestSupplementCannotOverwriteConcurrentDecision
   CM-02:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
+    - dependency_worker_test.go#TestMissingDependenciesReturnUnavailableWithoutPanic
+    - dependency_worker_test.go#TestWorkerShutdownPersistsAppliedResultInspectHasTimeoutAndRetryResetsBackoff
+    - privacy_events_test.go#TestWorkNormalizesWrappedAndMultilineErrorsWithoutPoisonLoop
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
     - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
+    - privacy_events_test.go#TestDecisionProjectionHidesEnrollmentEvidenceAndSignedState
+    - privacy_events_test.go#TestDecisionAndBatchReplayWireCompatibility
   CM-10:
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
+    - submission_safety_test.go#TestAppealEnforcesSingleAppealAppliedStateAndRecusal
+    - submission_safety_test.go#TestAppealMigrationPreservesHistoricalDuplicates
   CM-12:
+    - batch_validation_runtime_test.go#TestReplacedDecisionRejectsStaleWorkerResult
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
+    - batch_validation_runtime_test.go#TestBatchValidationSameObjectConflictRedecideAndRevokedModeratorRetry
+    - batch_validation_runtime_test.go#TestInputValidationFeedbackClockDownloadAuditAndCheckRuntime
   CM-13:
     - object_access_test.go#TestNotificationTaskBatchKeepsReceiptPermissions
     - operations_test.go#TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence
     - query_plan_ordering_test.go#TestTasksAndFeedbackUseTimeOrderedPaginationWithoutMissingNewArrivals
+    - query_plan_ordering_test.go#TestOwnerlessTaskMetadataBackfill
     - postgres/query_plan_test.go#TestTasksAndFeedbackQueriesAvoidSeqScanOnPopulatedTables
   ACAD-15:
     - report_test.go#TestNewReportsRequireAdmissionButOwnPendingEvidenceRemainsAvailable
     - report_test.go#TestPendingEvidenceCannotOverwriteConcurrentDecision
+    - submission_safety_test.go#TestReportSupplementBypassesSubmitOutageAndTrustedPortsValidateObject
   CM-15:
     - complaints_test.go#TestComplaintRateLimitIsPerAccountAndReplayDoesNotConsumeQuota
   CM-16:
     - outbox_delivery_test.go#TestOutboxCommitNotificationAndRollback
     - outbox_delivery_test.go#TestDecisionResultsAreDurableAndReplaySafe
     - outbox_delivery_test.go#TestDecisionOutboxFailureRollsBackDecision
+    - privacy_events_test.go#TestDismissEmitsStrictlyIncreasingRevisionsInOrder
   CM-17:
     - audit_test.go#TestAuditFiltersScopesAndProjection
     - audit_test.go#TestAuditSnapshotExcludesBackfillAndLateCommit
     - audit_test.go#TestAuditDefaultsAndTransactionRollback
     - audit_test.go#TestAuditBatchLimitAndRecordedOutcome
     - audit_test.go#TestAuditDecisionSavedIsNotExecutionSuccess
+    - audit_snapshot_regression_test.go#TestEmptyFeedbackCleanupDoesNotInvalidateAuditSnapshot
+    - audit_snapshot_regression_test.go#TestReadAuditSnapshotStaysWithin256BytesUnderManyConcurrentWriters
   CM-18:
     - outbox_exclusion_test.go#TestOutboxExcludesDeferredSubjectsBeforeLimit
     - postgres/outbox_test.go#TestPendingOutboxPlanUsesPartialIndex
@@ -61,5 +77,7 @@ scenario_tests:
     - feedback_test.go#TestFeedbackReplyUnknownIsNeverResentAndRetentionDeletesMaterials
     - feedback_test.go#TestFeedbackLeapDayRetentionMatchesDatabaseCalendarMonths
     - feedback_test.go#TestFeedbackRetentionUsesUTCRegardlessOfDatabaseTimezone
+    - feedback_safety_test.go#TestFeedbackSlowCleanupBlobDeleteDoesNotBlockConcurrentReplyOrUpdate
   CM-21:
     - feedback_test.go#TestFeedbackRateCapacityAndCursor
+    - feedback_safety_test.go#TestFeedbackValidationEnforcesAttachmentLimitsSenderNormalizationAndHeaderSafety

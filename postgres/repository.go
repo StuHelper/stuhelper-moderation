@@ -93,6 +93,25 @@ func (t *transaction) save(q string, v any, args ...any) error {
 func (t *transaction) Task(id string) (m.Task, error) {
 	return read[m.Task](t, `SELECT data FROM moderation.tasks WHERE id=$1`, id)
 }
+func (t *transaction) HasAppeals(ids []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, e := t.tx.QueryContext(t.ctx, `SELECT DISTINCT data->'submission'->>'previous_task_id' FROM moderation.tasks WHERE kind='appeal' AND (data->'submission'->>'previous_task_id') = ANY($1::text[])`, ids)
+	if e != nil {
+		return nil, safe(e)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) != nil {
+			return nil, m.ErrUnavailable
+		}
+		out[id] = true
+	}
+	return out, safe(rows.Err())
+}
 func (t *transaction) Active(owner, object, kind string) (m.Task, error) {
 	return read[m.Task](t, `SELECT data FROM moderation.tasks WHERE owner=$1 AND object_id=$2 AND kind=$3 AND state IN ('waiting','decided')`, owner, object, kind)
 }

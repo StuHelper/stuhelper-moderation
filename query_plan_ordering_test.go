@@ -119,3 +119,21 @@ func TestTasksAndFeedbackUseTimeOrderedPaginationWithoutMissingNewArrivals(t *te
 		t.Fatalf("feedback page2 wrong items: %+v", fbPage2.Items)
 	}
 }
+
+func TestOwnerlessTaskMetadataBackfill(t *testing.T) {
+	_, db := database(t)
+	_, err := db.Exec(`INSERT INTO moderation.tasks(id,owner,school_id,object_id,kind,state,next_attempt,lease_until,data)
+	VALUES('old','author','s','object','review','waiting',now(),now(),'{"content_kind":"course","created_at":"2024-01-02T03:04:05Z"}')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, err = db.Exec(pg.Schema); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var count int
+	if err = db.QueryRow(`SELECT count(*) FROM moderation.tasks WHERE id='old' AND content_owner='' AND content_kind='course' AND created_at='2024-01-02T03:04:05Z'`).Scan(&count); err != nil || count != 1 {
+		t.Fatal("ownerless task lost from filtered queue", count, err)
+	}
+}

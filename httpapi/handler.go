@@ -99,6 +99,10 @@ func (h Handler) principal(w http.ResponseWriter, r *http.Request) (m.Principal,
 		_ = json.NewEncoder(w).Encode(map[string]string{"code": "unauthenticated"})
 		return p, false
 	}
+	if h.Service == nil {
+		respond(w, nil, m.ErrUnavailable)
+		return p, false
+	}
 	return p, true
 }
 func (h Handler) list(w http.ResponseWriter, r *http.Request) {

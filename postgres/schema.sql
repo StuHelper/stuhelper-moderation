@@ -10,12 +10,41 @@ ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS content_owner text NOT NUL
 ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS content_kind text NOT NULL DEFAULT '';
 ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 UPDATE moderation.tasks
- SET content_owner=COALESCE(data->>'content_owner',''),
-     content_kind=COALESCE(data->>'content_kind',''),
-     created_at=COALESCE((data->>'created_at')::timestamptz,now())
- WHERE content_owner='' AND (data ? 'content_owner');
+ SET content_owner=COALESCE(data->>'content_owner',content_owner),
+     content_kind=COALESCE(data->>'content_kind',content_kind),
+     created_at=COALESCE((data->>'created_at')::timestamptz,created_at)
+ WHERE (content_owner,content_kind,created_at) IS DISTINCT FROM
+       (COALESCE(data->>'content_owner',content_owner),COALESCE(data->>'content_kind',content_kind),
+        COALESCE((data->>'created_at')::timestamptz,created_at));
 CREATE UNIQUE INDEX IF NOT EXISTS moderation_active_request ON moderation.tasks(owner,object_id,kind)
  WHERE state IN ('waiting','decided') AND kind IN ('report','edit_request','delete_request');
+CREATE UNIQUE INDEX IF NOT EXISTS moderation_active_appeal ON moderation.tasks(owner,object_id,kind)
+ WHERE state IN ('waiting','decided') AND kind='appeal';
+-- Keep every historical appeal and its original reference. One existing row
+-- claims each prior decision in the unique index. Only migration can exempt
+-- the remaining historical rows.
+ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS legacy_repeat_appeal boolean NOT NULL DEFAULT false;
+DROP TRIGGER IF EXISTS protect_legacy_repeat_appeal ON moderation.tasks;
+WITH ranked AS (
+ SELECT id,row_number() OVER (PARTITION BY data->'submission'->>'previous_task_id' ORDER BY id) AS position
+ FROM moderation.tasks WHERE kind='appeal' AND NOT legacy_repeat_appeal
+ AND COALESCE(data->'submission'->>'previous_task_id','') <> ''
+)
+UPDATE moderation.tasks t SET legacy_repeat_appeal=true FROM ranked r WHERE t.id=r.id AND r.position>1;
+CREATE UNIQUE INDEX IF NOT EXISTS moderation_appeal_previous ON moderation.tasks((data->'submission'->>'previous_task_id'))
+ WHERE kind='appeal' AND NOT legacy_repeat_appeal AND COALESCE(data->'submission'->>'previous_task_id','') <> '';
+CREATE OR REPLACE FUNCTION moderation.protect_legacy_repeat_appeal() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='INSERT' THEN
+   NEW.legacy_repeat_appeal := false;
+ ELSE
+   NEW.legacy_repeat_appeal := OLD.legacy_repeat_appeal AND OLD.kind=NEW.kind AND
+      (OLD.data->'submission'->>'previous_task_id') IS NOT DISTINCT FROM (NEW.data->'submission'->>'previous_task_id');
+ END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER protect_legacy_repeat_appeal BEFORE INSERT OR UPDATE ON moderation.tasks
+ FOR EACH ROW EXECUTE FUNCTION moderation.protect_legacy_repeat_appeal();
 CREATE INDEX IF NOT EXISTS moderation_school_queue ON moderation.tasks(school_id,state,id);
 CREATE INDEX IF NOT EXISTS moderation_owner_queue ON moderation.tasks(owner,id);
 CREATE INDEX IF NOT EXISTS moderation_owner_created ON moderation.tasks(owner,created_at DESC,id DESC);
@@ -40,7 +69,22 @@ CREATE TABLE IF NOT EXISTS moderation.audit_retention(singleton boolean PRIMARY 
 INSERT INTO moderation.audit_retention VALUES(true,1) ON CONFLICT DO NOTHING;
 CREATE OR REPLACE FUNCTION moderation.invalidate_audit_snapshot() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN UPDATE moderation.audit_retention SET revision=revision+1 WHERE singleton; RETURN NULL; END $$;
-CREATE OR REPLACE TRIGGER audit_changed AFTER UPDATE OR DELETE OR TRUNCATE ON moderation.audit
+CREATE OR REPLACE FUNCTION moderation.invalidate_audit_snapshot_rows() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM old_rows) THEN
+  UPDATE moderation.audit_retention SET revision=revision+1 WHERE singleton;
+ END IF;
+ RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS audit_changed ON moderation.audit;
+DROP TRIGGER IF EXISTS audit_updated ON moderation.audit;
+DROP TRIGGER IF EXISTS audit_deleted ON moderation.audit;
+DROP TRIGGER IF EXISTS audit_truncated ON moderation.audit;
+CREATE TRIGGER audit_updated AFTER UPDATE ON moderation.audit
+ REFERENCING OLD TABLE AS old_rows FOR EACH STATEMENT EXECUTE FUNCTION moderation.invalidate_audit_snapshot_rows();
+CREATE TRIGGER audit_deleted AFTER DELETE ON moderation.audit
+ REFERENCING OLD TABLE AS old_rows FOR EACH STATEMENT EXECUTE FUNCTION moderation.invalidate_audit_snapshot_rows();
+CREATE TRIGGER audit_truncated AFTER TRUNCATE ON moderation.audit
  FOR EACH STATEMENT EXECUTE FUNCTION moderation.invalidate_audit_snapshot();
 CREATE TABLE IF NOT EXISTS moderation.outbox(id text PRIMARY KEY,data jsonb NOT NULL,delivered boolean NOT NULL DEFAULT false);
 REVOKE ALL ON SCHEMA moderation FROM PUBLIC;
@@ -170,6 +214,12 @@ CREATE OR REPLACE FUNCTION moderation.cleanup_feedback_audit() RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
 DECLARE removed integer;
 BEGIN
+ IF NOT EXISTS (
+  SELECT 1 FROM moderation.audit WHERE action LIKE 'feedback.%'
+   AND time < current_timestamp - interval '12 months'
+ ) THEN
+  RETURN 0;
+ END IF;
  DELETE FROM moderation.audit WHERE id IN (
   SELECT id FROM moderation.audit WHERE action LIKE 'feedback.%'
    AND time < current_timestamp - interval '12 months' ORDER BY time,id LIMIT 100

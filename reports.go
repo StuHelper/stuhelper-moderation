@@ -13,8 +13,8 @@ func (s *Service) submitReport(ctx context.Context, p Principal, key string, in 
 }
 func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Submission, object *Object) (TaskView, error) {
 	var out TaskView
-	if e := s.auth(ctx, p, "submit", ""); e != nil {
-		return out, e
+	if p.Subject == "" {
+		return out, ErrForbidden
 	}
 	operation := digest([]string{p.Subject, in.Kind, in.ObjectID, key})
 	payload := digest(in)
@@ -77,7 +77,7 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 		out = viewFor(p, task)
 		return nil
 	}
-	err := s.Repo.Transaction(ctx, apply)
+	err := s.tx(ctx, apply)
 	if !errors.Is(err, needsFacts) {
 		return out, err
 	}
@@ -99,6 +99,6 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 	object = &current
 	// Recheck local state under the same lock: a concurrent creation merges, and
 	// a concurrent decision cannot be overwritten by late evidence.
-	err = s.Repo.Transaction(ctx, apply)
+	err = s.tx(ctx, apply)
 	return out, err
 }
