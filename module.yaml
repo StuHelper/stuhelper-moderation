@@ -32,6 +32,7 @@ scenario_tests:
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
     - submission_safety_test.go#TestAppealEnforcesSingleAppealAppliedStateAndRecusal
+    - submission_safety_test.go#TestAppealMigrationPreservesHistoricalDuplicates
   CM-12:
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
   CM-13:

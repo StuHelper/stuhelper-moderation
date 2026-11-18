@@ -8,8 +8,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS moderation_active_request ON moderation.tasks(
  WHERE state IN ('waiting','decided') AND kind IN ('report','edit_request','delete_request');
 CREATE UNIQUE INDEX IF NOT EXISTS moderation_active_appeal ON moderation.tasks(owner,object_id,kind)
  WHERE state IN ('waiting','decided') AND kind='appeal';
+-- Keep every historical appeal and its original reference. One existing row
+-- claims each prior decision in the unique index. Only migration can exempt
+-- the remaining historical rows.
+ALTER TABLE moderation.tasks ADD COLUMN IF NOT EXISTS legacy_repeat_appeal boolean NOT NULL DEFAULT false;
+DROP TRIGGER IF EXISTS protect_legacy_repeat_appeal ON moderation.tasks;
+WITH ranked AS (
+ SELECT id,row_number() OVER (PARTITION BY data->'submission'->>'previous_task_id' ORDER BY id) AS position
+ FROM moderation.tasks WHERE kind='appeal' AND NOT legacy_repeat_appeal
+ AND COALESCE(data->'submission'->>'previous_task_id','') <> ''
+)
+UPDATE moderation.tasks t SET legacy_repeat_appeal=true FROM ranked r WHERE t.id=r.id AND r.position>1;
 CREATE UNIQUE INDEX IF NOT EXISTS moderation_appeal_previous ON moderation.tasks((data->'submission'->>'previous_task_id'))
- WHERE kind='appeal' AND (data->'submission'->>'previous_task_id') IS NOT NULL AND (data->'submission'->>'previous_task_id') <> '';
+ WHERE kind='appeal' AND NOT legacy_repeat_appeal AND COALESCE(data->'submission'->>'previous_task_id','') <> '';
+CREATE OR REPLACE FUNCTION moderation.protect_legacy_repeat_appeal() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='INSERT' THEN
+   NEW.legacy_repeat_appeal := false;
+ ELSE
+   NEW.legacy_repeat_appeal := OLD.legacy_repeat_appeal AND OLD.kind=NEW.kind AND
+      (OLD.data->'submission'->>'previous_task_id') IS NOT DISTINCT FROM (NEW.data->'submission'->>'previous_task_id');
+ END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER protect_legacy_repeat_appeal BEFORE INSERT OR UPDATE ON moderation.tasks
+ FOR EACH ROW EXECUTE FUNCTION moderation.protect_legacy_repeat_appeal();
 CREATE INDEX IF NOT EXISTS moderation_school_queue ON moderation.tasks(school_id,state,id);
 CREATE INDEX IF NOT EXISTS moderation_owner_queue ON moderation.tasks(owner,id);
 CREATE INDEX IF NOT EXISTS moderation_delivery ON moderation.tasks(next_attempt,lease_until) WHERE state='decided';
