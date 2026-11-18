@@ -53,7 +53,11 @@ func view(t Task) TaskView {
 		safe.AuthorHandle = ""
 		decision = &safe
 	}
-	return TaskView{false, t.ContentKind, t.ID, t.SchoolID, t.Submission, t.ObjectRevision, t.Revision, t.State, t.CreatedAt, t.UpdatedAt, decision, t.ErrorCode}
+	sub := t.Submission
+	if sub.Evidence == nil {
+		sub.Evidence = []string{}
+	}
+	return TaskView{false, sub.PreviousTaskID, t.ContentKind, t.ID, t.SchoolID, sub, t.ObjectRevision, t.Revision, t.State, t.CreatedAt, t.UpdatedAt, decision, t.ErrorCode}
 }
 func (s *Service) auth(ctx context.Context, p Principal, action, school string) error {
 	if p.Subject == "" {
@@ -124,6 +128,9 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	var out TaskView
 	if p.Subject == "" {
 		return out, ErrForbidden
+	}
+	if in.Evidence == nil {
+		in.Evidence = []string{}
 	}
 	if !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || !slices.Contains([]string{"report", "edit_request", "delete_request", "review", "appeal"}, in.Kind) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
 		return out, ErrInput

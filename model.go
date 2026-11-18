@@ -85,6 +85,7 @@ type Task struct {
 }
 type TaskView struct {
 	CanAppeal      bool       `json:"can_appeal,omitempty"`
+	PreviousTaskID string     `json:"previous_task_id,omitempty"`
 	ContentKind    string     `json:"content_kind,omitempty"`
 	ID             string     `json:"id"`
 	SchoolID       string     `json:"school_id"`

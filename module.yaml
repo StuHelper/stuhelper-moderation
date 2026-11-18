@@ -30,6 +30,7 @@ scenario_tests:
   CM-10:
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
+    - contract_alignment_test.go#TestOpenAPIAndHTTPHandlerAlignment
   CM-12:
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
   CM-13:

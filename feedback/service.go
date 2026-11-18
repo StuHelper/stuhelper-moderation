@@ -145,7 +145,7 @@ func (s *Service) List(ctx context.Context, actor string, f Filter) (Page, error
 	if f.Limit == 0 {
 		f.Limit = 25
 	}
-	if f.Limit < 1 || f.Limit > 50 || len(f.After) > 64 || (f.State != "" && !validState(f.State)) {
+	if f.Limit < 1 || f.Limit > 50 || len(f.After) > 256 || (f.State != "" && !validState(f.State)) {
 		return Page{}, ErrInvalid
 	}
 	out := Page{Items: []Message{}}
