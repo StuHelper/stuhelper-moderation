@@ -10,6 +10,7 @@ import (
 	"net/mail"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -17,9 +18,43 @@ func Digest(v string) string { h := sha256.Sum256([]byte(v)); return hex.EncodeT
 func validText(v string, max int) bool {
 	return len(v) <= max && utf8.ValidString(v) && !strings.ContainsRune(v, 0)
 }
+func validClean(v string, max int) bool {
+	if len(v) > max || !utf8.ValidString(v) {
+		return false
+	}
+	for _, r := range v {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
+func validSubject(v string, max int) bool {
+	if len(v) > max || !utf8.ValidString(v) {
+		return false
+	}
+	for _, r := range v {
+		if r == 0 || r == '\r' || r == '\n' || (unicode.IsControl(r) && r != '\t') {
+			return false
+		}
+	}
+	return true
+}
 func validState(v string) bool {
 	return v == "new" || v == "processing" || v == "resolved" || v == "spam"
 }
+
+type caseLocker interface {
+	LockCase(string) error
+}
+
+func lockCase(tx Tx, id string) error {
+	if locker, ok := tx.(caseLocker); ok {
+		return locker.LockCase(id)
+	}
+	return tx.Lock()
+}
+
 func (s *Service) allowed(ctx context.Context, actor, action string) error {
 	if actor == "" || s.Access == nil {
 		return ErrDenied
@@ -27,15 +62,55 @@ func (s *Service) allowed(ctx context.Context, actor, action string) error {
 	return s.Access.Check(ctx, actor, "moderation.feedback."+action)
 }
 
+func normalizeAndValidateInput(in Input, requireParts bool) (Message, error) {
+	v := in.Message
+	addr, e := mail.ParseAddress(v.Sender)
+	if e != nil || addr.Address == "" || !validClean(addr.Address, 320) {
+		return Message{}, ErrInvalid
+	}
+	v.Sender = strings.ToLower(addr.Address)
+	if len(v.Dedupe) != 64 || !validSubject(v.Subject, 500) || !validClean(v.MessageID, 998) || !validText(v.Body, 200000) || !validText(v.AuthenticationResults, 4096) || len(v.Attachments) > 10 || v.Bytes < 0 || v.Bytes > 12<<20 {
+		return Message{}, ErrInvalid
+	}
+	seen := make(map[string]bool, len(v.Attachments))
+	var storedBytes int64
+	for _, a := range v.Attachments {
+		if a.ID == "" || seen[a.ID] || !validClean(a.ID, 256) || !validClean(a.Name, 256) || !validClean(a.ContentType, 256) {
+			return Message{}, ErrInvalid
+		}
+		seen[a.ID] = true
+		switch a.Status {
+		case "stored":
+			if a.Size < 0 || a.Size > 5<<20 {
+				return Message{}, ErrInvalid
+			}
+			if requireParts || in.Parts != nil {
+				data, ok := in.Parts[a.ID]
+				if !ok || int64(len(data)) != a.Size {
+					return Message{}, ErrInvalid
+				}
+			}
+			storedBytes += a.Size
+		case "rejected":
+			if a.Size < 0 || a.Size > 12<<20 {
+				return Message{}, ErrInvalid
+			}
+		default:
+			return Message{}, ErrInvalid
+		}
+	}
+	if v.Bytes < int64(len(v.Body))+storedBytes {
+		return Message{}, ErrInvalid
+	}
+	return v, nil
+}
+
 // Stage reserves aggregate capacity and the sender's hourly budget atomically.
 // Pending ingestion is durable before the first external attachment write.
 func (s *Service) Stage(ctx context.Context, in Input) (Message, error) {
-	v := in.Message
-	if _, e := mail.ParseAddress(v.Sender); e != nil {
-		return Message{}, ErrInvalid
-	}
-	if len(v.Dedupe) != 64 || !validText(v.Subject, 500) || !validText(v.Body, 200000) || !validText(v.AuthenticationResults, 4096) || len(v.Attachments) > 10 || v.Bytes < 0 || v.Bytes > 12<<20 {
-		return Message{}, ErrInvalid
+	v, err := normalizeAndValidateInput(in, false)
+	if err != nil {
+		return Message{}, err
 	}
 	v.ID = Digest("feedback:" + v.Dedupe)
 	v.State = "new"
@@ -57,6 +132,9 @@ func (s *Service) Stage(ctx context.Context, in Input) (Message, error) {
 			return nil
 		}
 		if !errors.Is(e, ErrNotFound) {
+			return e
+		}
+		if e := lockCase(tx, v.ID); e != nil {
 			return e
 		}
 		count, bytes, sender, e := tx.Usage(v.Sender, v.ReceivedAt.Add(-time.Hour))
@@ -85,6 +163,14 @@ func (s *Service) Stage(ctx context.Context, in Input) (Message, error) {
 	return out, e
 }
 func (s *Service) Ingest(ctx context.Context, in Input) (Message, error) {
+	if _, err := normalizeAndValidateInput(in, true); err != nil {
+		return Message{}, err
+	}
+	for _, a := range in.Message.Attachments {
+		if a.Status == "stored" && s.Blobs == nil {
+			return Message{}, ErrUnavailable
+		}
+	}
 	v, e := s.Stage(ctx, in)
 	if e != nil || v.Ready {
 		return v, e
@@ -106,7 +192,7 @@ func (s *Service) Ingest(ctx context.Context, in Input) (Message, error) {
 		}
 		// Persist each object before proceeding, so retention can recover partial work.
 		e = s.Repo.Transaction(ctx, func(tx Tx) error {
-			if e := tx.Lock(); e != nil {
+			if e := lockCase(tx, v.ID); e != nil {
 				return e
 			}
 			current, e := tx.Get(v.ID)
@@ -125,7 +211,7 @@ func (s *Service) Ingest(ctx context.Context, in Input) (Message, error) {
 		}
 	}
 	e = s.Repo.Transaction(ctx, func(tx Tx) error {
-		if e := tx.Lock(); e != nil {
+		if e := lockCase(tx, v.ID); e != nil {
 			return e
 		}
 		current, e := tx.Get(v.ID)
@@ -212,7 +298,7 @@ func (s *Service) Update(ctx context.Context, actor, id, key string, u Update) (
 	rk := Digest(actor + ":update:" + id + ":" + key)
 	var out Message
 	e := s.Repo.Transaction(ctx, func(tx Tx) error {
-		if e := tx.Lock(); e != nil {
+		if e := lockCase(tx, id); e != nil {
 			return e
 		}
 		b, e := tx.Replay(rk, hash)
