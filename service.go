@@ -156,21 +156,8 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 		return out, e
 	}
 	if in.Kind == "appeal" {
-		if in.PreviousTaskID == "" {
+		if !keyOK(in.PreviousTaskID) {
 			return out, ErrInput
-		}
-		err := s.Repo.Transaction(ctx, func(t Transaction) error {
-			previous, e := t.Task(in.PreviousTaskID)
-			if e != nil {
-				return e
-			}
-			if previous.Submission.ObjectID != in.ObjectID || previous.Decision == nil || (previous.State != "applied" && previous.State != "failed") {
-				return ErrConflict
-			}
-			return nil
-		})
-		if err != nil {
-			return out, err
 		}
 	} else if in.PreviousTaskID != "" {
 		return out, ErrInput
@@ -194,16 +181,45 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 			out = cached
 			return nil
 		}
+		if in.Kind == "appeal" {
+			if e := t.Lock("appeal:" + in.PreviousTaskID); e != nil {
+				return e
+			}
+			previous, e := t.Task(in.PreviousTaskID)
+			if e != nil {
+				return e
+			}
+			if previous.Submission.ObjectID != in.ObjectID || previous.Submission.Kind == "appeal" || previous.Decision == nil || previous.State != "applied" {
+				return ErrConflict
+			}
+		}
 		task, e := t.Active(p.Subject, in.ObjectID, in.Kind)
 		if e != nil && !errors.Is(e, ErrNotFound) {
 			return e
 		}
-		if e == nil && task.State != "waiting" {
-			return ErrConflict
-		}
 		if errors.Is(e, ErrNotFound) {
+			if in.Kind == "appeal" {
+				if appealed, e := appealedTasks(t, []string{in.PreviousTaskID}); e != nil {
+					return e
+				} else if appealed[in.PreviousTaskID] {
+					return ErrConflict
+				}
+			}
 			task = Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: rk, SchoolID: object.SchoolID, Owner: p.Subject, Submission: in, ObjectRevision: object.Revision, State: "waiting", CreatedAt: s.now()}
 		} else {
+			if e = t.Lock(task.ID); e != nil {
+				return e
+			}
+			task, e = t.Task(task.ID)
+			if e != nil {
+				return e
+			}
+			if task.State != "waiting" {
+				return ErrConflict
+			}
+			if in.Kind == "appeal" && task.Submission.PreviousTaskID != in.PreviousTaskID {
+				return ErrConflict
+			}
 			if in.Reason != task.Submission.Reason {
 				task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)
 			}
@@ -232,7 +248,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 // Track accepts a durable content event, without copying full content into public records.
 func (s *Service) Track(ctx context.Context, eventID string, object Object) (TaskView, error) {
 	var out TaskView
-	if eventID == "" || object.ID == "" || object.Revision < 1 {
+	if !keyOK(eventID) || !keyOK(object.ID) || !keyOK(object.SchoolID) || strings.TrimSpace(object.Owner) == "" || !textOK(object.Owner, 256) || object.Revision < 1 || (object.Kind != "" && !slices.Contains([]string{"course", "mentor", "reply", "resource"}, object.Kind)) {
 		return out, ErrInput
 	}
 	id := digest([]string{"content", eventID})
@@ -275,6 +291,15 @@ func (s *Service) Get(ctx context.Context, p Principal, id string) (TaskView, er
 		out = viewFor(p, task)
 		if task.ContentOwner == p.Subject && task.Owner != p.Subject {
 			out = recipientView(p, task)
+		}
+		if out.CanAppeal {
+			appealed, e := appealedTasks(t, []string{task.ID})
+			if e != nil {
+				return e
+			}
+			if appealed[task.ID] {
+				out.CanAppeal = false
+			}
 		}
 		return nil
 	})
@@ -412,9 +437,21 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 	})
 }
 
+type appealLookupTransaction interface {
+	HasAppeals([]string) (map[string]bool, error)
+}
+
+func appealedTasks(t Transaction, ids []string) (map[string]bool, error) {
+	port, ok := t.(appealLookupTransaction)
+	if !ok || len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	return port.HasAppeals(ids)
+}
+
 func viewFor(p Principal, task Task) TaskView {
 	out := view(task)
-	out.CanAppeal = p.Subject != "" && task.ContentOwner == p.Subject && task.Decision != nil && (task.State == "applied" || task.State == "failed")
+	out.CanAppeal = p.Subject != "" && task.ContentOwner == p.Subject && task.Decision != nil && task.State == "applied" && task.Submission.Kind != "appeal"
 	return out
 }
 
