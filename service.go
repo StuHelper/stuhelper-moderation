@@ -58,15 +58,18 @@ func keyOK(v string) bool {
 func textOK(v string, max int) bool {
 	return utf8.ValidString(v) && utf8.RuneCountInString(v) <= max && !strings.ContainsRune(v, 0)
 }
-func view(t Task) TaskView {
-	var decision *Decision
-	if t.Decision != nil {
-		safe := *t.Decision
-		safe.Body = nil
-		safe.Subject = ""
-		safe.AuthorHandle = ""
-		decision = &safe
+func publicDecision(d *Decision) *Decision {
+	if d == nil {
+		return nil
 	}
+	safe := Decision{ID: d.ID, ObjectID: d.ObjectID, Revision: d.Revision, Action: d.Action, Reason: d.Reason}
+	if d.Action == "reassign" {
+		safe.TeacherID = d.TeacherID
+	}
+	return &safe
+}
+func view(t Task) TaskView {
+	decision := publicDecision(t.Decision)
 	return TaskView{false, t.ContentKind, t.ID, t.SchoolID, t.Submission, t.ObjectRevision, t.Revision, t.State, t.CreatedAt, t.UpdatedAt, decision, t.ErrorCode}
 }
 func (s *Service) auth(ctx context.Context, p Principal, action, school string) error {
@@ -92,6 +95,7 @@ func replay(t Transaction, key, hash string, now time.Time) (TaskView, bool, err
 	if r.Digest != hash {
 		return TaskView{}, false, ErrConflict
 	}
+	r.View.Decision = publicDecision(r.View.Decision)
 	return r.View, true, nil
 }
 func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
@@ -380,19 +384,29 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 		now := s.now()
 		task.DecidedAt = &now
 		task.State = "decided"
-		if d.Action == "dismiss" {
-			task.State = "applied"
-		}
 		task.Revision++
-		task.UpdatedAt = s.now()
-		task.NextAttempt = s.now()
-		if e = t.SaveTask(task); e != nil {
-			return e
-		}
-		if task.State == "applied" {
+		task.UpdatedAt = now
+		task.NextAttempt = now
+		if d.Action == "dismiss" {
+			if e = t.Event(Event{Result: "unknown", Data: resultData(task), ID: rk, Type: "moderation.decided.v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: now}); e != nil {
+				return e
+			}
+			task.State = "applied"
+			task.Revision++
+			if e = t.SaveTask(task); e != nil {
+				return e
+			}
 			if e = s.recordResult(t, task); e != nil {
 				return e
 			}
+			if e = t.SaveReplay(rk, Replay{Digest: h, TaskID: task.ID, View: view(task), Until: now.Add(24 * time.Hour)}); e != nil {
+				return e
+			}
+			out = viewFor(p, task)
+			return nil
+		}
+		if e = t.SaveTask(task); e != nil {
+			return e
 		}
 		if e = s.record(t, rk, h, "decided", p, task); e != nil {
 			return e
