@@ -124,6 +124,14 @@ CREATE INDEX IF NOT EXISTS feedback_sender_rate ON moderation.feedback(sender,re
 CREATE INDEX IF NOT EXISTS feedback_inbox_order ON moderation.feedback(received_at DESC,id COLLATE "C" DESC) WHERE ready;
 CREATE INDEX IF NOT EXISTS feedback_state_order ON moderation.feedback(state,received_at DESC,id COLLATE "C" DESC) WHERE ready;
 CREATE INDEX IF NOT EXISTS feedback_expiry ON moderation.feedback(closed_at,id) WHERE closed_at IS NOT NULL;
+ALTER TABLE moderation.feedback ADD COLUMN IF NOT EXISTS assignee text NOT NULL DEFAULT '';
+ALTER TABLE moderation.feedback ADD COLUMN IF NOT EXISTS suspicious boolean NOT NULL DEFAULT false;
+UPDATE moderation.feedback SET
+ assignee=COALESCE(data->'message'->>'assignee',''),
+ suspicious=COALESCE((data->'message'->>'suspicious')::boolean,false)
+ WHERE assignee='' AND (data->'message'->>'assignee') IS NOT NULL
+    OR suspicious=false AND COALESCE((data->'message'->>'suspicious')::boolean,false);
+CREATE INDEX IF NOT EXISTS feedback_assignee_state ON moderation.feedback(assignee,state,id) WHERE ready;
 CREATE INDEX IF NOT EXISTS feedback_ready_order ON moderation.feedback(received_at DESC,id DESC) WHERE ready;
 CREATE INDEX IF NOT EXISTS feedback_ready_state_order ON moderation.feedback(state,received_at DESC,id DESC) WHERE ready;
 CREATE TABLE IF NOT EXISTS moderation.feedback_receipts (

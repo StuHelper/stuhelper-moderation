@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	f "github.com/StuHelper/stuhelper-moderation/feedback"
 	"testing"
 	"time"
 
@@ -112,8 +113,8 @@ func TestTasksAndFeedbackQueriesAvoidSeqScanOnPopulatedTables(t *testing.T) {
 	studentSQL, studentArgs := buildTaskQuery(m.TaskFilter{Owner: "rare-student", Limit: 20}, false, time.Time{})
 	adminQueueSQL, adminQueueArgs := buildTaskQuery(m.TaskFilter{School: "school-1", State: "waiting", Limit: 20, Admin: true}, false, time.Time{})
 	objectHistSQL, objectHistArgs := buildTaskQuery(m.TaskFilter{School: "school-1", ObjectID: "obj-42", Limit: 100, Admin: true}, false, time.Time{})
-	fbAllSQL, fbAllArgs := buildFeedbackListQuery("", false, time.Time{}, "", 26, time.Now().UTC())
-	fbStateSQL, fbStateArgs := buildFeedbackListQuery("new", false, time.Time{}, "", 26, time.Now().UTC())
+	fbAllSQL, fbAllArgs := buildFeedbackListQuery(f.Filter{}, false, time.Time{}, "", 26, time.Now().UTC())
+	fbStateSQL, fbStateArgs := buildFeedbackListQuery(f.Filter{State: "new"}, false, time.Time{}, "", 26, time.Now().UTC())
 
 	for _, tc := range []struct {
 		name string

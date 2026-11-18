@@ -417,6 +417,8 @@ export interface components {
             /** @enum {string} */
             state: "new" | "processing" | "resolved" | "spam";
             assignee: string;
+            related_task_id?: string;
+            related_object_id?: string;
             note: string;
             /** Format: int64 */
             revision: number;
@@ -433,6 +435,10 @@ export interface components {
             /** @enum {string} */
             state: "new" | "processing" | "resolved" | "spam";
             note: string;
+            /** @description Optional target assignee; pass an empty string to unassign or omit to retain current assignee. */
+            assignee?: string;
+            related_task_id?: string;
+            related_object_id?: string;
         };
         FeedbackReplyInput: {
             body: string;
@@ -1406,6 +1412,10 @@ export interface operations {
                 after?: string;
                 limit?: number;
                 state?: "new" | "processing" | "resolved" | "spam";
+                /** @description Filter by assignee; pass an empty value (?assignee=) to list unassigned items. */
+                assignee?: string;
+                /** @description Filter by suspicious sender verification flag. */
+                suspicious?: boolean;
             };
             header?: never;
             path?: never;

@@ -87,6 +87,7 @@ scenario_tests:
   CM-19:
     - feedback_test.go#TestFeedbackConcurrentIngestAuthorizationAndAudit
     - pagination_test.go#TestFeedbackTimeOrderedCursorPagination
+    - feedback_workflow_test.go#TestFeedbackHTTPHandlerAssignmentRelatedLinksAndSpamReplyGuard
   CM-20:
     - feedback_test.go#TestFeedbackReplyUnknownIsNeverResentAndRetentionDeletesMaterials
     - feedback_test.go#TestFeedbackLeapDayRetentionMatchesDatabaseCalendarMonths

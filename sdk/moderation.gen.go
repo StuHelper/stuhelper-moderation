@@ -581,6 +581,8 @@ type Feedback struct {
 	Id                    string               `json:"id"`
 	Note                  string               `json:"note"`
 	ReceivedAt            time.Time            `json:"received_at"`
+	RelatedObjectId       *string              `json:"related_object_id,omitempty"`
+	RelatedTaskId         *string              `json:"related_task_id,omitempty"`
 	Replies               []FeedbackReply      `json:"replies"`
 	Revision              int64                `json:"revision"`
 	Sender                string               `json:"sender"`
@@ -629,9 +631,13 @@ type FeedbackReplyInput struct {
 
 // FeedbackUpdate defines model for FeedbackUpdate.
 type FeedbackUpdate struct {
-	Note     string              `json:"note"`
-	Revision int64               `json:"revision"`
-	State    FeedbackUpdateState `json:"state"`
+	// Assignee Optional target assignee; pass an empty string to unassign or omit to retain current assignee.
+	Assignee        *string             `json:"assignee,omitempty"`
+	Note            string              `json:"note"`
+	RelatedObjectId *string             `json:"related_object_id,omitempty"`
+	RelatedTaskId   *string             `json:"related_task_id,omitempty"`
+	Revision        int64               `json:"revision"`
+	State           FeedbackUpdateState `json:"state"`
 }
 
 // FeedbackUpdateState defines model for FeedbackUpdate.State.
@@ -796,6 +802,12 @@ type ListFeedbackParams struct {
 	After *string                  `form:"after,omitempty" json:"after,omitempty"`
 	Limit *int                     `form:"limit,omitempty" json:"limit,omitempty"`
 	State *ListFeedbackParamsState `form:"state,omitempty" json:"state,omitempty"`
+
+	// Assignee Filter by assignee; pass an empty value (?assignee=) to list unassigned items.
+	Assignee *string `form:"assignee,omitempty" json:"assignee,omitempty"`
+
+	// Suspicious Filter by suspicious sender verification flag.
+	Suspicious *bool `form:"suspicious,omitempty" json:"suspicious,omitempty"`
 }
 
 // ListFeedbackParamsState defines parameters for ListFeedback.
@@ -1550,6 +1562,30 @@ func NewListFeedbackRequest(server string, params *ListFeedbackParams) (*http.Re
 		if params.State != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Assignee != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "assignee", *params.Assignee, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Suspicious != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "suspicious", *params.Suspicious, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {

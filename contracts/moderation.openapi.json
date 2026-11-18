@@ -1376,6 +1376,23 @@
                 "spam"
               ]
             }
+          },
+          {
+            "in": "query",
+            "name": "assignee",
+            "description": "Filter by assignee; pass an empty value (?assignee=) to list unassigned items.",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "in": "query",
+            "name": "suspicious",
+            "description": "Filter by suspicious sender verification flag.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -2627,6 +2644,14 @@
             "type": "string",
             "maxLength": 256
           },
+          "related_task_id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "related_object_id": {
+            "type": "string",
+            "maxLength": 128
+          },
           "note": {
             "type": "string",
             "maxLength": 10000
@@ -2695,6 +2720,19 @@
           "note": {
             "type": "string",
             "maxLength": 10000
+          },
+          "assignee": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional target assignee; pass an empty string to unassign or omit to retain current assignee."
+          },
+          "related_task_id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "related_object_id": {
+            "type": "string",
+            "maxLength": 128
           }
         },
         "required": [

@@ -110,7 +110,7 @@ func (t *feedbackTx) Save(v f.Message) error {
 	if e != nil {
 		return f.ErrInvalid
 	}
-	_, e = t.tx.ExecContext(t.ctx, `INSERT INTO moderation.feedback(id,dedupe,sender,state,ready,received_at,closed_at,bytes,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO UPDATE SET state=excluded.state,ready=excluded.ready,closed_at=excluded.closed_at,data=excluded.data`, v.ID, v.Dedupe, v.Sender, v.State, v.Ready, v.ReceivedAt, v.ClosedAt, v.Bytes, string(b))
+	_, e = t.tx.ExecContext(t.ctx, `INSERT INTO moderation.feedback(id,dedupe,sender,state,assignee,suspicious,ready,received_at,closed_at,bytes,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO UPDATE SET state=excluded.state,assignee=excluded.assignee,suspicious=excluded.suspicious,ready=excluded.ready,closed_at=excluded.closed_at,data=excluded.data`, v.ID, v.Dedupe, v.Sender, v.State, v.Assignee, v.Suspicious, v.Ready, v.ReceivedAt, v.ClosedAt, v.Bytes, string(b))
 	return feedbackError(e)
 }
 func (t *feedbackTx) many(q string, args ...any) ([]f.Message, error) {
@@ -133,15 +133,21 @@ func (t *feedbackTx) many(q string, args ...any) ([]f.Message, error) {
 	}
 	return out, feedbackError(rows.Err())
 }
-func buildFeedbackListQuery(state string, hasCursor bool, cursorTime time.Time, cursorID string, limit int, now time.Time) (string, []any) {
+func buildFeedbackListQuery(filter f.Filter, hasCursor bool, cursorTime time.Time, cursorID string, limit int, now time.Time) (string, []any) {
 	args := []any{}
 	add := func(v any) string {
 		args = append(args, v)
 		return fmt.Sprintf("$%d", len(args))
 	}
 	conds := []string{"ready", "(closed_at IS NULL OR closed_at+interval '12 months'>" + add(now) + ")"}
-	if state != "" {
-		conds = append(conds, "state="+add(state))
+	if filter.Assignee != nil {
+		conds = append(conds, "assignee="+add(*filter.Assignee))
+	}
+	if filter.Suspicious != nil {
+		conds = append(conds, "suspicious="+add(*filter.Suspicious))
+	}
+	if filter.State != "" {
+		conds = append(conds, "state="+add(filter.State))
 	}
 	if hasCursor {
 		ctArg := add(cursorTime)
@@ -161,7 +167,7 @@ func (t *feedbackTx) List(v f.Filter) ([]f.Message, error) {
 	if v.CursorAt != nil {
 		cursorTime = *v.CursorAt
 	}
-	q, args := buildFeedbackListQuery(v.State, v.CursorAt != nil, cursorTime, v.CursorID, v.Limit+1, now)
+	q, args := buildFeedbackListQuery(v, v.CursorAt != nil, cursorTime, v.CursorID, v.Limit+1, now)
 	return t.many(q, args...)
 }
 func (t *feedbackTx) Usage(sender string, since time.Time) (int, int64, int, error) {
