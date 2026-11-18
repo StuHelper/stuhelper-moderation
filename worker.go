@@ -12,15 +12,18 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 		return 0, ErrInput
 	}
 	var tasks []Task
-	err := s.Repo.Transaction(ctx, func(t Transaction) error { var e error; tasks, e = t.Ready(s.now(), limit); return e })
+	err := s.tx(ctx, func(t Transaction) error { var e error; tasks, e = t.Ready(s.now(), limit); return e })
 	if err != nil {
 		return 0, err
 	}
 	done := 0
 	for _, candidate := range tasks {
+		if err := ctx.Err(); err != nil {
+			return done, err
+		}
 		var task Task
 		claimed := false
-		err = s.Repo.Transaction(ctx, func(t Transaction) error {
+		err = s.tx(ctx, func(t Transaction) error {
 			if e := t.Lock(candidate.ID); e != nil {
 				return e
 			}
@@ -52,7 +55,9 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 			applyErr = s.Content.Apply(callCtx, Principal{Subject: task.DecidedBy}, *task.Decision)
 		}
 		cancel()
-		err = s.Repo.Transaction(ctx, func(t Transaction) error {
+		// Persist the outcome even if shutdown canceled ctx after Apply executed.
+		persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		err = s.tx(persistCtx, func(t Transaction) error {
 			if e := t.Lock(task.ID); e != nil {
 				return e
 			}
@@ -95,6 +100,7 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 			}
 			return nil
 		})
+		persistCancel()
 		if err != nil {
 			return done, err
 		}

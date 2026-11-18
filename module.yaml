@@ -24,6 +24,8 @@ scenario_tests:
     - submission_safety_test.go#TestAuthorRequestSupplementCannotOverwriteConcurrentDecision
   CM-02:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
+    - dependency_worker_test.go#TestMissingDependenciesReturnUnavailableWithoutPanic
+    - dependency_worker_test.go#TestWorkerShutdownPersistsAppliedResultInspectHasTimeoutAndRetryResetsBackoff
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
