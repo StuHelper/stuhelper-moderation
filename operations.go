@@ -43,12 +43,27 @@ func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) (
 		if e != nil {
 			return e
 		}
+		var candidateIDs []string
 		for _, task := range tasks {
 			v := viewFor(p, task)
 			if !f.Admin {
 				v = recipientView(p, task)
 			}
+			if v.CanAppeal {
+				candidateIDs = append(candidateIDs, task.ID)
+			}
 			out = append(out, v)
+		}
+		if len(candidateIDs) > 0 {
+			appealed, e := appealedTasks(t, candidateIDs)
+			if e != nil {
+				return e
+			}
+			for i := range out {
+				if appealed[out[i].ID] {
+					out[i].CanAppeal = false
+				}
+			}
 		}
 		return nil
 	})

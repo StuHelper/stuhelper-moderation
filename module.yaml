@@ -21,6 +21,7 @@ scenario_tests:
   CM-01:
     - complaints_test.go#TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
+    - submission_safety_test.go#TestAuthorRequestSupplementCannotOverwriteConcurrentDecision
   CM-02:
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
     - dependency_worker_test.go#TestMissingDependenciesReturnUnavailableWithoutPanic
@@ -32,6 +33,8 @@ scenario_tests:
   CM-10:
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
+    - submission_safety_test.go#TestAppealEnforcesSingleAppealAppliedStateAndRecusal
+    - submission_safety_test.go#TestAppealMigrationPreservesHistoricalDuplicates
   CM-12:
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
   CM-13:
@@ -40,6 +43,7 @@ scenario_tests:
   ACAD-15:
     - report_test.go#TestNewReportsRequireAdmissionButOwnPendingEvidenceRemainsAvailable
     - report_test.go#TestPendingEvidenceCannotOverwriteConcurrentDecision
+    - submission_safety_test.go#TestReportSupplementBypassesSubmitOutageAndTrustedPortsValidateObject
   CM-15:
     - complaints_test.go#TestComplaintRateLimitIsPerAccountAndReplayDoesNotConsumeQuota
   CM-16:
