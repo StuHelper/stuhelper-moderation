@@ -154,28 +154,8 @@ func (r *Repository) Cleanup(ctx context.Context, now time.Time, limit int) erro
 	if limit < 1 || limit > 500 {
 		return m.ErrInput
 	}
-	now = now.UTC()
-	tx, e := r.DB.BeginTx(ctx, nil)
-	if e != nil {
-		return safe(e)
-	}
-	defer tx.Rollback()
-	if _, e = tx.ExecContext(ctx, "SET LOCAL TIME ZONE 'UTC'"); e != nil {
-		return safe(e)
-	}
-	if _, e = tx.ExecContext(ctx, `DELETE FROM moderation.replays WHERE key IN (SELECT key FROM moderation.replays WHERE until IS NOT NULL AND until <= $1 ORDER BY until,key LIMIT $2 FOR UPDATE SKIP LOCKED)`, now, limit); e != nil {
-		return safe(e)
-	}
-	if _, e = tx.ExecContext(ctx, `DELETE FROM moderation.submission_limits WHERE owner_key IN (SELECT owner_key FROM moderation.submission_limits WHERE started_at <= $1 ORDER BY started_at,owner_key LIMIT $2 FOR UPDATE SKIP LOCKED)`, now.Add(-24*time.Hour), limit); e != nil {
-		return safe(e)
-	}
-	if _, e = tx.ExecContext(ctx, `DELETE FROM moderation.outbox WHERE id IN (SELECT id FROM moderation.outbox WHERE sent_at IS NOT NULL AND sent_at <= $1 ORDER BY sent_at,id LIMIT $2 FOR UPDATE SKIP LOCKED)`, now.Add(-90*24*time.Hour), limit); e != nil {
-		return safe(e)
-	}
-	if _, e = tx.ExecContext(ctx, `SELECT moderation.cleanup_task_audit(LEAST($1::timestamptz,current_timestamp) - interval '12 months', $2)`, now, limit); e != nil {
-		return safe(e)
-	}
-	return safe(tx.Commit())
+	_, err := r.CleanupRetention(ctx, now, limit)
+	return err
 }
 func (t *transaction) Event(v m.Event) error {
 	if e := t.saveAudit(v); e != nil {

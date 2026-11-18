@@ -47,6 +47,8 @@ PostgreSQL 测试覆盖举报合并、作者请求限制、策略幂等、学校
 
 受信管理适配器可通过 Repository.ReadAudit 查询[脱敏审计](contracts/audit.md)。查询支持范围先过滤、最多 101 条、事务可见性快照与排他游标。Service.Cleanup 按有界批次清理到期幂等记录（24 小时）、限流窗口（24 小时）、已确认 outbox 事件（90 天）及常规审核审计（12 个月），未确认事件与未到期记录保留。
 
+Service.CleanupRetention 返回各类已清理记录数。平台管理员可查询待投递任务、人工处理失败、未发送事件和反馈邮箱容量。
+
 ## 反馈收件箱（2026-11-15）
 
 feedback 包保存全站邮箱来信、附件引用、状态、处理人、内部备注和回复记录。backend 接入私有邮箱、平台存储与当前会话，公共模块不保存邮箱密码。管理接口位于 /api/v1/moderation/feedback，OpenAPI 与生成 SDK 同步维护。

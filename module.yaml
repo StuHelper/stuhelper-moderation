@@ -81,6 +81,8 @@ scenario_tests:
     - audit_test.go#TestAuditDecisionSavedIsNotExecutionSuccess
     - audit_snapshot_regression_test.go#TestEmptyFeedbackCleanupDoesNotInvalidateAuditSnapshot
     - audit_snapshot_regression_test.go#TestReadAuditSnapshotStaysWithin256BytesUnderManyConcurrentWriters
+    - retention_health_test.go#TestNonFeedbackRetentionBoundedCleanupAndAuditSnapshotSafety
+    - retention_health_test.go#TestModerationHealthSnapshotAndHTTPAuthorization
   CM-18:
     - outbox_exclusion_test.go#TestOutboxExcludesDeferredSubjectsBeforeLimit
     - postgres/outbox_test.go#TestPendingOutboxPlanUsesPartialIndex
