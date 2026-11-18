@@ -130,6 +130,9 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 				return err
 			}
 			if err = s.auth(ctx, p, "manage", task.SchoolID); err != nil {
+				if errors.Is(err, ErrForbidden) && task.Owner != p.Subject && task.ContentOwner != p.Subject {
+					return ErrNotFound
+				}
 				return err
 			}
 			if task.Submission.Kind == "appeal" {
@@ -155,6 +158,11 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 		var object Object
 		if e == nil {
 			object, e = s.inspect(ctx, p, task.Submission.ObjectID)
+			if e == nil {
+				if isSelfFavorableDecision(p, task, object.Owner, item.Decision.Action) {
+					e = s.auth(ctx, p, "self_approve", "*")
+				}
+			}
 			if e == nil {
 				e = validateDecisionTarget(object, task, item.Decision)
 			}

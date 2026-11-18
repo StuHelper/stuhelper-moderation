@@ -212,6 +212,120 @@ func (e PolicyMode) Valid() bool {
 	}
 }
 
+// Defines values for PolicyPreviewEffectiveMode.
+const (
+	PolicyPreviewEffectiveModePending   PolicyPreviewEffectiveMode = "pending"
+	PolicyPreviewEffectiveModePublished PolicyPreviewEffectiveMode = "published"
+	PolicyPreviewEffectiveModeReview    PolicyPreviewEffectiveMode = "review"
+)
+
+// Valid indicates whether the value is a known member of the PolicyPreviewEffectiveMode enum.
+func (e PolicyPreviewEffectiveMode) Valid() bool {
+	switch e {
+	case PolicyPreviewEffectiveModePending:
+		return true
+	case PolicyPreviewEffectiveModePublished:
+		return true
+	case PolicyPreviewEffectiveModeReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyPreviewResult.
+const (
+	PolicyPreviewResultBlocked   PolicyPreviewResult = "blocked"
+	PolicyPreviewResultPending   PolicyPreviewResult = "pending"
+	PolicyPreviewResultPublished PolicyPreviewResult = "published"
+	PolicyPreviewResultReview    PolicyPreviewResult = "review"
+)
+
+// Valid indicates whether the value is a known member of the PolicyPreviewResult enum.
+func (e PolicyPreviewResult) Valid() bool {
+	switch e {
+	case PolicyPreviewResultBlocked:
+		return true
+	case PolicyPreviewResultPending:
+		return true
+	case PolicyPreviewResultPublished:
+		return true
+	case PolicyPreviewResultReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyPreviewSource.
+const (
+	PolicyPreviewSourceCandidate PolicyPreviewSource = "candidate"
+	PolicyPreviewSourceDefault   PolicyPreviewSource = "default"
+	PolicyPreviewSourceGlobal    PolicyPreviewSource = "global"
+	PolicyPreviewSourceSchool    PolicyPreviewSource = "school"
+)
+
+// Valid indicates whether the value is a known member of the PolicyPreviewSource enum.
+func (e PolicyPreviewSource) Valid() bool {
+	switch e {
+	case PolicyPreviewSourceCandidate:
+		return true
+	case PolicyPreviewSourceDefault:
+		return true
+	case PolicyPreviewSourceGlobal:
+		return true
+	case PolicyPreviewSourceSchool:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyPreviewInputKind.
+const (
+	Course   PolicyPreviewInputKind = "course"
+	Mentor   PolicyPreviewInputKind = "mentor"
+	Reply    PolicyPreviewInputKind = "reply"
+	Resource PolicyPreviewInputKind = "resource"
+)
+
+// Valid indicates whether the value is a known member of the PolicyPreviewInputKind enum.
+func (e PolicyPreviewInputKind) Valid() bool {
+	switch e {
+	case Course:
+		return true
+	case Mentor:
+		return true
+	case Reply:
+		return true
+	case Resource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyPreviewInputMode.
+const (
+	PolicyPreviewInputModePending   PolicyPreviewInputMode = "pending"
+	PolicyPreviewInputModePublished PolicyPreviewInputMode = "published"
+	PolicyPreviewInputModeReview    PolicyPreviewInputMode = "review"
+)
+
+// Valid indicates whether the value is a known member of the PolicyPreviewInputMode enum.
+func (e PolicyPreviewInputMode) Valid() bool {
+	switch e {
+	case PolicyPreviewInputModePending:
+		return true
+	case PolicyPreviewInputModePublished:
+		return true
+	case PolicyPreviewInputModeReview:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PolicyViewConfiguredMode.
 const (
 	PolicyViewConfiguredModePending   PolicyViewConfiguredMode = "pending"
@@ -235,19 +349,19 @@ func (e PolicyViewConfiguredMode) Valid() bool {
 
 // Defines values for PolicyViewSource.
 const (
-	Default PolicyViewSource = "default"
-	Global  PolicyViewSource = "global"
-	School  PolicyViewSource = "school"
+	PolicyViewSourceDefault PolicyViewSource = "default"
+	PolicyViewSourceGlobal  PolicyViewSource = "global"
+	PolicyViewSourceSchool  PolicyViewSource = "school"
 )
 
 // Valid indicates whether the value is a known member of the PolicyViewSource enum.
 func (e PolicyViewSource) Valid() bool {
 	switch e {
-	case Default:
+	case PolicyViewSourceDefault:
 		return true
-	case Global:
+	case PolicyViewSourceGlobal:
 		return true
-	case School:
+	case PolicyViewSourceSchool:
 		return true
 	default:
 		return false
@@ -495,6 +609,39 @@ type Policy struct {
 // PolicyMode defines model for Policy.Mode.
 type PolicyMode string
 
+// PolicyPreview defines model for PolicyPreview.
+type PolicyPreview struct {
+	EffectiveMode PolicyPreviewEffectiveMode `json:"effective_mode"`
+	MatchedTerms  []string                   `json:"matched_terms"`
+	Result        PolicyPreviewResult        `json:"result"`
+	Source        PolicyPreviewSource        `json:"source"`
+}
+
+// PolicyPreviewEffectiveMode defines model for PolicyPreview.EffectiveMode.
+type PolicyPreviewEffectiveMode string
+
+// PolicyPreviewResult defines model for PolicyPreview.Result.
+type PolicyPreviewResult string
+
+// PolicyPreviewSource defines model for PolicyPreview.Source.
+type PolicyPreviewSource string
+
+// PolicyPreviewInput defines model for PolicyPreviewInput.
+type PolicyPreviewInput struct {
+	BlockedTerms *[]string               `json:"blocked_terms,omitempty"`
+	Body         string                  `json:"body"`
+	Kind         PolicyPreviewInputKind  `json:"kind"`
+	Mode         *PolicyPreviewInputMode `json:"mode,omitempty"`
+	SchoolId     string                  `json:"school_id"`
+	Title        *string                 `json:"title,omitempty"`
+}
+
+// PolicyPreviewInputKind defines model for PolicyPreviewInput.Kind.
+type PolicyPreviewInputKind string
+
+// PolicyPreviewInputMode defines model for PolicyPreviewInput.Mode.
+type PolicyPreviewInputMode string
+
 // PolicyView defines model for PolicyView.
 type PolicyView struct {
 	Configured *struct {
@@ -652,6 +799,9 @@ type ReplyFeedbackJSONRequestBody = FeedbackReplyInput
 // SetPolicyJSONRequestBody defines body for SetPolicy for application/json ContentType.
 type SetPolicyJSONRequestBody = Policy
 
+// PreviewPolicyJSONRequestBody defines body for PreviewPolicy for application/json ContentType.
+type PreviewPolicyJSONRequestBody = PolicyPreviewInput
+
 // SubmitTaskJSONRequestBody defines body for SubmitTask for application/json ContentType.
 type SubmitTaskJSONRequestBody = Submission
 
@@ -794,6 +944,14 @@ type ClientInterface interface {
 	// SetPolicy performs a PUT /api/v1/moderation/policies (the `SetPolicy` operationId) request.
 	// Takes a body of the `application/json` content type.
 	SetPolicy(ctx context.Context, params *SetPolicyParams, body SetPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreviewPolicyWithBody performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request,
+	// with any type of body and a specified content type.
+	PreviewPolicyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreviewPolicy performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request.
+	// Takes a body of the `application/json` content type.
+	PreviewPolicy(ctx context.Context, body PreviewPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListTasks performs a GET /api/v1/moderation/tasks (the `ListTasks` operationId) request.
 	ListTasks(ctx context.Context, params *ListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -990,6 +1148,34 @@ func (c *Client) SetPolicyWithBody(ctx context.Context, params *SetPolicyParams,
 // Takes a body of the `application/json` content type.
 func (c *Client) SetPolicy(ctx context.Context, params *SetPolicyParams, body SetPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetPolicyRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PreviewPolicyWithBody performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request,
+// with any type of body and a specified content type.
+func (c *Client) PreviewPolicyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewPolicyRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PreviewPolicy performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request.
+// Takes a body of the `application/json` content type.
+func (c *Client) PreviewPolicy(ctx context.Context, body PreviewPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewPolicyRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1550,6 +1736,46 @@ func NewSetPolicyRequestWithBody(server string, params *SetPolicyParams, content
 		req.Header.Set("Idempotency-Key", headerParam0)
 
 	}
+
+	return req, nil
+}
+
+// NewPreviewPolicyRequest calls the generic PreviewPolicy builder with application/json body
+func NewPreviewPolicyRequest(server string, body PreviewPolicyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPreviewPolicyRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPreviewPolicyRequestWithBody constructs an http.Request for the PreviewPolicy method, with any body, and a specified content type
+func NewPreviewPolicyRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/policies/preview")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -2138,6 +2364,16 @@ type ClientWithResponsesInterface interface {
 	// SetPolicyWithResponse performs a PUT /api/v1/moderation/policies (the `SetPolicy` operationId) request.
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	SetPolicyWithResponse(ctx context.Context, params *SetPolicyParams, body SetPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*SetPolicyResponse, error)
+
+	// PreviewPolicyWithBodyWithResponse performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request,
+	// with any type of body and a specified content type.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	PreviewPolicyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewPolicyResponse, error)
+
+	// PreviewPolicyWithResponse performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request.
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	PreviewPolicyWithResponse(ctx context.Context, body PreviewPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*PreviewPolicyResponse, error)
 
 	// ListTasksWithResponse performs a GET /api/v1/moderation/tasks (the `ListTasks` operationId) request.
 	//
@@ -2793,6 +3029,75 @@ func (r SetPolicyResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetPolicyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PreviewPolicyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PolicyPreview
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PreviewPolicyResponse) GetJSON200() *PolicyPreview {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PreviewPolicyResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PreviewPolicyResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PreviewPolicyResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PreviewPolicyResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r PreviewPolicyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PreviewPolicyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreviewPolicyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PreviewPolicyResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -3511,6 +3816,28 @@ func (c *ClientWithResponses) SetPolicyWithResponse(ctx context.Context, params 
 	return ParseSetPolicyResponse(rsp)
 }
 
+// PreviewPolicyWithBodyWithResponse performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request,
+// with any type of body and a specified content type.
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) PreviewPolicyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewPolicyResponse, error) {
+	rsp, err := c.PreviewPolicyWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreviewPolicyResponse(rsp)
+}
+
+// PreviewPolicyWithResponse performs a POST /api/v1/moderation/policies/preview (the `PreviewPolicy` operationId) request.
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) PreviewPolicyWithResponse(ctx context.Context, body PreviewPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*PreviewPolicyResponse, error) {
+	rsp, err := c.PreviewPolicy(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreviewPolicyResponse(rsp)
+}
+
 // ListTasksWithResponse performs a GET /api/v1/moderation/tasks (the `ListTasks` operationId) request.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -4124,6 +4451,60 @@ func ParseSetPolicyResponse(rsp *http.Response) (*SetPolicyResponse, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePreviewPolicyResponse parses an HTTP response from a PreviewPolicyWithResponse call
+func ParsePreviewPolicyResponse(rsp *http.Response) (*PreviewPolicyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PreviewPolicyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PolicyPreview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest Error

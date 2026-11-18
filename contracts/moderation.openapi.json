@@ -812,6 +812,78 @@
         ]
       }
     },
+    "/api/v1/moderation/policies/preview": {
+      "post": {
+        "operationId": "previewPolicy",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyPreviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/moderation/tasks/batch-preview": {
       "post": {
         "operationId": "previewBatch",
@@ -1985,6 +2057,96 @@
         "required": [
           "configured",
           "effective",
+          "source"
+        ]
+      },
+      "PolicyPreviewInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "school_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "course",
+              "mentor",
+              "reply",
+              "resource"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 16000
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "published",
+              "pending",
+              "review"
+            ]
+          },
+          "blocked_terms": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "school_id",
+          "kind",
+          "body"
+        ]
+      },
+      "PolicyPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "string",
+            "enum": [
+              "published",
+              "pending",
+              "review",
+              "blocked"
+            ]
+          },
+          "matched_terms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "effective_mode": {
+            "type": "string",
+            "enum": [
+              "published",
+              "pending",
+              "review"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "default",
+              "global",
+              "school",
+              "candidate"
+            ]
+          }
+        },
+        "required": [
+          "result",
+          "matched_terms",
+          "effective_mode",
           "source"
         ]
       },

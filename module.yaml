@@ -34,6 +34,8 @@ scenario_tests:
     - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
     - privacy_events_test.go#TestDecisionProjectionHidesEnrollmentEvidenceAndSignedState
     - privacy_events_test.go#TestDecisionAndBatchReplayWireCompatibility
+    - recusal_policy_preview_test.go#TestModeratorConflictOfInterestRecusalAndSuperAdminExemption
+    - recusal_policy_preview_test.go#TestBlockedTermsNormalizationAndPolicyDryRunPreview
   CM-10:
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
