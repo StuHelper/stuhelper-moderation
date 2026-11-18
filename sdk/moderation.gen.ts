@@ -117,6 +117,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/moderation/policies/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/moderation/tasks/batch-preview": {
         parameters: {
             query?: never;
@@ -239,6 +255,23 @@ export interface components {
         Decision: {
             id: string;
             object_id: string;
+            /** Format: int64 */
+            revision: number;
+            /** @enum {string} */
+            action: "publish" | "hide" | "restore" | "delete" | "edit" | "identity" | "dismiss" | "feature" | "unfeature" | "reassign";
+            body?: string;
+            subject?: string;
+            signed?: boolean;
+            reason: string;
+            /** @description Discussion-local public author handle, used instead of a private account ID for identity moderation. */
+            author_handle?: string;
+            teacher_id?: string;
+            evidence_revision?: string;
+        };
+        DecisionInput: {
+            id?: string;
+            object_id: string;
+            /** Format: int64 */
             revision: number;
             /** @enum {string} */
             action: "publish" | "hide" | "restore" | "delete" | "edit" | "identity" | "dismiss" | "feature" | "unfeature" | "reassign";
@@ -258,6 +291,7 @@ export interface components {
             /** @enum {string} */
             mode: "published" | "pending" | "review";
             blocked_terms: string[];
+            /** Format: int64 */
             revision: number;
         };
         TaskSubmission: {
@@ -273,7 +307,9 @@ export interface components {
             id: string;
             school_id: string;
             submission: components["schemas"]["TaskSubmission"];
+            /** Format: int64 */
             object_revision: number;
+            /** Format: int64 */
             revision: number;
             state: string;
             /** Format: date-time */
@@ -286,10 +322,13 @@ export interface components {
             content_kind?: string;
             previous_task_id?: string;
             can_appeal?: boolean;
+            /** @description Number of other waiting tasks on the same target object, visible only to authorized moderators. */
+            related_waiting_count?: number;
         };
         Decide: {
+            /** Format: int64 */
             revision: number;
-            decision: components["schemas"]["Decision"];
+            decision: components["schemas"]["DecisionInput"];
         };
         PolicyView: {
             configured: {
@@ -298,19 +337,44 @@ export interface components {
                 /** @enum {string} */
                 mode: "published" | "pending" | "review";
                 blocked_terms: string[];
+                /** Format: int64 */
                 revision: number;
             } | null;
             effective: components["schemas"]["Policy"];
             /** @enum {string} */
             source: "default" | "global" | "school";
         };
+        PolicyPreviewInput: {
+            school_id: string;
+            /** @enum {string} */
+            kind: "course" | "mentor" | "reply" | "resource";
+            title?: string;
+            body: string;
+            /** @enum {string} */
+            mode?: "published" | "pending" | "review";
+            blocked_terms?: string[];
+        };
+        PolicyPreview: {
+            /** @enum {string} */
+            result: "published" | "pending" | "review" | "blocked";
+            matched_terms: string[];
+            /** @enum {string} */
+            effective_mode: "published" | "pending" | "review";
+            /** @enum {string} */
+            source: "default" | "global" | "school" | "candidate";
+        };
         Saved: {
             ok: boolean;
         };
         BatchItem: {
             id: string;
+            /** Format: int64 */
             revision: number;
-            decision: components["schemas"]["Decision"];
+            decision: components["schemas"]["DecisionInput"];
+        };
+        BatchPreviewRequest: {
+            items: components["schemas"]["BatchItem"][];
+            preview_token?: string;
         };
         BatchRequest: {
             items: components["schemas"]["BatchItem"][];
@@ -576,9 +640,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        code?: string;
-                    };
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Required dependency unavailable */
@@ -890,6 +952,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Format: int64 */
                     revision: number;
                 };
             };
@@ -1117,18 +1180,78 @@ export interface operations {
             };
         };
     };
+    previewPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyPreviewInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyPreview"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not permitted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Required dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     previewBatch: {
         parameters: {
             query?: never;
-            header: {
-                "Idempotency-Key": string;
+            header?: {
+                "Idempotency-Key"?: string;
             };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BatchRequest"];
+                "application/json": components["schemas"]["BatchPreviewRequest"];
             };
         };
         responses: {
@@ -1304,49 +1427,63 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Authentication required */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Permission denied */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Not found */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Revision or idempotency conflict */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Capacity exceeded */
             429: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Dependency unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
         };
     };
@@ -1375,49 +1512,63 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Authentication required */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Permission denied */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Not found */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Revision or idempotency conflict */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Capacity exceeded */
             429: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Dependency unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
         };
     };
@@ -1452,49 +1603,63 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Authentication required */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Permission denied */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Not found */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Revision or idempotency conflict */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Capacity exceeded */
             429: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Dependency unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
         };
     };
@@ -1529,49 +1694,63 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Authentication required */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Permission denied */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Not found */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Revision or idempotency conflict */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Capacity exceeded */
             429: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Dependency unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
         };
     };
@@ -1596,12 +1775,50 @@ export interface operations {
                     "application/octet-stream": string;
                 };
             };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description Permission denied */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
         };
     };

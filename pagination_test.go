@@ -220,4 +220,54 @@ func TestFeedbackTimeOrderedCursorPagination(t *testing.T) {
 	if _, err := svc.List(ctx, "operator", f.Filter{After: "f1.invalid", Limit: 2}); !errors.Is(err, f.ErrInvalid) {
 		t.Fatalf("invalid feedback cursor accepted: %v", err)
 	}
+	// The previous format encoded receipt time in nanoseconds followed by the ID.
+	oldCursor := fmt.Sprintf("%d:%s", clock.Add(-time.Minute).UnixNano(), ingested[2])
+	legacy, err := svc.List(ctx, "operator", f.Filter{Limit: 2, After: oldCursor})
+	if err != nil || len(legacy.Items) != 2 || legacy.Items[0].ID != ingested[1] || legacy.Items[1].ID != ingested[0] {
+		t.Fatalf("legacy time cursor: %+v %v", legacy, err)
+	}
+
+}
+
+func TestMigratedTimestampCursorUsesDatabasePrecision(t *testing.T) {
+	repo, db := database(t)
+	s := &m.Service{Repo: repo, Access: access{}, Content: &content{revision: 1}}
+	ctx := context.Background()
+	var ids []string
+	for _, actor := range []string{"a", "b"} {
+		task, err := s.Submit(ctx, m.Principal{Subject: actor}, "test", m.Submission{Kind: "report", ObjectID: "review", Reason: "test"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, task.ID)
+	}
+	// Simulate legacy JSON with nanosecond timestamps and unpopulated updated_at.
+	if _, err := db.Exec("ALTER TABLE moderation.tasks ALTER COLUMN updated_at DROP NOT NULL"); err != nil {
+		t.Fatal(err)
+	}
+	for i, id := range ids {
+		stamp := fmt.Sprintf("2026-01-01T00:00:0%d.123456789Z", i)
+		if _, err := db.Exec("UPDATE moderation.tasks SET data=data || jsonb_build_object('created_at',$1::text,'updated_at',$1::text), updated_at=NULL WHERE id=$2", stamp, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 2 {
+		if _, err := db.Exec(pg.Schema); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, order := range []string{"oldest", "newest", "updated_desc"} {
+		filter := m.TaskFilter{School: "school", Admin: true, Limit: 1, Order: order}
+		for i := range ids {
+			page, err := s.FilteredPage(ctx, m.Principal{Subject: "admin"}, filter)
+			want := ids[i]
+			if order != "oldest" {
+				want = ids[len(ids)-1-i]
+			}
+			if err != nil || len(page.Items) != 1 || page.Items[0].ID != want || (page.NextCursor == "") != (i == len(ids)-1) {
+				t.Fatalf("%s page %d = %+v, %v", order, i, page, err)
+			}
+			filter.After = page.NextCursor
+		}
+	}
 }

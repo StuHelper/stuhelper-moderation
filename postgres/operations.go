@@ -1,37 +1,97 @@
 package postgres
 
 import (
-	"time"
-
+	"errors"
+	"fmt"
 	m "github.com/StuHelper/stuhelper-moderation"
+	"strings"
+	"time"
 )
 
-func (t *transaction) FilteredTasks(f m.TaskFilter) ([]m.Task, error) {
-	baseWhere := `WHERE ($1='' OR owner=$1 OR content_owner=$1)
- AND ($2='' OR school_id=$2)
- AND ($3='' OR state=$3)
- AND ($4='' OR kind=$4)
- AND ($5='' OR content_kind=$5)
- AND ($6='' OR object_id=$6)
- AND ($7::timestamptz IS NULL OR created_at>=$7)
- AND ($8::timestamptz IS NULL OR created_at<$8)`
-
-	var query string
-	switch f.Order {
-	case "newest":
-		query = `SELECT data FROM moderation.tasks ` + baseWhere + `
- AND ($9::timestamptz IS NULL OR (created_at, id COLLATE "C") < ($9, $10::text COLLATE "C"))
- ORDER BY created_at DESC, id COLLATE "C" DESC LIMIT $11`
-	case "updated_desc":
-		query = `SELECT data FROM moderation.tasks ` + baseWhere + `
- AND ($9::timestamptz IS NULL OR (updated_at, id COLLATE "C") < ($9, $10::text COLLATE "C"))
- ORDER BY updated_at DESC, id COLLATE "C" DESC LIMIT $11`
-	default:
-		query = `SELECT data FROM moderation.tasks ` + baseWhere + `
- AND ($9::timestamptz IS NULL OR (created_at, id COLLATE "C") > ($9, $10::text COLLATE "C"))
- ORDER BY created_at ASC, id COLLATE "C" ASC LIMIT $11`
+func buildTaskQuery(f m.TaskFilter, hasCursor bool, cursorTime time.Time) (string, []any) {
+	args := []any{}
+	add := func(v any) string {
+		args = append(args, v)
+		return fmt.Sprintf("$%d", len(args))
 	}
-	return list[m.Task](t, query, f.Owner, f.School, f.State, f.Kind, f.ContentKind, f.ObjectID, f.From, f.Until, f.CursorAt, f.CursorID, f.Limit)
+
+	extraConds := []string{}
+	if f.School != "" {
+		extraConds = append(extraConds, "school_id="+add(f.School))
+	}
+	if f.State != "" {
+		extraConds = append(extraConds, "state="+add(f.State))
+	}
+	if f.Kind != "" {
+		extraConds = append(extraConds, "kind="+add(f.Kind))
+	}
+	if f.ContentKind != "" {
+		extraConds = append(extraConds, "content_kind="+add(f.ContentKind))
+	}
+	if f.ObjectID != "" {
+		extraConds = append(extraConds, "object_id="+add(f.ObjectID))
+	}
+	if f.From != nil {
+		extraConds = append(extraConds, "created_at>="+add(*f.From))
+	}
+	if f.Until != nil {
+		extraConds = append(extraConds, "created_at<"+add(*f.Until))
+	}
+
+	column, direction, cmp := "created_at", "ASC", ">"
+	if f.Order == "updated_desc" || (f.Order == "" && f.Owner != "") {
+		column, direction, cmp = "updated_at", "DESC", "<"
+	} else if f.Order == "newest" {
+		direction, cmp = "DESC", "<"
+	}
+	// Only the fixed order choices above enter SQL. All filter values are parameters.
+	order := column + " " + direction + ", id COLLATE \"C\" " + direction
+	if hasCursor {
+		at, id := add(cursorTime), add(f.CursorID)
+		extraConds = append(extraConds, fmt.Sprintf("(%s,id COLLATE \"C\") %s (%s,%s)", column, cmp, at, id))
+	}
+	limitArg := add(f.Limit)
+	if f.Owner != "" {
+		owner := add(f.Owner)
+		suffix := ""
+		if len(extraConds) > 0 {
+			suffix = " AND " + strings.Join(extraConds, " AND ")
+		}
+		branch := func(ownerColumn string) string {
+			return fmt.Sprintf("(SELECT id,%s FROM moderation.tasks WHERE %s=%s%s ORDER BY %s LIMIT %s)", column, ownerColumn, owner, suffix, order, limitArg)
+		}
+		q := fmt.Sprintf(`SELECT t.data || jsonb_build_object('created_at', t.created_at, 'updated_at', t.updated_at) FROM (%s UNION %s) ids JOIN moderation.tasks t ON t.id=ids.id ORDER BY ids.%s %s, ids.id COLLATE "C" %s LIMIT %s`, branch("owner"), branch("content_owner"), column, direction, direction, limitArg)
+		return q, args
+	}
+	where := ""
+	if len(extraConds) > 0 {
+		where = " WHERE " + strings.Join(extraConds, " AND ")
+	}
+	return "SELECT data || jsonb_build_object('created_at', created_at, 'updated_at', updated_at) FROM moderation.tasks" + where + " ORDER BY " + order + " LIMIT " + limitArg, args
+}
+
+func (t *transaction) FilteredTasks(f m.TaskFilter) ([]m.Task, error) {
+	var cursorTime time.Time
+	if f.CursorAt != nil {
+		cursorTime = *f.CursorAt
+	}
+	if f.After != "" && f.CursorAt == nil {
+		created, updated, err := t.TaskCursorAnchor(f.After)
+		if errors.Is(err, m.ErrNotFound) {
+			return []m.Task{}, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		cursorTime = created
+		if f.Order == "updated_desc" || (f.Order == "" && f.Owner != "") {
+			cursorTime = updated
+		}
+		f.CursorAt = &cursorTime
+		f.CursorID = f.After
+	}
+	q, args := buildTaskQuery(f, f.CursorAt != nil, cursorTime)
+	return list[m.Task](t, q, args...)
 }
 
 func (t *transaction) TaskCursorAnchor(id string) (time.Time, time.Time, error) {
@@ -70,4 +130,35 @@ func (t *transaction) QueueSummary(school string) (m.QueueSummary, error) {
 		&out.ByRequestKind.Appeal,
 	)
 	return out, safe(err)
+}
+
+func (t *transaction) RelatedWaitingCounts(school string, objectIDs []string) (map[string]int, error) {
+	out := map[string]int{}
+	if len(objectIDs) == 0 {
+		return out, nil
+	}
+	rows, err := t.tx.QueryContext(t.ctx, `SELECT object_id, count(*) FROM moderation.tasks WHERE school_id=$1 AND state='waiting' AND object_id=ANY($2::text[]) GROUP BY object_id`, school, objectIDs)
+	if err != nil {
+		return nil, safe(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var objectID string
+		var count int
+		if err = rows.Scan(&objectID, &count); err != nil {
+			return nil, safe(err)
+		}
+		out[objectID] = count
+	}
+	return out, safe(rows.Err())
+}
+
+func (t *transaction) WaitingReportsByObject(school, objectID string, maxObjectRevision int64, excludeID string) ([]m.Task, error) {
+	return list[m.Task](t, `SELECT data FROM moderation.tasks WHERE school_id=$1 AND object_id=$2 AND kind='report' AND state='waiting' AND id<>$3 AND COALESCE((data->>'object_revision')::bigint,0)<=$4 ORDER BY id ASC`, school, objectID, excludeID, maxObjectRevision)
+}
+
+func (t *transaction) HasDecidedTaskOnObject(school, objectID, excludeID string) (bool, error) {
+	var exists bool
+	err := t.tx.QueryRowContext(t.ctx, `SELECT EXISTS(SELECT 1 FROM moderation.tasks WHERE school_id=$1 AND object_id=$2 AND state='decided' AND id<>$3)`, school, objectID, excludeID).Scan(&exists)
+	return exists, safe(err)
 }

@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	f "github.com/StuHelper/stuhelper-moderation/feedback"
 	"github.com/google/uuid"
+	"strings"
 	"time"
 )
 
@@ -53,7 +55,11 @@ func (r *FeedbackRepository) Transaction(ctx context.Context, run func(f.Tx) err
 	return feedbackError(tx.Commit())
 }
 func (t *feedbackTx) Lock() error {
-	_, e := t.tx.ExecContext(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended('moderation:feedback',0))`)
+	_, e := t.tx.ExecContext(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended('moderation:feedback:intake',0))`)
+	return feedbackError(e)
+}
+func (t *feedbackTx) LockCase(id string) error {
+	_, e := t.tx.ExecContext(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "moderation:feedback:case:"+id)
 	return feedbackError(e)
 }
 func decodeFeedback(b []byte) (f.Message, error) {
@@ -127,17 +133,45 @@ func (t *feedbackTx) many(q string, args ...any) ([]f.Message, error) {
 	}
 	return out, feedbackError(rows.Err())
 }
+func buildFeedbackListQuery(state string, hasCursor bool, cursorTime time.Time, cursorID string, limit int, now time.Time) (string, []any) {
+	args := []any{}
+	add := func(v any) string {
+		args = append(args, v)
+		return fmt.Sprintf("$%d", len(args))
+	}
+	conds := []string{"ready", "(closed_at IS NULL OR closed_at+interval '12 months'>" + add(now) + ")"}
+	if state != "" {
+		conds = append(conds, "state="+add(state))
+	}
+	if hasCursor {
+		ctArg := add(cursorTime)
+		idArg := add(cursorID)
+		conds = append(conds, fmt.Sprintf(`(received_at<=%s AND (received_at,id COLLATE "C")<(%s,%s))`, ctArg, ctArg, idArg))
+	}
+	limitArg := add(limit)
+	return fmt.Sprintf(`SELECT data FROM moderation.feedback WHERE %s ORDER BY received_at DESC,id COLLATE "C" DESC LIMIT %s`, strings.Join(conds, " AND "), limitArg), args
+}
+
 func (t *feedbackTx) List(v f.Filter) ([]f.Message, error) {
 	now := v.Now
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
-	return t.many(`SELECT data FROM moderation.feedback WHERE ready AND ($1::timestamptz IS NULL OR (received_at, id COLLATE "C") < ($1, $2::text COLLATE "C")) AND ($3='' OR state=$3) AND (closed_at IS NULL OR closed_at+interval '12 months'>$4) ORDER BY received_at DESC, id COLLATE "C" DESC LIMIT $5`, v.CursorAt, v.CursorID, v.State, now, v.Limit+1)
+	var cursorTime time.Time
+	if v.CursorAt != nil {
+		cursorTime = *v.CursorAt
+	}
+	q, args := buildFeedbackListQuery(v.State, v.CursorAt != nil, cursorTime, v.CursorID, v.Limit+1, now)
+	return t.many(q, args...)
 }
 func (t *feedbackTx) Usage(sender string, since time.Time) (int, int64, int, error) {
 	var count, rate int
 	var bytes int64
-	e := t.tx.QueryRowContext(t.ctx, `SELECT CASE WHEN (SELECT count(*) FROM moderation.feedback_tombstones)>=1000000 THEN 100000 ELSE count(*) END,coalesce(sum(bytes),0),count(*) FILTER(WHERE sender=$1 AND received_at>=$2) FROM moderation.feedback`, sender, since).Scan(&count, &bytes, &rate)
+	e := t.tx.QueryRowContext(t.ctx, `SELECT CASE WHEN tombstone_count>=1000000 THEN 100000 ELSE active_count END,active_bytes FROM moderation.feedback_stats WHERE singleton`).Scan(&count, &bytes)
+	if e != nil {
+		return 0, 0, 0, feedbackError(e)
+	}
+	e = t.tx.QueryRowContext(t.ctx, `SELECT count(*) FROM moderation.feedback WHERE sender=$1 AND received_at>=$2`, sender, since).Scan(&rate)
 	return count, bytes, rate, feedbackError(e)
 }
 func (t *feedbackTx) Audit(actor, action, id string, now time.Time) error {

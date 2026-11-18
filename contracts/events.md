@@ -1,14 +1,14 @@
 ---
 type: spec
 status: Accepted
-updated: 2026-11-09
+updated: 2026-11-18
 ---
 
 # 审核事件契约
 
 事件采用 CloudEvents 1.0，source 为 moderation，subject 为 task/<任务 ID>，type 带 .v1 主版本。决定 ID 在决定事务内确定。结果 ID 由决定 ID 与终态修订确定，同一结果重复投递沿用原 ID。data.revision 为任务修订号。
 
-moderation.decided.v1 与决定同事务写入，表示决定已保存。moderation.result.v1 与终态 applied/failed 同事务写入。dismiss 在决定事务中直接产生结果；其他动作在内容模块确认执行后产生结果。
+moderation.decided.v1 与决定同事务写入，表示决定已保存。moderation.result.v1 与终态 applied/failed 同事务写入。dismiss 在决定事务中按严格递增的任务修订号依次写入 decided.v1 与 result.v1；其他动作在内容模块确认执行后产生结果。
 
 结果 data 包含 task_id、owner（申请人）、content_owner、object_id、content_kind、request_kind、action、state、revision、decision_id。事件不含举报证据、正文、身份原值或管理员账号。通知消费者只订阅 result.v1，并区分执行成功与失败。
 

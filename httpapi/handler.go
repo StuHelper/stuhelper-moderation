@@ -29,6 +29,7 @@ func (h Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/decisions", h.decide)
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/retry", h.retry)
 	mux.HandleFunc("PUT /api/v1/moderation/policies", h.policy)
+	mux.HandleFunc("POST /api/v1/moderation/policies/preview", h.previewPolicy)
 	mux.HandleFunc("GET /api/v1/moderation/policies", func(w http.ResponseWriter, r *http.Request) {
 		p, ok := h.principal(w, r)
 		if !ok {
@@ -86,7 +87,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	return nil
 }
 func (h Handler) principal(w http.ResponseWriter, r *http.Request) (m.Principal, bool) {
-	if h.Authenticate == nil {
+	if h.Authenticate == nil || h.Service == nil {
 		respond(w, nil, m.ErrUnavailable)
 		return m.Principal{}, false
 	}
@@ -99,6 +100,10 @@ func (h Handler) principal(w http.ResponseWriter, r *http.Request) (m.Principal,
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(401)
 		_ = json.NewEncoder(w).Encode(map[string]string{"code": "unauthenticated"})
+		return p, false
+	}
+	if h.Service == nil {
+		respond(w, nil, m.ErrUnavailable)
 		return p, false
 	}
 	return p, true
@@ -194,6 +199,10 @@ func (h Handler) submit(w http.ResponseWriter, r *http.Request) {
 		respond(w, nil, e)
 		return
 	}
+	if in.Evidence == nil {
+		respond(w, nil, m.ErrInput)
+		return
+	}
 	v, e := h.Service.Submit(r.Context(), p, r.Header.Get("Idempotency-Key"), in)
 	respond(w, v, e)
 }
@@ -237,4 +246,17 @@ func (h Handler) policy(w http.ResponseWriter, r *http.Request) {
 	}
 	e := h.Service.SetPolicy(r.Context(), p, r.Header.Get("Idempotency-Key"), in)
 	respond(w, map[string]bool{"ok": e == nil}, e)
+}
+func (h Handler) previewPolicy(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	var in m.PolicyPreviewInput
+	if e := decode(w, r, &in); e != nil {
+		respond(w, nil, e)
+		return
+	}
+	v, e := h.Service.PreviewPolicy(r.Context(), p, in)
+	respond(w, v, e)
 }

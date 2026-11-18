@@ -133,7 +133,7 @@ func (s *Service) FilteredPage(ctx context.Context, p Principal, f TaskFilter) (
 	pageLimit := f.Limit
 	f.Order = effectiveOrder
 	f.Limit = pageLimit + 1
-	err = s.Repo.Transaction(ctx, func(t Transaction) error {
+	err = s.tx(ctx, func(t Transaction) error {
 		if f.After != "" {
 			if isComposite {
 				at := cursorAt
@@ -153,6 +153,8 @@ func (s *Service) FilteredPage(ctx context.Context, p Principal, f TaskFilter) (
 				}
 				f.CursorAt = &at
 				f.CursorID = cursorID
+			} else {
+				return ErrUnavailable
 			}
 		}
 		tasks, e := t.FilteredTasks(f)
@@ -168,12 +170,50 @@ func (s *Service) FilteredPage(ctx context.Context, p Principal, f TaskFilter) (
 			out.NextCursor = encodeTaskCursor(effectiveOrder, anchorTime, last.ID)
 			tasks = tasks[:pageLimit]
 		}
+		var waitingCounts map[string]int
+		if f.Admin && len(tasks) > 0 {
+			if port, ok := t.(RelatedTaskTransaction); ok {
+				seen := map[string]bool{}
+				objectIDs := make([]string, 0, len(tasks))
+				for _, task := range tasks {
+					if !seen[task.Submission.ObjectID] {
+						seen[task.Submission.ObjectID] = true
+						objectIDs = append(objectIDs, task.Submission.ObjectID)
+					}
+				}
+				waitingCounts, e = port.RelatedWaitingCounts(f.School, objectIDs)
+				if e != nil {
+					return e
+				}
+			}
+		}
+		var candidateIDs []string
 		for _, task := range tasks {
 			v := viewFor(p, task)
 			if !f.Admin {
 				v = recipientView(p, task)
+			} else if waitingCounts != nil {
+				n := waitingCounts[task.Submission.ObjectID]
+				if task.State == "waiting" && n > 0 {
+					n--
+				}
+				v.RelatedWaitingCount = &n
+			}
+			if v.CanAppeal {
+				candidateIDs = append(candidateIDs, task.ID)
 			}
 			out.Items = append(out.Items, v)
+		}
+		if len(candidateIDs) > 0 {
+			appealed, e := appealedTasks(t, candidateIDs)
+			if e != nil {
+				return e
+			}
+			for i := range out.Items {
+				if appealed[out.Items[i].ID] {
+					out.Items[i].CanAppeal = false
+				}
+			}
 		}
 		return nil
 	})
@@ -199,7 +239,7 @@ func (s *Service) QueueSummary(ctx context.Context, p Principal, school string) 
 	if err := s.auth(ctx, p, "manage", school); err != nil {
 		return out, err
 	}
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		port, ok := t.(QueuePaginationTransaction)
 		if !ok {
 			return ErrUnavailable
@@ -230,7 +270,14 @@ type BatchPreview struct {
 	Items        []BatchOutcome `json:"items"`
 }
 
-func batchToken(p Principal, in BatchRequest) string { return digest([]any{p.Subject, in.Items}) }
+func batchToken(p Principal, in BatchRequest) string {
+	normalized := make([]BatchItem, len(in.Items))
+	for i, item := range in.Items {
+		item.Decision.ID = ""
+		normalized[i] = item
+	}
+	return digest([]any{p.Subject, normalized})
+}
 func validBatch(in BatchRequest) bool {
 	if len(in.Items) < 1 || len(in.Items) > 20 {
 		return false
@@ -250,20 +297,74 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 		return out, ErrInput
 	}
 	out.PreviewToken = batchToken(p, in)
+	seenObjects := map[string]bool{}
 	for _, item := range in.Items {
 		result := BatchOutcome{ID: item.ID, State: "ready"}
-		task, e := s.Get(ctx, p, item.ID)
-		if e == nil {
-			e = s.auth(ctx, p, "manage", task.SchoolID)
+		var task Task
+		e := s.tx(ctx, func(t Transaction) error {
+			var err error
+			task, err = t.Task(item.ID)
+			if err != nil {
+				return err
+			}
+			if err = s.auth(ctx, p, "manage", task.SchoolID); err != nil {
+				if errors.Is(err, ErrForbidden) && task.Owner != p.Subject && task.ContentOwner != p.Subject {
+					return ErrNotFound
+				}
+				return err
+			}
+			if task.Submission.Kind == "appeal" {
+				if err = s.auth(ctx, p, "review", task.SchoolID); err != nil {
+					return err
+				}
+				prior, err := t.Task(task.Submission.PreviousTaskID)
+				if err != nil {
+					return err
+				}
+				if prior.DecidedBy == p.Subject {
+					return ErrForbidden
+				}
+			}
+			return nil
+		})
+		if e == nil && !validateDecision(item.Decision) {
+			e = ErrInput
 		}
-		if e == nil && (task.State != "waiting" || task.Revision != item.Revision) {
+		if e == nil && !canDecideTask(task, item.Revision) {
 			e = ErrConflict
 		}
+		var object Object
 		if e == nil {
-			object, err := s.Content.Inspect(ctx, p, task.Submission.ObjectID)
-			e = err
-			if e == nil && (object.ID != item.Decision.ObjectID || object.Revision != item.Decision.Revision) {
+			object, e = s.inspect(ctx, p, task.Submission.ObjectID)
+			if e == nil {
+				if isSelfFavorableDecision(p, task, object.Owner, item.Decision.Action) {
+					e = s.auth(ctx, p, "self_approve", "*")
+				}
+			}
+			if e == nil {
+				e = validateDecisionTarget(object, task, item.Decision)
+			}
+		}
+		if e == nil {
+			objectKey := task.SchoolID + "\x00" + task.Submission.ObjectID
+			if seenObjects[objectKey] {
 				e = ErrConflict
+			} else {
+				e = s.tx(ctx, func(t Transaction) error {
+					if port, ok := t.(RelatedTaskTransaction); ok {
+						inFlight, err := port.HasDecidedTaskOnObject(task.SchoolID, task.Submission.ObjectID, task.ID)
+						if err != nil {
+							return err
+						}
+						if inFlight {
+							return ErrConflict
+						}
+					}
+					return nil
+				})
+			}
+			if e == nil {
+				seenObjects[objectKey] = true
 			}
 		}
 		if e != nil {
@@ -289,7 +390,7 @@ func (s *Service) DecideBatch(ctx context.Context, p Principal, key string, in B
 	}
 	rk := digest([]string{p.Subject, "batch", key})
 	hash := batchToken(p, in)
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(rk); e != nil {
 			return e
 		}
@@ -309,12 +410,33 @@ func (s *Service) DecideBatch(ctx context.Context, p Principal, key string, in B
 		return out, err
 	}
 	out.PreviewToken = hash
+	mutatingObjects := map[string]bool{}
 	for _, item := range in.Items {
+		if item.Decision.Action != "dismiss" && mutatingObjects[item.Decision.ObjectID] {
+			var checkErr error
+			_ = s.tx(ctx, func(t Transaction) error {
+				task, e := t.Task(item.ID)
+				if e != nil {
+					checkErr = e
+					return nil
+				}
+				checkErr = s.auth(ctx, p, "manage", task.SchoolID)
+				return nil
+			})
+			code := "conflict"
+			if checkErr != nil {
+				code = errorCode(checkErr)
+			}
+			out.Items = append(out.Items, BatchOutcome{ID: item.ID, State: "rejected", Code: code})
+			continue
+		}
 		task, e := s.Decide(ctx, p, item.ID, digest([]string{rk, item.ID}), Decide{Revision: item.Revision, Decision: item.Decision})
 		result := BatchOutcome{ID: item.ID, State: task.State}
 		if e != nil {
 			result.State = "rejected"
 			result.Code = errorCode(e)
+		} else if item.Decision.Action != "dismiss" {
+			mutatingObjects[item.Decision.ObjectID] = true
 		}
 		out.Items = append(out.Items, result)
 	}
