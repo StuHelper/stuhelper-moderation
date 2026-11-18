@@ -26,7 +26,7 @@ func (s *Service) AccessibleTasks(ctx context.Context, p Principal, ids []string
 	}
 	var rows []TaskAccessReference
 	read := func() error {
-		return s.Repo.Transaction(ctx, func(tx Transaction) error {
+		return s.tx(ctx, func(tx Transaction) error {
 			port, ok := tx.(TaskAccessTransaction)
 			if !ok {
 				return ErrUnavailable

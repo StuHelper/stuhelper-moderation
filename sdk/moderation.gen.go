@@ -19,40 +19,82 @@ import (
 
 // Defines values for DecisionAction.
 const (
-	Delete    DecisionAction = "delete"
-	Dismiss   DecisionAction = "dismiss"
-	Edit      DecisionAction = "edit"
-	Feature   DecisionAction = "feature"
-	Hide      DecisionAction = "hide"
-	Identity  DecisionAction = "identity"
-	Publish   DecisionAction = "publish"
-	Reassign  DecisionAction = "reassign"
-	Restore   DecisionAction = "restore"
-	Unfeature DecisionAction = "unfeature"
+	DecisionActionDelete    DecisionAction = "delete"
+	DecisionActionDismiss   DecisionAction = "dismiss"
+	DecisionActionEdit      DecisionAction = "edit"
+	DecisionActionFeature   DecisionAction = "feature"
+	DecisionActionHide      DecisionAction = "hide"
+	DecisionActionIdentity  DecisionAction = "identity"
+	DecisionActionPublish   DecisionAction = "publish"
+	DecisionActionReassign  DecisionAction = "reassign"
+	DecisionActionRestore   DecisionAction = "restore"
+	DecisionActionUnfeature DecisionAction = "unfeature"
 )
 
 // Valid indicates whether the value is a known member of the DecisionAction enum.
 func (e DecisionAction) Valid() bool {
 	switch e {
-	case Delete:
+	case DecisionActionDelete:
 		return true
-	case Dismiss:
+	case DecisionActionDismiss:
 		return true
-	case Edit:
+	case DecisionActionEdit:
 		return true
-	case Feature:
+	case DecisionActionFeature:
 		return true
-	case Hide:
+	case DecisionActionHide:
 		return true
-	case Identity:
+	case DecisionActionIdentity:
 		return true
-	case Publish:
+	case DecisionActionPublish:
 		return true
-	case Reassign:
+	case DecisionActionReassign:
 		return true
-	case Restore:
+	case DecisionActionRestore:
 		return true
-	case Unfeature:
+	case DecisionActionUnfeature:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DecisionInputAction.
+const (
+	DecisionInputActionDelete    DecisionInputAction = "delete"
+	DecisionInputActionDismiss   DecisionInputAction = "dismiss"
+	DecisionInputActionEdit      DecisionInputAction = "edit"
+	DecisionInputActionFeature   DecisionInputAction = "feature"
+	DecisionInputActionHide      DecisionInputAction = "hide"
+	DecisionInputActionIdentity  DecisionInputAction = "identity"
+	DecisionInputActionPublish   DecisionInputAction = "publish"
+	DecisionInputActionReassign  DecisionInputAction = "reassign"
+	DecisionInputActionRestore   DecisionInputAction = "restore"
+	DecisionInputActionUnfeature DecisionInputAction = "unfeature"
+)
+
+// Valid indicates whether the value is a known member of the DecisionInputAction enum.
+func (e DecisionInputAction) Valid() bool {
+	switch e {
+	case DecisionInputActionDelete:
+		return true
+	case DecisionInputActionDismiss:
+		return true
+	case DecisionInputActionEdit:
+		return true
+	case DecisionInputActionFeature:
+		return true
+	case DecisionInputActionHide:
+		return true
+	case DecisionInputActionIdentity:
+		return true
+	case DecisionInputActionPublish:
+		return true
+	case DecisionInputActionReassign:
+		return true
+	case DecisionInputActionRestore:
+		return true
+	case DecisionInputActionUnfeature:
 		return true
 	default:
 		return false
@@ -406,9 +448,9 @@ func (e ListFeedbackParamsState) Valid() bool {
 
 // BatchItem defines model for BatchItem.
 type BatchItem struct {
-	Decision Decision `json:"decision"`
-	Id       string   `json:"id"`
-	Revision int      `json:"revision"`
+	Decision DecisionInput `json:"decision"`
+	Id       string        `json:"id"`
+	Revision int64         `json:"revision"`
 }
 
 // BatchOutcome defines model for BatchOutcome.
@@ -424,6 +466,12 @@ type BatchPreview struct {
 	PreviewToken string         `json:"preview_token"`
 }
 
+// BatchPreviewRequest defines model for BatchPreviewRequest.
+type BatchPreviewRequest struct {
+	Items        []BatchItem `json:"items"`
+	PreviewToken *string     `json:"preview_token,omitempty"`
+}
+
 // BatchRequest defines model for BatchRequest.
 type BatchRequest struct {
 	Items        []BatchItem `json:"items"`
@@ -432,8 +480,8 @@ type BatchRequest struct {
 
 // Decide defines model for Decide.
 type Decide struct {
-	Decision Decision `json:"decision"`
-	Revision int      `json:"revision"`
+	Decision DecisionInput `json:"decision"`
+	Revision int64         `json:"revision"`
 }
 
 // Decision defines model for Decision.
@@ -447,7 +495,7 @@ type Decision struct {
 	Id               string  `json:"id"`
 	ObjectId         string  `json:"object_id"`
 	Reason           string  `json:"reason"`
-	Revision         int     `json:"revision"`
+	Revision         int64   `json:"revision"`
 	Signed           *bool   `json:"signed,omitempty"`
 	Subject          *string `json:"subject,omitempty"`
 	TeacherId        *string `json:"teacher_id,omitempty"`
@@ -455,6 +503,26 @@ type Decision struct {
 
 // DecisionAction defines model for Decision.Action.
 type DecisionAction string
+
+// DecisionInput defines model for DecisionInput.
+type DecisionInput struct {
+	Action DecisionInputAction `json:"action"`
+
+	// AuthorHandle Discussion-local public author handle, used instead of a private account ID for identity moderation.
+	AuthorHandle     *string `json:"author_handle,omitempty"`
+	Body             *string `json:"body,omitempty"`
+	EvidenceRevision *string `json:"evidence_revision,omitempty"`
+	Id               *string `json:"id,omitempty"`
+	ObjectId         string  `json:"object_id"`
+	Reason           string  `json:"reason"`
+	Revision         int64   `json:"revision"`
+	Signed           *bool   `json:"signed,omitempty"`
+	Subject          *string `json:"subject,omitempty"`
+	TeacherId        *string `json:"teacher_id,omitempty"`
+}
+
+// DecisionInputAction defines model for DecisionInput.Action.
+type DecisionInputAction string
 
 // Error defines model for Error.
 type Error struct {
@@ -534,7 +602,7 @@ type Policy struct {
 	// Kind Content kind: course, mentor, reply, or resource. Resources default to pending review.
 	Kind     string     `json:"kind"`
 	Mode     PolicyMode `json:"mode"`
-	Revision int        `json:"revision"`
+	Revision int64      `json:"revision"`
 	SchoolId string     `json:"school_id"`
 }
 
@@ -580,7 +648,7 @@ type PolicyView struct {
 		BlockedTerms []string                 `json:"blocked_terms"`
 		Kind         string                   `json:"kind"`
 		Mode         PolicyViewConfiguredMode `json:"mode"`
-		Revision     int                      `json:"revision"`
+		Revision     int64                    `json:"revision"`
 		SchoolId     string                   `json:"school_id"`
 	} `json:"configured"`
 	Effective Policy           `json:"effective"`
@@ -636,9 +704,9 @@ type TaskView struct {
 	Decision       *Decision      `json:"decision,omitempty"`
 	ErrorCode      *string        `json:"error_code,omitempty"`
 	Id             string         `json:"id"`
-	ObjectRevision int            `json:"object_revision"`
+	ObjectRevision int64          `json:"object_revision"`
 	PreviousTaskId *string        `json:"previous_task_id,omitempty"`
-	Revision       int            `json:"revision"`
+	Revision       int64          `json:"revision"`
 	SchoolId       string         `json:"school_id"`
 	State          string         `json:"state"`
 	Submission     TaskSubmission `json:"submission"`
@@ -704,7 +772,7 @@ type DecideBatchParams struct {
 
 // PreviewBatchParams defines parameters for PreviewBatch.
 type PreviewBatchParams struct {
-	IdempotencyKey string `json:"Idempotency-Key"`
+	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
 }
 
 // DecideTaskParams defines parameters for DecideTask.
@@ -714,7 +782,7 @@ type DecideTaskParams struct {
 
 // RetryTaskJSONBody defines parameters for RetryTask.
 type RetryTaskJSONBody struct {
-	Revision int `json:"revision"`
+	Revision int64 `json:"revision"`
 }
 
 // RetryTaskParams defines parameters for RetryTask.
@@ -741,7 +809,7 @@ type SubmitTaskJSONRequestBody = Submission
 type DecideBatchJSONRequestBody = BatchRequest
 
 // PreviewBatchJSONRequestBody defines body for PreviewBatch for application/json ContentType.
-type PreviewBatchJSONRequestBody = BatchRequest
+type PreviewBatchJSONRequestBody = BatchPreviewRequest
 
 // DecideTaskJSONRequestBody defines body for DecideTask for application/json ContentType.
 type DecideTaskJSONRequestBody = Decide
@@ -2019,14 +2087,16 @@ func NewPreviewBatchRequestWithBody(server string, params *PreviewBatchParams, c
 
 	if params != nil {
 
-		var headerParam0 string
+		if params.IdempotencyKey != nil {
+			var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-		if err != nil {
-			return nil, err
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", *params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Idempotency-Key", headerParam0)
 		}
-
-		req.Header.Set("Idempotency-Key", headerParam0)
 
 	}
 
@@ -2375,11 +2445,60 @@ type ListFeedbackResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *FeedbackPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r ListFeedbackResponse) GetJSON200() *FeedbackPage {
 	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListFeedbackResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListFeedbackResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ListFeedbackResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListFeedbackResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListFeedbackResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r ListFeedbackResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListFeedbackResponse) GetJSON503() *Error {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -2416,11 +2535,60 @@ type GetFeedbackResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *Feedback
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r GetFeedbackResponse) GetJSON200() *Feedback {
 	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetFeedbackResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetFeedbackResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetFeedbackResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetFeedbackResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetFeedbackResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r GetFeedbackResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetFeedbackResponse) GetJSON503() *Error {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -2457,11 +2625,60 @@ type UpdateFeedbackResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *Feedback
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r UpdateFeedbackResponse) GetJSON200() *Feedback {
 	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateFeedbackResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateFeedbackResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateFeedbackResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdateFeedbackResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UpdateFeedbackResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r UpdateFeedbackResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r UpdateFeedbackResponse) GetJSON503() *Error {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -2496,6 +2713,41 @@ func (r UpdateFeedbackResponse) ContentType() string {
 type DownloadFeedbackAttachmentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r DownloadFeedbackAttachmentResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DownloadFeedbackAttachmentResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DownloadFeedbackAttachmentResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DownloadFeedbackAttachmentResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DownloadFeedbackAttachmentResponse) GetJSON503() *Error {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -2532,11 +2784,60 @@ type ReplyFeedbackResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *FeedbackReply
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r ReplyFeedbackResponse) GetJSON200() *FeedbackReply {
 	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ReplyFeedbackResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ReplyFeedbackResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ReplyFeedbackResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ReplyFeedbackResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ReplyFeedbackResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r ReplyFeedbackResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ReplyFeedbackResponse) GetJSON503() *Error {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -2902,9 +3203,7 @@ type SubmitTaskResponse struct {
 	// JSON409 the response for an HTTP 409 `application/json` response
 	JSON409 *Error
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *struct {
-		Code *string `json:"code,omitempty"`
-	}
+	JSON429 *Error
 	// JSON503 the response for an HTTP 503 `application/json` response
 	JSON503 *Error
 }
@@ -2940,9 +3239,7 @@ func (r SubmitTaskResponse) GetJSON409() *Error {
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r SubmitTaskResponse) GetJSON429() *struct {
-	Code *string `json:"code,omitempty"`
-} {
+func (r SubmitTaskResponse) GetJSON429() *Error {
 	return r.JSON429
 }
 
@@ -3698,26 +3995,54 @@ func ParseListFeedbackResponse(rsp *http.Response) (*ListFeedbackResponse, error
 		}
 		response.JSON200 = &dest
 
-	case rsp.StatusCode == 400:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
-	case rsp.StatusCode == 401:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
-	case rsp.StatusCode == 403:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
-	case rsp.StatusCode == 404:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
-	case rsp.StatusCode == 409:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
-	case rsp.StatusCode == 429:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
-	case rsp.StatusCode == 503:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -3745,26 +4070,54 @@ func ParseGetFeedbackResponse(rsp *http.Response) (*GetFeedbackResponse, error) 
 		}
 		response.JSON200 = &dest
 
-	case rsp.StatusCode == 400:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
-	case rsp.StatusCode == 401:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
-	case rsp.StatusCode == 403:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
-	case rsp.StatusCode == 404:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
-	case rsp.StatusCode == 409:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
-	case rsp.StatusCode == 429:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
-	case rsp.StatusCode == 503:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -3792,26 +4145,54 @@ func ParseUpdateFeedbackResponse(rsp *http.Response) (*UpdateFeedbackResponse, e
 		}
 		response.JSON200 = &dest
 
-	case rsp.StatusCode == 400:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
-	case rsp.StatusCode == 401:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
-	case rsp.StatusCode == 403:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
-	case rsp.StatusCode == 404:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
-	case rsp.StatusCode == 409:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
-	case rsp.StatusCode == 429:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
-	case rsp.StatusCode == 503:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -3829,6 +4210,44 @@ func ParseDownloadFeedbackAttachmentResponse(rsp *http.Response) (*DownloadFeedb
 	response := &DownloadFeedbackAttachmentResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	return response, nil
@@ -3855,26 +4274,54 @@ func ParseReplyFeedbackResponse(rsp *http.Response) (*ReplyFeedbackResponse, err
 		}
 		response.JSON200 = &dest
 
-	case rsp.StatusCode == 400:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
-	case rsp.StatusCode == 401:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
-	case rsp.StatusCode == 403:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
-	case rsp.StatusCode == 404:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
-	case rsp.StatusCode == 409:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
-	case rsp.StatusCode == 429:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
-	case rsp.StatusCode == 503:
-		break // No content-type
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -4196,9 +4643,7 @@ func ParseSubmitTaskResponse(rsp *http.Response) (*SubmitTaskResponse, error) {
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest struct {
-			Code *string `json:"code,omitempty"`
-		}
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

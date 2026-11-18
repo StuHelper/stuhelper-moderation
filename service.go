@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -20,10 +22,24 @@ type Service struct {
 }
 
 func (s *Service) now() time.Time {
-	if s.Clock != nil {
+	if s != nil && s.Clock != nil {
 		return s.Clock().UTC()
 	}
 	return time.Now().UTC()
+}
+func (s *Service) tx(ctx context.Context, run func(Transaction) error) error {
+	if s == nil || s.Repo == nil {
+		return ErrUnavailable
+	}
+	return s.Repo.Transaction(ctx, run)
+}
+func (s *Service) inspect(ctx context.Context, p Principal, id string) (Object, error) {
+	if s == nil || s.Content == nil {
+		return Object{}, ErrUnavailable
+	}
+	call, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	return s.Content.Inspect(call, p, id)
 }
 func digest(v any) string {
 	b, _ := json.Marshal(v)
@@ -31,7 +47,7 @@ func digest(v any) string {
 	return hex.EncodeToString(h[:])
 }
 func keyOK(v string) bool {
-	if len(v) < 1 || len(v) > 128 {
+	if len(v) < 1 || len(v) > 128 || strings.TrimSpace(v) == "" {
 		return false
 	}
 	for _, c := range v {
@@ -44,22 +60,75 @@ func keyOK(v string) bool {
 func textOK(v string, max int) bool {
 	return utf8.ValidString(v) && utf8.RuneCountInString(v) <= max && !strings.ContainsRune(v, 0)
 }
-func view(t Task) TaskView {
-	var decision *Decision
-	if t.Decision != nil {
-		safe := *t.Decision
-		safe.Body = nil
-		safe.Subject = ""
-		safe.AuthorHandle = ""
-		decision = &safe
+func cleanToken(v string, max int) bool {
+	if len(v) > max || !utf8.ValidString(v) {
+		return false
 	}
-	return TaskView{false, t.ContentKind, t.ID, t.SchoolID, t.Submission, t.ObjectRevision, t.Revision, t.State, t.CreatedAt, t.UpdatedAt, decision, t.ErrorCode}
+	for _, r := range v {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
+func validateDecision(d Decision) bool {
+	if !keyOK(d.ObjectID) || d.Revision < 1 || !slices.Contains([]string{"publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || strings.TrimSpace(d.Reason) == "" || !textOK(d.Reason, 2000) {
+		return false
+	}
+	if d.Body != nil && !textOK(*d.Body, 16000) {
+		return false
+	}
+	if !cleanToken(d.AuthorHandle, 128) || !cleanToken(d.Subject, 256) || !cleanToken(d.EvidenceRevision, 256) || (d.TeacherID != "" && !keyOK(d.TeacherID)) {
+		return false
+	}
+	switch d.Action {
+	case "edit":
+		return d.Body != nil && strings.TrimSpace(*d.Body) != ""
+	case "reassign":
+		return strings.TrimSpace(d.EvidenceRevision) != ""
+	case "identity":
+		return (strings.TrimSpace(d.Subject) != "") != (strings.TrimSpace(d.AuthorHandle) != "")
+	}
+	return true
+}
+func canDecideTask(task Task, revision int64) bool {
+	if task.Revision != revision {
+		return false
+	}
+	return task.State == "waiting" || (task.State == "failed" && (task.ErrorCode == "conflict" || task.ErrorCode == "forbidden"))
+}
+func validateDecisionTarget(object Object, task Task, d Decision) error {
+	if object.Kind == "resource" && !slices.Contains([]string{"publish", "hide", "restore", "delete", "dismiss"}, d.Action) {
+		return ErrInput
+	}
+	if object.SchoolID != task.SchoolID || object.Revision != d.Revision || d.ObjectID != object.ID {
+		return ErrConflict
+	}
+	return nil
+}
+func publicDecision(d *Decision) *Decision {
+	if d == nil {
+		return nil
+	}
+	safe := Decision{ID: d.ID, ObjectID: d.ObjectID, Revision: d.Revision, Action: d.Action, Reason: d.Reason}
+	if d.Action == "reassign" {
+		safe.TeacherID = d.TeacherID
+	}
+	return &safe
+}
+func view(t Task) TaskView {
+	decision := publicDecision(t.Decision)
+	sub := t.Submission
+	if sub.Evidence == nil {
+		sub.Evidence = []string{}
+	}
+	return TaskView{false, sub.PreviousTaskID, t.ContentKind, t.ID, t.SchoolID, sub, t.ObjectRevision, t.Revision, t.State, t.CreatedAt, t.UpdatedAt, decision, t.ErrorCode}
 }
 func (s *Service) auth(ctx context.Context, p Principal, action, school string) error {
 	if p.Subject == "" {
 		return ErrForbidden
 	}
-	if s.Access == nil {
+	if s == nil || s.Access == nil {
 		return ErrUnavailable
 	}
 	return s.Access.Authorize(ctx, p, action, school)
@@ -78,9 +147,20 @@ func replay(t Transaction, key, hash string, now time.Time) (TaskView, bool, err
 	if r.Digest != hash {
 		return TaskView{}, false, ErrConflict
 	}
+	r.View.Decision = publicDecision(r.View.Decision)
 	return r.View, true, nil
 }
-func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
+func allocateTaskID(t Transaction, base string, now time.Time) (string, error) {
+	_, e := t.Task(base)
+	if errors.Is(e, ErrNotFound) {
+		return base, nil
+	}
+	if e != nil {
+		return "", e
+	}
+	return digest([]string{base, strconv.FormatInt(now.UnixNano(), 10)}), nil
+}
+func (s *Service) recordWithView(t Transaction, key, hash, action string, p Principal, task Task, v TaskView) error {
 	result := "success"
 	if action == "decided" {
 		result = "unknown"
@@ -89,10 +169,144 @@ func (s *Service) record(t Transaction, key, hash, action string, p Principal, t
 	if action == "decided" {
 		data = resultData(task)
 	}
-	if e := t.Event(Event{Result: result, Data: data, ID: key, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: s.now()}); e != nil {
+	now := s.now()
+	eventID := digest([]string{"event", key, task.ID, action, strconv.FormatInt(task.Revision, 10)})
+	if e := t.Event(Event{Result: result, Data: data, ID: eventID, Type: "moderation." + action + ".v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: now}); e != nil {
 		return e
 	}
-	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: view(task), Until: s.now().Add(24 * time.Hour)})
+	return t.SaveReplay(key, Replay{Digest: hash, TaskID: task.ID, View: v, Until: now.Add(24 * time.Hour)})
+}
+func (s *Service) record(t Transaction, key, hash, action string, p Principal, task Task) error {
+	return s.recordWithView(t, key, hash, action, p, task, viewFor(p, task))
+}
+
+func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payload string, in Submission, object *Object, missingObjectErr error, beforeSave func(Transaction) error) (TaskView, error) {
+	var out TaskView
+	if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
+		return out, e
+	}
+	now := s.now()
+	cached, found, e := replay(t, operation, payload, now)
+	if errors.Is(e, ErrConflict) && len(in.Evidence) == 0 {
+		// Older receipts hashed omitted evidence as null instead of an empty array.
+		legacy := in
+		legacy.Evidence = nil
+		cached, found, e = replay(t, operation, digest(legacy), now)
+	}
+	if e != nil {
+		return out, e
+	}
+	if found {
+		return cached, nil
+	}
+	if in.Kind == "appeal" {
+		if e := t.Lock("appeal:" + in.PreviousTaskID); e != nil {
+			return out, e
+		}
+		previous, e := t.Task(in.PreviousTaskID)
+		if e != nil {
+			return out, e
+		}
+		if previous.Submission.ObjectID != in.ObjectID || previous.Submission.Kind == "appeal" || previous.Decision == nil || previous.State != "applied" {
+			return out, ErrConflict
+		}
+	}
+	task, e := t.Active(p.Subject, in.ObjectID, in.Kind)
+	if e != nil && !errors.Is(e, ErrNotFound) {
+		return out, e
+	}
+	if errors.Is(e, ErrNotFound) {
+		if object == nil {
+			return out, missingObjectErr
+		}
+		if in.Evidence == nil {
+			in.Evidence = []string{}
+		}
+		if in.Kind == "appeal" {
+			appealed, e := appealedTasks(t, []string{in.PreviousTaskID})
+			if e != nil {
+				return out, e
+			}
+			if appealed[in.PreviousTaskID] {
+				return out, ErrConflict
+			}
+		}
+		now := s.now()
+		taskID, err := allocateTaskID(t, operation, now)
+		if err != nil {
+			return out, err
+		}
+		task = Task{
+			ContentOwner:   object.Owner,
+			ContentKind:    object.Kind,
+			ID:             taskID,
+			SchoolID:       object.SchoolID,
+			Owner:          p.Subject,
+			Submission:     in,
+			ObjectRevision: object.Revision,
+			State:          "waiting",
+			CreatedAt:      now,
+		}
+	} else {
+		if e = t.Lock(task.ID); e != nil {
+			return out, e
+		}
+		task, e = t.Task(task.ID)
+		if e != nil {
+			return out, e
+		}
+		if task.State != "waiting" || (in.Kind == "appeal" && task.Submission.PreviousTaskID != in.PreviousTaskID) {
+			return out, ErrConflict
+		}
+		if task.Submission.Evidence == nil {
+			task.Submission.Evidence = []string{}
+		}
+		if in.Reason != task.Submission.Reason {
+			task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)
+		}
+		task.Submission.Evidence = append(task.Submission.Evidence, in.Evidence...)
+		if len(task.Submission.Evidence) > 20 {
+			return out, ErrInput
+		}
+		if in.Kind == "edit_request" {
+			task.Submission.ProposedBody = in.ProposedBody
+		}
+	}
+	if beforeSave != nil {
+		if e = beforeSave(t); e != nil {
+			return out, e
+		}
+	}
+	task.Revision++
+	task.UpdatedAt = s.now()
+	if e = t.SaveTask(task); e != nil {
+		return out, e
+	}
+	out = viewFor(p, task)
+	if e = s.recordWithView(t, operation, payload, "submitted", p, task, out); e != nil {
+		return out, e
+	}
+	return out, nil
+}
+
+type retentionRepository interface {
+	Cleanup(context.Context, time.Time, int) error
+}
+
+// Cleanup removes expired idempotency replays (24h), rate-limit windows (24h),
+// confirmed outbox rows (90d), and non-feedback audit records (12m) in bounded batches.
+func (s *Service) Cleanup(ctx context.Context, limit int) error {
+	if limit == 0 {
+		limit = 200
+	}
+	if limit < 1 || limit > 500 {
+		return ErrInput
+	}
+	cleaner, ok := s.Repo.(retentionRepository)
+	if !ok {
+		return ErrUnavailable
+	}
+	return cleaner.Cleanup(ctx, s.now(), limit)
 }
 
 // Check is read-only. Pending content is handed off by the content module's outbox.
@@ -101,7 +315,7 @@ func (s *Service) Check(ctx context.Context, school, kind, title, body string) (
 		return "", ErrInput
 	}
 	var policy Policy
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		view, err := effectivePolicy(t, school, kind)
 		policy = view.Effective
 		return err
@@ -131,13 +345,16 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 			return out, ErrInput
 		}
 	}
+	if in.Evidence == nil {
+		in.Evidence = []string{}
+	}
 	if in.Kind == "report" {
 		if in.PreviousTaskID != "" {
 			return out, ErrInput
 		}
 		return s.submitReport(ctx, p, key, in)
 	}
-	object, e := s.Content.Inspect(ctx, p, in.ObjectID)
+	object, e := s.inspect(ctx, p, in.ObjectID)
 	if e != nil {
 		return out, e
 	}
@@ -154,21 +371,8 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 		return out, e
 	}
 	if in.Kind == "appeal" {
-		if in.PreviousTaskID == "" {
+		if !keyOK(in.PreviousTaskID) {
 			return out, ErrInput
-		}
-		err := s.Repo.Transaction(ctx, func(t Transaction) error {
-			previous, e := t.Task(in.PreviousTaskID)
-			if e != nil {
-				return e
-			}
-			if previous.Submission.ObjectID != in.ObjectID || previous.Decision == nil || (previous.State != "applied" && previous.State != "failed") {
-				return ErrConflict
-			}
-			return nil
-		})
-		if err != nil {
-			return out, err
 		}
 	} else if in.PreviousTaskID != "" {
 		return out, ErrInput
@@ -180,49 +384,10 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	}
 	rk := digest([]string{p.Subject, in.Kind, in.ObjectID, key})
 	h := digest(in)
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
-		if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
-			return e
-		}
-		cached, ok, e := replay(t, rk, h, s.now())
-		if e != nil {
-			return e
-		}
-		if ok {
-			out = cached
-			return nil
-		}
-		task, e := t.Active(p.Subject, in.ObjectID, in.Kind)
-		if e != nil && !errors.Is(e, ErrNotFound) {
-			return e
-		}
-		if e == nil && task.State != "waiting" {
-			return ErrConflict
-		}
-		if errors.Is(e, ErrNotFound) {
-			task = Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: rk, SchoolID: object.SchoolID, Owner: p.Subject, Submission: in, ObjectRevision: object.Revision, State: "waiting", CreatedAt: s.now()}
-		} else {
-			if in.Reason != task.Submission.Reason {
-				task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)
-			}
-			task.Submission.Evidence = append(task.Submission.Evidence, in.Evidence...)
-			if len(task.Submission.Evidence) > 20 {
-				return ErrInput
-			}
-			if in.Kind == "edit_request" {
-				task.Submission.ProposedBody = in.ProposedBody
-			}
-		}
-		task.Revision++
-		task.UpdatedAt = s.now()
-		if e = t.SaveTask(task); e != nil {
-			return e
-		}
-		if e = s.record(t, rk, h, "submitted", p, task); e != nil {
-			return e
-		}
-		out = viewFor(p, task)
-		return nil
+	err := s.tx(ctx, func(t Transaction) error {
+		var txErr error
+		out, txErr = s.upsertSubmissionTx(t, p, rk, h, in, &object, ErrUnavailable, nil)
+		return txErr
 	})
 	return out, err
 }
@@ -230,11 +395,11 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 // Track accepts a durable content event, without copying full content into public records.
 func (s *Service) Track(ctx context.Context, eventID string, object Object) (TaskView, error) {
 	var out TaskView
-	if eventID == "" || object.ID == "" || object.Revision < 1 {
+	if !keyOK(eventID) || !keyOK(object.ID) || !keyOK(object.SchoolID) || strings.TrimSpace(object.Owner) == "" || !textOK(object.Owner, 256) || object.Revision < 1 || (object.Kind != "" && !slices.Contains([]string{"course", "mentor", "reply", "resource"}, object.Kind)) {
 		return out, ErrInput
 	}
 	id := digest([]string{"content", eventID})
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(id); e != nil {
 			return e
 		}
@@ -260,7 +425,7 @@ func (s *Service) Track(ctx context.Context, eventID string, object Object) (Tas
 }
 func (s *Service) Get(ctx context.Context, p Principal, id string) (TaskView, error) {
 	var out TaskView
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		task, e := t.Task(id)
 		if e != nil {
 			return e
@@ -273,6 +438,15 @@ func (s *Service) Get(ctx context.Context, p Principal, id string) (TaskView, er
 		out = viewFor(p, task)
 		if task.ContentOwner == p.Subject && task.Owner != p.Subject {
 			out = recipientView(p, task)
+		}
+		if out.CanAppeal {
+			appealed, e := appealedTasks(t, []string{task.ID})
+			if e != nil {
+				return e
+			}
+			if appealed[task.ID] {
+				out.CanAppeal = false
+			}
 		}
 		return nil
 	})
@@ -298,12 +472,12 @@ func isSelfFavorableDecision(p Principal, task Task, objectOwner, action string)
 func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in Decide) (TaskView, error) {
 	var out TaskView
 	d := in.Decision
-	if !keyOK(key) || in.Revision < 1 || !slices.Contains([]string{"publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || strings.TrimSpace(d.Reason) == "" || !textOK(d.Reason, 2000) || d.Body != nil && !textOK(*d.Body, 16000) {
+	if !keyOK(key) || in.Revision < 1 || !validateDecision(d) {
 		return out, ErrInput
 	}
 	rk := digest([]string{p.Subject, "decide", id, key})
 	h := digest(in)
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(id); e != nil {
 			return e
 		}
@@ -334,10 +508,10 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 				return ErrForbidden
 			}
 		}
-		if task.Revision != in.Revision || task.State != "waiting" {
+		if !canDecideTask(task, in.Revision) {
 			return ErrConflict
 		}
-		object, e := s.Content.Inspect(ctx, p, task.Submission.ObjectID)
+		object, e := s.inspect(ctx, p, task.Submission.ObjectID)
 		if e != nil {
 			return e
 		}
@@ -346,31 +520,42 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 				return e
 			}
 		}
-		if object.Kind == "resource" && !slices.Contains([]string{"publish", "hide", "restore", "delete", "dismiss"}, d.Action) {
-			return ErrInput
-		}
-		if object.SchoolID != task.SchoolID || object.Revision != d.Revision || d.ObjectID != object.ID {
-			return ErrConflict
+		if e = validateDecisionTarget(object, task, d); e != nil {
+			return e
 		}
 		d.ID = rk
 		task.Decision = &d
 		task.DecidedBy = p.Subject
+		task.RetriedBy = ""
+		task.ErrorCode = ""
+		task.Attempts = 0
+		task.LeaseUntil = time.Time{}
 		now := s.now()
 		task.DecidedAt = &now
 		task.State = "decided"
-		if d.Action == "dismiss" {
-			task.State = "applied"
-		}
 		task.Revision++
-		task.UpdatedAt = s.now()
-		task.NextAttempt = s.now()
-		if e = t.SaveTask(task); e != nil {
-			return e
-		}
-		if task.State == "applied" {
+		task.UpdatedAt = now
+		task.NextAttempt = now
+		if d.Action == "dismiss" {
+			if e = t.Event(Event{Result: "unknown", Data: resultData(task), ID: rk, Type: "moderation.decided.v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Actor: p.Subject, Revision: task.Revision, At: now}); e != nil {
+				return e
+			}
+			task.State = "applied"
+			task.Revision++
+			if e = t.SaveTask(task); e != nil {
+				return e
+			}
 			if e = s.recordResult(t, task); e != nil {
 				return e
 			}
+			if e = t.SaveReplay(rk, Replay{Digest: h, TaskID: task.ID, View: viewFor(p, task), Until: now.Add(24 * time.Hour)}); e != nil {
+				return e
+			}
+			out = viewFor(p, task)
+			return nil
+		}
+		if e = t.SaveTask(task); e != nil {
+			return e
 		}
 		if e = s.record(t, rk, h, "decided", p, task); e != nil {
 			return e
@@ -384,6 +569,7 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 	if !keyOK(key) {
 		return ErrInput
 	}
+	legacyHash := digest(policy)
 	if !keyOK(policy.SchoolID) || !slices.Contains([]string{"course", "mentor", "reply", "resource"}, policy.Kind) || !slices.Contains([]string{"published", "pending", "review"}, policy.Mode) {
 		return ErrInput
 	}
@@ -397,13 +583,13 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 	if e := s.auth(ctx, p, "configure", policy.SchoolID); e != nil {
 		return e
 	}
-	return s.Repo.Transaction(ctx, func(t Transaction) error {
+	return s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock("policy:" + policy.SchoolID + ":" + policy.Kind); e != nil {
 			return e
 		}
 		cached, err := t.Replay(replayKey)
 		if err == nil && s.now().Before(cached.Until) {
-			if cached.Digest != requestHash {
+			if cached.Digest != requestHash && cached.Digest != legacyHash {
 				return ErrConflict
 			}
 			return nil
@@ -429,9 +615,21 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 	})
 }
 
+type appealLookupTransaction interface {
+	HasAppeals([]string) (map[string]bool, error)
+}
+
+func appealedTasks(t Transaction, ids []string) (map[string]bool, error) {
+	port, ok := t.(appealLookupTransaction)
+	if !ok || len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	return port.HasAppeals(ids)
+}
+
 func viewFor(p Principal, task Task) TaskView {
 	out := view(task)
-	out.CanAppeal = p.Subject != "" && task.ContentOwner == p.Subject && task.Decision != nil && (task.State == "applied" || task.State == "failed")
+	out.CanAppeal = p.Subject != "" && task.ContentOwner == p.Subject && task.Decision != nil && task.State == "applied" && task.Submission.Kind != "appeal"
 	return out
 }
 
