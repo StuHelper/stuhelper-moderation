@@ -22,6 +22,9 @@ func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) (
 		return nil, ErrInput
 	}
 	f.Owner = p.Subject
+	if f.State != "" && !slices.Contains([]string{"waiting", "decided", "applied", "failed"}, f.State) {
+		return nil, ErrInput
+	}
 	if f.Kind != "" && !slices.Contains([]string{"review", "report", "edit_request", "delete_request", "appeal"}, f.Kind) {
 		return nil, ErrInput
 	}
@@ -89,7 +92,14 @@ type BatchPreview struct {
 	Items        []BatchOutcome `json:"items"`
 }
 
-func batchToken(p Principal, in BatchRequest) string { return digest([]any{p.Subject, in.Items}) }
+func batchToken(p Principal, in BatchRequest) string {
+	normalized := make([]BatchItem, len(in.Items))
+	for i, item := range in.Items {
+		item.Decision.ID = ""
+		normalized[i] = item
+	}
+	return digest([]any{p.Subject, normalized})
+}
 func validBatch(in BatchRequest) bool {
 	if len(in.Items) < 1 || len(in.Items) > 20 {
 		return false

@@ -38,6 +38,7 @@ scenario_tests:
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
     - submission_safety_test.go#TestAppealEnforcesSingleAppealAppliedStateAndRecusal
     - submission_safety_test.go#TestAppealMigrationPreservesHistoricalDuplicates
+    - contract_alignment_test.go#TestOpenAPIAndHTTPHandlerAlignment
   CM-12:
     - batch_validation_runtime_test.go#TestReplacedDecisionRejectsStaleWorkerResult
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
