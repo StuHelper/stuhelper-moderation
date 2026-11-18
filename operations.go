@@ -38,17 +38,32 @@ func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) (
 		f.Owner = ""
 	}
 	out := []TaskView{}
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		tasks, e := t.FilteredTasks(f)
 		if e != nil {
 			return e
 		}
+		var candidateIDs []string
 		for _, task := range tasks {
 			v := viewFor(p, task)
 			if !f.Admin {
 				v = recipientView(p, task)
 			}
+			if v.CanAppeal {
+				candidateIDs = append(candidateIDs, task.ID)
+			}
 			out = append(out, v)
+		}
+		if len(candidateIDs) > 0 {
+			appealed, e := appealedTasks(t, candidateIDs)
+			if e != nil {
+				return e
+			}
+			for i := range out {
+				if appealed[out[i].ID] {
+					out[i].CanAppeal = false
+				}
+			}
 		}
 		return nil
 	})
@@ -104,7 +119,7 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 			e = ErrConflict
 		}
 		if e == nil {
-			object, err := s.Content.Inspect(ctx, p, task.Submission.ObjectID)
+			object, err := s.inspect(ctx, p, task.Submission.ObjectID)
 			e = err
 			if e == nil && (object.ID != item.Decision.ObjectID || object.Revision != item.Decision.Revision) {
 				e = ErrConflict
@@ -133,7 +148,7 @@ func (s *Service) DecideBatch(ctx context.Context, p Principal, key string, in B
 	}
 	rk := digest([]string{p.Subject, "batch", key})
 	hash := batchToken(p, in)
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(rk); e != nil {
 			return e
 		}
