@@ -69,5 +69,7 @@ scenario_tests:
     - feedback_test.go#TestFeedbackReplyUnknownIsNeverResentAndRetentionDeletesMaterials
     - feedback_test.go#TestFeedbackLeapDayRetentionMatchesDatabaseCalendarMonths
     - feedback_test.go#TestFeedbackRetentionUsesUTCRegardlessOfDatabaseTimezone
+    - feedback_safety_test.go#TestFeedbackSlowCleanupBlobDeleteDoesNotBlockConcurrentReplyOrUpdate
   CM-21:
     - feedback_test.go#TestFeedbackRateCapacityAndCursor
+    - feedback_safety_test.go#TestFeedbackValidationEnforcesAttachmentLimitsSenderNormalizationAndHeaderSafety

@@ -53,7 +53,11 @@ func (r *FeedbackRepository) Transaction(ctx context.Context, run func(f.Tx) err
 	return feedbackError(tx.Commit())
 }
 func (t *feedbackTx) Lock() error {
-	_, e := t.tx.ExecContext(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended('moderation:feedback',0))`)
+	_, e := t.tx.ExecContext(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended('moderation:feedback:intake',0))`)
+	return feedbackError(e)
+}
+func (t *feedbackTx) LockCase(id string) error {
+	_, e := t.tx.ExecContext(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "moderation:feedback:case:"+id)
 	return feedbackError(e)
 }
 func decodeFeedback(b []byte) (f.Message, error) {
