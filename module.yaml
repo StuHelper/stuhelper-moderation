@@ -32,6 +32,8 @@ scenario_tests:
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
   CM-12:
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
+    - batch_validation_runtime_test.go#TestBatchValidationSameObjectConflictRedecideAndRevokedModeratorRetry
+    - batch_validation_runtime_test.go#TestInputValidationFeedbackClockDownloadAuditAndCheckRuntime
   CM-13:
     - object_access_test.go#TestNotificationTaskBatchKeepsReceiptPermissions
     - operations_test.go#TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence

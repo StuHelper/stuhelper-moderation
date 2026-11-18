@@ -77,6 +77,7 @@ type Task struct {
 	UpdatedAt      time.Time  `json:"updated_at"`
 	Decision       *Decision  `json:"decision,omitempty"`
 	DecidedBy      string     `json:"decided_by,omitempty"`
+	RetriedBy      string     `json:"retried_by,omitempty"`
 	DecidedAt      *time.Time `json:"decided_at,omitempty"`
 	Attempts       int        `json:"attempts"`
 	NextAttempt    time.Time  `json:"next_attempt"`
