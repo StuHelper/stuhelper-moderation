@@ -3,7 +3,10 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +17,133 @@ import (
 )
 
 var _ m.AuditReader = (*Repository)(nil)
+
+func encodeAuditSnapshot(epoch, expires int64, visibility string) (string, error) {
+	prefix := strconv.FormatInt(epoch, 10) + "|" + strconv.FormatInt(expires, 10) + "|"
+	if len(prefix)+len(visibility) <= 256 {
+		return prefix + visibility, nil
+	}
+	parts := strings.Split(visibility, ":")
+	if len(parts) != 3 {
+		return "", m.ErrUnavailable
+	}
+	xmin, err := strconv.ParseUint(parts[0], 10, 64)
+	if err != nil {
+		return "", m.ErrUnavailable
+	}
+	xmax, err := strconv.ParseUint(parts[1], 10, 64)
+	if err != nil || xmax < xmin {
+		return "", m.ErrUnavailable
+	}
+	var xips []uint64
+	if parts[2] != "" {
+		items := strings.Split(parts[2], ",")
+		xips = make([]uint64, 0, len(items))
+		for _, item := range items {
+			x, err := strconv.ParseUint(item, 10, 64)
+			if err != nil || x < xmin || x >= xmax {
+				return "", m.ErrUnavailable
+			}
+			xips = append(xips, x)
+		}
+		slices.Sort(xips)
+		for i := 1; i < len(xips); i++ {
+			if xips[i] <= xips[i-1] {
+				return "", m.ErrUnavailable
+			}
+		}
+	}
+	buf := make([]byte, 0, 16+len(xips)*2)
+	buf = binary.AppendUvarint(buf, xmin)
+	buf = binary.AppendUvarint(buf, xmax-xmin)
+	buf = binary.AppendUvarint(buf, uint64(len(xips)))
+	prev := xmin
+	for i, x := range xips {
+		if i == 0 {
+			buf = binary.AppendUvarint(buf, x-prev)
+		} else {
+			buf = binary.AppendUvarint(buf, x-prev-1)
+		}
+		prev = x
+	}
+	compact := prefix + "~" + base64.RawURLEncoding.EncodeToString(buf)
+	if len(compact) > 256 {
+		return "", m.ErrUnavailable
+	}
+	return compact, nil
+}
+
+func decodeAuditVisibility(token string) (string, error) {
+	if !strings.HasPrefix(token, "~") {
+		for _, r := range token {
+			if (r < '0' || r > '9') && r != ':' && r != ',' {
+				return "", m.ErrUnavailable
+			}
+		}
+		return token, nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(token[1:])
+	if err != nil {
+		return "", m.ErrUnavailable
+	}
+	readVarint := func() (uint64, bool) {
+		v, n := binary.Uvarint(raw)
+		if n <= 0 {
+			return 0, false
+		}
+		raw = raw[n:]
+		return v, true
+	}
+	xmin, ok := readVarint()
+	if !ok {
+		return "", m.ErrUnavailable
+	}
+	span, ok := readVarint()
+	if !ok || xmin+span < xmin {
+		return "", m.ErrUnavailable
+	}
+	xmax := xmin + span
+	count, ok := readVarint()
+	if !ok || count > 512 {
+		return "", m.ErrUnavailable
+	}
+	var b strings.Builder
+	b.WriteString(strconv.FormatUint(xmin, 10))
+	b.WriteByte(':')
+	b.WriteString(strconv.FormatUint(xmax, 10))
+	b.WriteByte(':')
+	prev := xmin
+	for i := uint64(0); i < count; i++ {
+		delta, ok := readVarint()
+		if !ok {
+			return "", m.ErrUnavailable
+		}
+		var x uint64
+		if i == 0 {
+			x = prev + delta
+			if x < prev {
+				return "", m.ErrUnavailable
+			}
+		} else {
+			x = prev + delta + 1
+			if x <= prev {
+				return "", m.ErrUnavailable
+			}
+		}
+		if x >= xmax {
+			return "", m.ErrUnavailable
+		}
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(strconv.FormatUint(x, 10))
+		prev = x
+	}
+	if len(raw) != 0 {
+		return "", m.ErrUnavailable
+	}
+	return b.String(), nil
+}
 
 func auditClean(s string, max int) bool {
 	if len(s) == 0 || len(s) > max || !utf8.ValidString(s) {
@@ -71,6 +201,10 @@ func (r *Repository) ReadAudit(ctx context.Context, q m.AuditRequest) (m.AuditBa
 		if err = tx.QueryRowContext(ctx, `SELECT pg_current_snapshot()::text`).Scan(&visibility); err != nil {
 			return out, safe(err)
 		}
+		out.Snapshot, err = encodeAuditSnapshot(epoch, expires, visibility)
+		if err != nil {
+			return m.AuditBatch{}, err
+		}
 	} else {
 		parts := strings.Split(q.Snapshot, "|")
 		if len(parts) != 3 || parts[0] != strconv.FormatInt(epoch, 10) {
@@ -80,9 +214,12 @@ func (r *Repository) ReadAudit(ctx context.Context, q m.AuditRequest) (m.AuditBa
 		if err != nil || expires <= now.Unix() || expires > now.Add(15*time.Minute).Unix() {
 			return out, m.ErrUnavailable
 		}
-		visibility = parts[2]
+		visibility, err = decodeAuditVisibility(parts[2])
+		if err != nil {
+			return out, err
+		}
+		out.Snapshot = q.Snapshot
 	}
-	out.Snapshot = strconv.FormatInt(epoch, 10) + "|" + strconv.FormatInt(expires, 10) + "|" + visibility
 	if len(out.Snapshot) > 256 {
 		return m.AuditBatch{}, m.ErrUnavailable
 	}
@@ -109,7 +246,7 @@ func (r *Repository) ReadAudit(ctx context.Context, q m.AuditRequest) (m.AuditBa
  WHERE (s.school='*' OR a.school=s.school) AND (s."group"='*' OR a.group_id=s."group") AND (s.module='*' OR a.module=s.module))
  AND ($3='' OR actor=$3) AND ($4='' OR target=$4) AND ($5='' OR action=$5)
  AND ($6::timestamptz IS NULL OR time >= $6) AND time < $7
- AND ($8::timestamptz IS NULL OR (time,'moderation' COLLATE "C",id COLLATE "C") < ($8,$9::text COLLATE "C",$10::text COLLATE "C"))
+ AND ($8::timestamptz IS NULL OR (time <= $8 AND (time,'moderation' COLLATE "C",id COLLATE "C") < ($8,$9::text COLLATE "C",$10::text COLLATE "C")))
  ORDER BY time DESC,id COLLATE "C" DESC LIMIT $11`, visibility, scopes, q.Actor, q.Target, q.Action, from, q.Until, before, source, id, q.Limit)
 	if err != nil {
 		return out, safe(err)
