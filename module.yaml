@@ -28,6 +28,8 @@ scenario_tests:
     - dependency_worker_test.go#TestMissingDependenciesReturnUnavailableWithoutPanic
     - dependency_worker_test.go#TestWorkerShutdownPersistsAppliedResultInspectHasTimeoutAndRetryResetsBackoff
     - privacy_events_test.go#TestWorkNormalizesWrappedAndMultilineErrorsWithoutPoisonLoop
+    - linked_reports_test.go#TestRelatedWaitingCountAndLinkedReportResolution
+    - linked_reports_test.go#TestDismissCascadesOnlyForReportOrReviewAndRespectsObjectRevision
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped

@@ -46,6 +46,7 @@ END $$;
 CREATE TRIGGER protect_legacy_repeat_appeal BEFORE INSERT OR UPDATE ON moderation.tasks
  FOR EACH ROW EXECUTE FUNCTION moderation.protect_legacy_repeat_appeal();
 CREATE INDEX IF NOT EXISTS moderation_school_queue ON moderation.tasks(school_id,state,id);
+CREATE INDEX IF NOT EXISTS moderation_object_state ON moderation.tasks(school_id,object_id,state,id);
 CREATE INDEX IF NOT EXISTS moderation_owner_queue ON moderation.tasks(owner,id);
 CREATE INDEX IF NOT EXISTS moderation_owner_created ON moderation.tasks(owner,created_at DESC,id DESC);
 CREATE INDEX IF NOT EXISTS moderation_content_owner_created ON moderation.tasks(content_owner,created_at DESC,id DESC);

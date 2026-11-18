@@ -62,6 +62,9 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 		// Persist the outcome even if shutdown canceled ctx after Apply executed.
 		persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		err = s.tx(persistCtx, func(t Transaction) error {
+			if e := t.Lock("object:" + task.SchoolID + ":" + task.Submission.ObjectID); e != nil {
+				return e
+			}
 			if e := t.Lock(task.ID); e != nil {
 				return e
 			}
@@ -99,7 +102,13 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 			if e := t.SaveTask(current); e != nil {
 				return e
 			}
-			if current.State == "applied" || current.State == "failed" {
+			if current.State == "applied" {
+				if e := s.recordResult(t, current); e != nil {
+					return e
+				}
+				return s.resolveRelatedReports(t, current)
+			}
+			if current.State == "failed" {
 				return s.recordResult(t, current)
 			}
 			return nil

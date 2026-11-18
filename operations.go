@@ -46,11 +46,34 @@ func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) (
 		if e != nil {
 			return e
 		}
+		var waitingCounts map[string]int
+		if f.Admin && len(tasks) > 0 {
+			if port, ok := t.(RelatedTaskTransaction); ok {
+				seen := map[string]bool{}
+				objectIDs := make([]string, 0, len(tasks))
+				for _, task := range tasks {
+					if !seen[task.Submission.ObjectID] {
+						seen[task.Submission.ObjectID] = true
+						objectIDs = append(objectIDs, task.Submission.ObjectID)
+					}
+				}
+				waitingCounts, e = port.RelatedWaitingCounts(f.School, objectIDs)
+				if e != nil {
+					return e
+				}
+			}
+		}
 		var candidateIDs []string
 		for _, task := range tasks {
 			v := viewFor(p, task)
 			if !f.Admin {
 				v = recipientView(p, task)
+			} else if waitingCounts != nil {
+				n := waitingCounts[task.Submission.ObjectID]
+				if task.State == "waiting" && n > 0 {
+					n--
+				}
+				v.RelatedWaitingCount = &n
 			}
 			if v.CanAppeal {
 				candidateIDs = append(candidateIDs, task.ID)
@@ -119,7 +142,7 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 		return out, ErrInput
 	}
 	out.PreviewToken = batchToken(p, in)
-	mutatingObjects := map[string]bool{}
+	seenObjects := map[string]bool{}
 	for _, item := range in.Items {
 		result := BatchOutcome{ID: item.ID, State: "ready"}
 		var task Task
@@ -167,11 +190,26 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 				e = validateDecisionTarget(object, task, item.Decision)
 			}
 		}
-		if e == nil && item.Decision.Action != "dismiss" {
-			if mutatingObjects[object.ID] {
+		if e == nil {
+			objectKey := task.SchoolID + "\x00" + task.Submission.ObjectID
+			if seenObjects[objectKey] {
 				e = ErrConflict
 			} else {
-				mutatingObjects[object.ID] = true
+				e = s.tx(ctx, func(t Transaction) error {
+					if port, ok := t.(RelatedTaskTransaction); ok {
+						inFlight, err := port.HasDecidedTaskOnObject(task.SchoolID, task.Submission.ObjectID, task.ID)
+						if err != nil {
+							return err
+						}
+						if inFlight {
+							return ErrConflict
+						}
+					}
+					return nil
+				})
+			}
+			if e == nil {
+				seenObjects[objectKey] = true
 			}
 		}
 		if e != nil {

@@ -699,18 +699,21 @@ type TaskView struct {
 	CanAppeal *bool `json:"can_appeal,omitempty"`
 
 	// ContentKind Owning content type, including resource for learning materials.
-	ContentKind    *string        `json:"content_kind,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	Decision       *Decision      `json:"decision,omitempty"`
-	ErrorCode      *string        `json:"error_code,omitempty"`
-	Id             string         `json:"id"`
-	ObjectRevision int64          `json:"object_revision"`
-	PreviousTaskId *string        `json:"previous_task_id,omitempty"`
-	Revision       int64          `json:"revision"`
-	SchoolId       string         `json:"school_id"`
-	State          string         `json:"state"`
-	Submission     TaskSubmission `json:"submission"`
-	UpdatedAt      time.Time      `json:"updated_at"`
+	ContentKind    *string   `json:"content_kind,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	Decision       *Decision `json:"decision,omitempty"`
+	ErrorCode      *string   `json:"error_code,omitempty"`
+	Id             string    `json:"id"`
+	ObjectRevision int64     `json:"object_revision"`
+	PreviousTaskId *string   `json:"previous_task_id,omitempty"`
+
+	// RelatedWaitingCount Number of other waiting tasks on the same target object, visible only to authorized moderators.
+	RelatedWaitingCount *int           `json:"related_waiting_count,omitempty"`
+	Revision            int64          `json:"revision"`
+	SchoolId            string         `json:"school_id"`
+	State               string         `json:"state"`
+	Submission          TaskSubmission `json:"submission"`
+	UpdatedAt           time.Time      `json:"updated_at"`
 }
 
 // ListFeedbackParams defines parameters for ListFeedback.

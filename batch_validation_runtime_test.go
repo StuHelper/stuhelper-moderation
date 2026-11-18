@@ -92,32 +92,24 @@ func TestBatchValidationSameObjectConflictRedecideAndRevokedModeratorRetry(t *te
 		t.Fatalf("PreviewBatch did not flag duplicate mutating action on same ObjectID: %+v %v", previewSameObj, err)
 	}
 
-	// 2. Sequential Decide before Work causes second report to hit failed(conflict), which can then be re-decided against latest revision.
+	// A second decision cannot race an in-flight one. An external content edit
+	// can still invalidate the first decision before its delivery.
 	customContent.kind = "course"
 	if _, err = s.Decide(ctx, modA, r1.ID, "dec-r1", m.Decide{Revision: r1.Revision, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "hide", Reason: "Hide"}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.Decide(ctx, modA, r2.ID, "dec-r2", m.Decide{Revision: r2.Revision, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "hide", Reason: "Hide"}}); err != nil {
-		t.Fatal(err)
+	if _, err = s.Decide(ctx, modA, r2.ID, "dec-r2", m.Decide{Revision: r2.Revision, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "hide", Reason: "Hide"}}); !errors.Is(err, m.ErrConflict) {
+		t.Fatalf("second in-flight decision: %v", err)
 	}
+	base.mu.Lock()
+	base.revision++
+	base.mu.Unlock()
 	if _, err = s.Work(ctx, 10); err != nil {
 		t.Fatal(err)
 	}
-	r1After, err := s.Get(ctx, modA, r1.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	r2After, err := s.Get(ctx, modA, r2.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var conflicted m.TaskView
-	if r1After.State == "applied" && r2After.State == "failed" && r2After.ErrorCode == "conflict" {
-		conflicted = r2After
-	} else if r2After.State == "applied" && r1After.State == "failed" && r1After.ErrorCode == "conflict" {
-		conflicted = r1After
-	} else {
-		t.Fatalf("expected one applied and one failed(conflict), got r1=%+v r2=%+v", r1After, r2After)
+	conflicted, err := s.Get(ctx, modA, r1.ID)
+	if err != nil || conflicted.State != "failed" || conflicted.ErrorCode != "conflict" {
+		t.Fatalf("stale decision: %+v %v", conflicted, err)
 	}
 	resolved, err := s.Decide(ctx, modB, conflicted.ID, "redecide-conflicted", m.Decide{
 		Revision: conflicted.Revision,

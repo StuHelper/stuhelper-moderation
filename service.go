@@ -60,6 +60,13 @@ func keyOK(v string) bool {
 func textOK(v string, max int) bool {
 	return utf8.ValidString(v) && utf8.RuneCountInString(v) <= max && !strings.ContainsRune(v, 0)
 }
+
+type RelatedTaskTransaction interface {
+	RelatedWaitingCounts(school string, objectIDs []string) (map[string]int, error)
+	WaitingReportsByObject(school, objectID string, maxObjectRevision int64, excludeID string) ([]Task, error)
+	HasDecidedTaskOnObject(school, objectID, excludeID string) (bool, error)
+}
+
 func cleanToken(v string, max int) bool {
 	if len(v) > max || !utf8.ValidString(v) {
 		return false
@@ -122,7 +129,85 @@ func view(t Task) TaskView {
 	if sub.Evidence == nil {
 		sub.Evidence = []string{}
 	}
-	return TaskView{false, sub.PreviousTaskID, t.ContentKind, t.ID, t.SchoolID, sub, t.ObjectRevision, t.Revision, t.State, t.CreatedAt, t.UpdatedAt, decision, t.ErrorCode}
+	return TaskView{
+		PreviousTaskID: sub.PreviousTaskID,
+		ContentKind:    t.ContentKind,
+		ID:             t.ID,
+		SchoolID:       t.SchoolID,
+		Submission:     sub,
+		ObjectRevision: t.ObjectRevision,
+		Revision:       t.Revision,
+		State:          t.State,
+		CreatedAt:      t.CreatedAt,
+		UpdatedAt:      t.UpdatedAt,
+		Decision:       decision,
+		ErrorCode:      t.ErrorCode,
+	}
+}
+
+func relatedWaitingCountFor(t Transaction, task Task) (*int, error) {
+	port, ok := t.(RelatedTaskTransaction)
+	if !ok {
+		return nil, nil
+	}
+	counts, err := port.RelatedWaitingCounts(task.SchoolID, []string{task.Submission.ObjectID})
+	if err != nil {
+		return nil, err
+	}
+	n := counts[task.Submission.ObjectID]
+	if task.State == "waiting" && n > 0 {
+		n--
+	}
+	return &n, nil
+}
+
+func (s *Service) resolveRelatedReports(t Transaction, primary Task) error {
+	if primary.Decision == nil {
+		return nil
+	}
+	port, ok := t.(RelatedTaskTransaction)
+	if !ok {
+		return nil
+	}
+	siblings, err := port.WaitingReportsByObject(primary.SchoolID, primary.Submission.ObjectID, primary.Decision.Revision, primary.ID)
+	if err != nil {
+		return err
+	}
+	for _, candidate := range siblings {
+		if err = t.Lock(candidate.ID); err != nil {
+			return err
+		}
+		sib, err := t.Task(candidate.ID)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return err
+		}
+		if sib.State != "waiting" || sib.Submission.Kind != "report" || sib.ObjectRevision > primary.Decision.Revision {
+			continue
+		}
+		linked := *primary.Decision
+		now := s.now()
+		sib.Decision = &linked
+		sib.DecidedBy = primary.DecidedBy
+		sib.DecidedAt = primary.DecidedAt
+		if sib.DecidedAt == nil {
+			sib.DecidedAt = &now
+		}
+		sib.State = "applied"
+		sib.ErrorCode = ""
+		sib.LeaseUntil = time.Time{}
+		sib.Revision++
+		sib.UpdatedAt = now
+		if err = t.SaveTask(sib); err != nil {
+			return err
+		}
+		if err = s.recordResult(t, sib); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func (s *Service) auth(ctx context.Context, p Principal, action, school string) error {
 	if p.Subject == "" {
@@ -430,14 +515,25 @@ func (s *Service) Get(ctx context.Context, p Principal, id string) (TaskView, er
 		if e != nil {
 			return e
 		}
+		isAdmin := false
 		if (task.Owner != p.Subject && task.ContentOwner != p.Subject) || p.Subject == "" {
 			if e = s.auth(ctx, p, "manage", task.SchoolID); e != nil {
 				return ErrNotFound
 			}
+			isAdmin = true
+		} else if !(task.ContentOwner == p.Subject && task.Owner != p.Subject) {
+			isAdmin = s.auth(ctx, p, "manage", task.SchoolID) == nil
 		}
 		out = viewFor(p, task)
 		if task.ContentOwner == p.Subject && task.Owner != p.Subject {
 			out = recipientView(p, task)
+		}
+		if isAdmin {
+			count, err := relatedWaitingCountFor(t, task)
+			if err != nil {
+				return err
+			}
+			out.RelatedWaitingCount = count
 		}
 		if out.CanAppeal {
 			appealed, e := appealedTasks(t, []string{task.ID})
@@ -478,7 +574,14 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 	rk := digest([]string{p.Subject, "decide", id, key})
 	h := digest(in)
 	err := s.tx(ctx, func(t Transaction) error {
-		if e := t.Lock(id); e != nil {
+		initial, e := t.Task(id)
+		if e != nil {
+			return e
+		}
+		if e = t.Lock("object:" + initial.SchoolID + ":" + initial.Submission.ObjectID); e != nil {
+			return e
+		}
+		if e = t.Lock(id); e != nil {
 			return e
 		}
 		task, e := t.Task(id)
@@ -510,6 +613,15 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 		}
 		if !canDecideTask(task, in.Revision) {
 			return ErrConflict
+		}
+		if port, ok := t.(RelatedTaskTransaction); ok {
+			inFlight, err := port.HasDecidedTaskOnObject(task.SchoolID, task.Submission.ObjectID, task.ID)
+			if err != nil {
+				return err
+			}
+			if inFlight {
+				return ErrConflict
+			}
 		}
 		object, e := s.inspect(ctx, p, task.Submission.ObjectID)
 		if e != nil {
@@ -548,19 +660,26 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 			if e = s.recordResult(t, task); e != nil {
 				return e
 			}
-			if e = t.SaveReplay(rk, Replay{Digest: h, TaskID: task.ID, View: viewFor(p, task), Until: now.Add(24 * time.Hour)}); e != nil {
-				return e
+			if task.Submission.Kind == "report" || task.Submission.Kind == "review" {
+				if e = s.resolveRelatedReports(t, task); e != nil {
+					return e
+				}
 			}
-			out = viewFor(p, task)
-			return nil
-		}
-		if e = t.SaveTask(task); e != nil {
-			return e
-		}
-		if e = s.record(t, rk, h, "decided", p, task); e != nil {
+		} else if e = t.SaveTask(task); e != nil {
 			return e
 		}
 		out = viewFor(p, task)
+		count, err := relatedWaitingCountFor(t, task)
+		if err != nil {
+			return err
+		}
+		out.RelatedWaitingCount = count
+		if d.Action == "dismiss" {
+			return t.SaveReplay(rk, Replay{Digest: h, TaskID: task.ID, View: out, Until: now.Add(24 * time.Hour)})
+		}
+		if e = s.recordWithView(t, rk, h, "decided", p, task, out); e != nil {
+			return e
+		}
 		return nil
 	})
 	return out, err
