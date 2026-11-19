@@ -19,21 +19,25 @@ import (
 
 // Defines values for DecisionAction.
 const (
-	DecisionActionDelete    DecisionAction = "delete"
-	DecisionActionDismiss   DecisionAction = "dismiss"
-	DecisionActionEdit      DecisionAction = "edit"
-	DecisionActionFeature   DecisionAction = "feature"
-	DecisionActionHide      DecisionAction = "hide"
-	DecisionActionIdentity  DecisionAction = "identity"
-	DecisionActionPublish   DecisionAction = "publish"
-	DecisionActionReassign  DecisionAction = "reassign"
-	DecisionActionRestore   DecisionAction = "restore"
-	DecisionActionUnfeature DecisionAction = "unfeature"
+	DecisionActionApproveAppend DecisionAction = "approve_append"
+	DecisionActionDelete        DecisionAction = "delete"
+	DecisionActionDismiss       DecisionAction = "dismiss"
+	DecisionActionEdit          DecisionAction = "edit"
+	DecisionActionFeature       DecisionAction = "feature"
+	DecisionActionHide          DecisionAction = "hide"
+	DecisionActionIdentity      DecisionAction = "identity"
+	DecisionActionPublish       DecisionAction = "publish"
+	DecisionActionReassign      DecisionAction = "reassign"
+	DecisionActionRejectAppend  DecisionAction = "reject_append"
+	DecisionActionRestore       DecisionAction = "restore"
+	DecisionActionUnfeature     DecisionAction = "unfeature"
 )
 
 // Valid indicates whether the value is a known member of the DecisionAction enum.
 func (e DecisionAction) Valid() bool {
 	switch e {
+	case DecisionActionApproveAppend:
+		return true
 	case DecisionActionDelete:
 		return true
 	case DecisionActionDismiss:
@@ -50,6 +54,8 @@ func (e DecisionAction) Valid() bool {
 		return true
 	case DecisionActionReassign:
 		return true
+	case DecisionActionRejectAppend:
+		return true
 	case DecisionActionRestore:
 		return true
 	case DecisionActionUnfeature:
@@ -61,21 +67,25 @@ func (e DecisionAction) Valid() bool {
 
 // Defines values for DecisionInputAction.
 const (
-	DecisionInputActionDelete    DecisionInputAction = "delete"
-	DecisionInputActionDismiss   DecisionInputAction = "dismiss"
-	DecisionInputActionEdit      DecisionInputAction = "edit"
-	DecisionInputActionFeature   DecisionInputAction = "feature"
-	DecisionInputActionHide      DecisionInputAction = "hide"
-	DecisionInputActionIdentity  DecisionInputAction = "identity"
-	DecisionInputActionPublish   DecisionInputAction = "publish"
-	DecisionInputActionReassign  DecisionInputAction = "reassign"
-	DecisionInputActionRestore   DecisionInputAction = "restore"
-	DecisionInputActionUnfeature DecisionInputAction = "unfeature"
+	DecisionInputActionApproveAppend DecisionInputAction = "approve_append"
+	DecisionInputActionDelete        DecisionInputAction = "delete"
+	DecisionInputActionDismiss       DecisionInputAction = "dismiss"
+	DecisionInputActionEdit          DecisionInputAction = "edit"
+	DecisionInputActionFeature       DecisionInputAction = "feature"
+	DecisionInputActionHide          DecisionInputAction = "hide"
+	DecisionInputActionIdentity      DecisionInputAction = "identity"
+	DecisionInputActionPublish       DecisionInputAction = "publish"
+	DecisionInputActionReassign      DecisionInputAction = "reassign"
+	DecisionInputActionRejectAppend  DecisionInputAction = "reject_append"
+	DecisionInputActionRestore       DecisionInputAction = "restore"
+	DecisionInputActionUnfeature     DecisionInputAction = "unfeature"
 )
 
 // Valid indicates whether the value is a known member of the DecisionInputAction enum.
 func (e DecisionInputAction) Valid() bool {
 	switch e {
+	case DecisionInputActionApproveAppend:
+		return true
 	case DecisionInputActionDelete:
 		return true
 	case DecisionInputActionDismiss:
@@ -91,6 +101,8 @@ func (e DecisionInputAction) Valid() bool {
 	case DecisionInputActionPublish:
 		return true
 	case DecisionInputActionReassign:
+		return true
+	case DecisionInputActionRejectAppend:
 		return true
 	case DecisionInputActionRestore:
 		return true
@@ -530,6 +542,9 @@ type Decide struct {
 type Decision struct {
 	Action DecisionAction `json:"action"`
 
+	// AppendId 此任务对应的单条追评 ID。追评裁决须与任务一致。
+	AppendId *string `json:"append_id,omitempty"`
+
 	// AuthorHandle Discussion-local public author handle, used instead of a private account ID for identity moderation.
 	AuthorHandle     *string `json:"author_handle,omitempty"`
 	Body             *string `json:"body,omitempty"`
@@ -549,6 +564,9 @@ type DecisionAction string
 // DecisionInput defines model for DecisionInput.
 type DecisionInput struct {
 	Action DecisionInputAction `json:"action"`
+
+	// AppendId 此任务对应的单条追评 ID。追评裁决须与任务一致。
+	AppendId *string `json:"append_id,omitempty"`
 
 	// AuthorHandle Discussion-local public author handle, used instead of a private account ID for identity moderation.
 	AuthorHandle     *string `json:"author_handle,omitempty"`
@@ -776,6 +794,8 @@ type TaskPage struct {
 
 // TaskSubmission defines model for TaskSubmission.
 type TaskSubmission struct {
+	// AppendId 此任务对应的单条追评 ID。追评裁决须与任务一致。
+	AppendId       *string            `json:"append_id,omitempty"`
 	Evidence       []string           `json:"evidence"`
 	Kind           TaskSubmissionKind `json:"kind"`
 	ObjectId       string             `json:"object_id"`

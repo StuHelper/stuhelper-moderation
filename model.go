@@ -20,6 +20,7 @@ var (
 
 type Principal struct{ Subject string }
 type Object struct {
+	AppendID                  string
 	ID, Kind, SchoolID, Owner string
 	Revision                  int64
 	Visible                   bool
@@ -44,6 +45,7 @@ type PolicyView struct {
 	Source     string  `json:"source"`
 }
 type Submission struct {
+	AppendID       string   `json:"append_id,omitempty"`
 	PreviousTaskID string   `json:"previous_task_id,omitempty"`
 	ObjectID       string   `json:"object_id"`
 	Kind           string   `json:"kind"`
@@ -52,6 +54,7 @@ type Submission struct {
 	ProposedBody   string   `json:"proposed_body,omitempty"`
 }
 type Decision struct {
+	AppendID         string  `json:"append_id,omitempty"`
 	TeacherID        string  `json:"teacher_id,omitempty"`
 	EvidenceRevision string  `json:"evidence_revision,omitempty"`
 	ID               string  `json:"id"`

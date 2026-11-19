@@ -79,7 +79,11 @@ func cleanToken(v string, max int) bool {
 	return true
 }
 func validateDecision(d Decision) bool {
-	if !keyOK(d.ObjectID) || d.Revision < 1 || !slices.Contains([]string{"publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || strings.TrimSpace(d.Reason) == "" || !textOK(d.Reason, 2000) {
+	if !keyOK(d.ObjectID) || d.Revision < 1 || !slices.Contains([]string{"approve_append", "reject_append", "publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || strings.TrimSpace(d.Reason) == "" || !textOK(d.Reason, 2000) {
+		return false
+	}
+	appendAction := d.Action == "approve_append" || d.Action == "reject_append"
+	if appendAction != (d.AppendID != "") || (appendAction && !keyOK(d.AppendID)) {
 		return false
 	}
 	if d.Body != nil && !textOK(*d.Body, 16000) {
@@ -105,6 +109,9 @@ func canDecideTask(task Task, revision int64) bool {
 	return task.State == "waiting" || (task.State == "failed" && (task.ErrorCode == "conflict" || task.ErrorCode == "forbidden"))
 }
 func validateDecisionTarget(object Object, task Task, d Decision) error {
+	if task.Submission.AppendID != d.AppendID {
+		return ErrInput
+	}
 	if object.Kind == "resource" && !slices.Contains([]string{"publish", "hide", "restore", "delete", "dismiss"}, d.Action) {
 		return ErrInput
 	}
@@ -117,7 +124,7 @@ func publicDecision(d *Decision) *Decision {
 	if d == nil {
 		return nil
 	}
-	safe := Decision{ID: d.ID, ObjectID: d.ObjectID, Revision: d.Revision, Action: d.Action, Reason: d.Reason}
+	safe := Decision{AppendID: d.AppendID, ID: d.ID, ObjectID: d.ObjectID, Revision: d.Revision, Action: d.Action, Reason: d.Reason}
 	if d.Action == "reassign" {
 		safe.TeacherID = d.TeacherID
 	}
@@ -162,7 +169,7 @@ func relatedWaitingCountFor(t Transaction, task Task) (*int, error) {
 }
 
 func (s *Service) resolveRelatedReports(t Transaction, primary Task) error {
-	if primary.Decision == nil {
+	if primary.Decision == nil || primary.Submission.AppendID != "" {
 		return nil
 	}
 	port, ok := t.(RelatedTaskTransaction)
@@ -292,6 +299,7 @@ func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payl
 		if e != nil {
 			return out, e
 		}
+		in.AppendID = previous.Submission.AppendID
 		if previous.Submission.ObjectID != in.ObjectID || previous.Submission.Kind == "appeal" || previous.Decision == nil || previous.State != "applied" {
 			return out, ErrConflict
 		}
@@ -422,7 +430,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	if p.Subject == "" {
 		return out, ErrForbidden
 	}
-	if !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || !slices.Contains([]string{"report", "edit_request", "delete_request", "review", "appeal"}, in.Kind) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
+	if in.AppendID != "" || !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || !slices.Contains([]string{"report", "edit_request", "delete_request", "review", "appeal"}, in.Kind) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
 		return out, ErrInput
 	}
 	for _, v := range in.Evidence {
@@ -484,13 +492,19 @@ func (s *Service) Track(ctx context.Context, eventID string, object Object) (Tas
 		return out, ErrInput
 	}
 	id := digest([]string{"content", eventID})
+	if object.AppendID != "" {
+		if !keyOK(object.AppendID) || (object.Kind != "course" && object.Kind != "mentor") {
+			return out, ErrInput
+		}
+		id = digest([]string{"append", object.ID, object.AppendID})
+	}
 	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(id); e != nil {
 			return e
 		}
 		old, e := t.Task(id)
 		if e == nil {
-			if old.Submission.ObjectID != object.ID || old.ObjectRevision != object.Revision {
+			if old.Submission.ObjectID != object.ID || old.Submission.AppendID != object.AppendID || (object.AppendID == "" && old.ObjectRevision != object.Revision) {
 				return ErrConflict
 			}
 			out = view(old)
@@ -499,7 +513,7 @@ func (s *Service) Track(ctx context.Context, eventID string, object Object) (Tas
 		if !errors.Is(e, ErrNotFound) {
 			return e
 		}
-		task := Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: id, SchoolID: object.SchoolID, Owner: object.Owner, Submission: Submission{ObjectID: object.ID, Kind: "review", Reason: "content_review", Evidence: []string{}}, ObjectRevision: object.Revision, Revision: 1, State: "waiting", CreatedAt: s.now(), UpdatedAt: s.now()}
+		task := Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: id, SchoolID: object.SchoolID, Owner: object.Owner, Submission: Submission{AppendID: object.AppendID, ObjectID: object.ID, Kind: "review", Reason: "content_review", Evidence: []string{}}, ObjectRevision: object.Revision, Revision: 1, State: "waiting", CreatedAt: s.now(), UpdatedAt: s.now()}
 		if e = t.SaveTask(task); e != nil {
 			return e
 		}
@@ -556,7 +570,7 @@ func isSelfFavorableDecision(p Principal, task Task, objectOwner, action string)
 		return false
 	}
 	switch action {
-	case "publish", "restore", "feature":
+	case "publish", "restore", "feature", "approve_append":
 		return true
 	case "dismiss":
 		return task.Owner != p.Subject

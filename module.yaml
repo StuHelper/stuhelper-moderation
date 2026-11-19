@@ -24,6 +24,7 @@ scenario_tests:
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
     - submission_safety_test.go#TestAuthorRequestSupplementCannotOverwriteConcurrentDecision
   CM-02:
+    - integration_test.go#TestAppendTaskTracksOneItemAndBindsItsDecision
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
     - dependency_worker_test.go#TestMissingDependenciesReturnUnavailableWithoutPanic
     - dependency_worker_test.go#TestWorkerShutdownPersistsAppliedResultInspectHasTimeoutAndRetryResetsBackoff
