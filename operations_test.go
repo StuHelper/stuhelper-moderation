@@ -82,20 +82,54 @@ func TestBatchPreviewAndRetryPreservePerItemResults(t *testing.T) {
 func TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence(t *testing.T) {
 	s, _, _ := fixture(t)
 	ctx := context.Background()
-	report, err := s.Submit(ctx, m.Principal{Subject: "reporter"}, "report", m.Submission{ObjectID: "review", Kind: "report", Reason: "Private reporter account detail", Evidence: []string{"Private contact information"}})
+	dismissedReport, err := s.Submit(ctx, m.Principal{Subject: "reporter-dismiss"}, "report-dismiss", m.Submission{
+		ObjectID: "review",
+		Kind:     "report",
+		Category: "spam",
+		Reason:   "Private reporter account detail",
+		Evidence: []string{"Private contact information"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.Decide(ctx, m.Principal{Subject: "admin"}, report.ID, "decide", m.Decide{Revision: report.Revision, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "dismiss", Reason: "Public decision feedback"}})
+	_, err = s.Decide(ctx, m.Principal{Subject: "admin"}, dismissedReport.ID, "decide-dismiss", m.Decide{
+		Revision: dismissedReport.Revision,
+		Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "dismiss", Reason: "Report unsubstantiated"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, err := s.FilteredList(ctx, m.Principal{Subject: "author"}, m.TaskFilter{Limit: 20})
-	if err != nil || len(rows) != 1 || !rows[0].CanAppeal {
-		t.Fatal(rows, err)
+	dismissedView, err := s.Get(ctx, m.Principal{Subject: "author"}, dismissedReport.ID)
+	if err != nil || dismissedView.CanAppeal || dismissedView.Submission.Reason != "content_review" || len(dismissedView.Submission.Evidence) != 0 || dismissedView.Submission.Category != "spam" {
+		t.Fatalf("dismissed report should not be appealable or leak evidence: %+v %v", dismissedView, err)
 	}
-	if rows[0].Submission.Reason != "content_review" || len(rows[0].Submission.Evidence) != 0 || rows[0].Decision.Reason != "Public decision feedback" {
-		t.Fatal("private report leaked", rows)
+
+	report, err := s.Submit(ctx, m.Principal{Subject: "reporter"}, "report", m.Submission{
+		ObjectID: "review",
+		Kind:     "report",
+		Category: "wrong_teacher",
+		Reason:   "Private reporter account detail",
+		Evidence: []string{"Private contact information"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.Decide(ctx, m.Principal{Subject: "admin"}, report.ID, "decide", m.Decide{
+		Revision: report.Revision,
+		Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "hide", Category: "wrong_teacher", Reason: "Public decision feedback"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Work(ctx, 10); err != nil {
+		t.Fatal(err)
+	}
+	authorView, err := s.Get(ctx, m.Principal{Subject: "author"}, report.ID)
+	if err != nil || !authorView.CanAppeal {
+		t.Fatal(authorView, err)
+	}
+	if authorView.Submission.Reason != "content_review" || len(authorView.Submission.Evidence) != 0 || authorView.Submission.Category != "wrong_teacher" || authorView.Decision.Category != "wrong_teacher" || authorView.Decision.Reason != "Public decision feedback" {
+		t.Fatal("private report leaked or category lost", authorView)
 	}
 	own, err := s.Get(ctx, m.Principal{Subject: "reporter"}, report.ID)
 	if err != nil || len(own.Submission.Evidence) != 1 {

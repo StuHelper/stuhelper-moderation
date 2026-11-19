@@ -50,5 +50,9 @@ func (s *Service) recordResult(t Transaction, task Task) error {
 	} else if task.State == "failed" {
 		result = "failed"
 	}
-	return t.Event(Event{Result: result, Reason: task.ErrorCode, Actor: task.DecidedBy, ID: digest([]string{"result", task.Decision.ID, strconv.FormatInt(task.Revision, 10)}), Type: "moderation.result.v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Revision: task.Revision, At: s.now(), Data: resultData(task)})
+	actor := task.DecidedBy
+	if task.RetriedBy != "" {
+		actor = task.RetriedBy
+	}
+	return t.Event(Event{Result: result, Reason: task.ErrorCode, Actor: actor, ID: digest([]string{"result", task.ID, task.Decision.ID, strconv.FormatInt(task.Revision, 10)}), Type: "moderation.result.v1", Subject: "task/" + task.ID, SchoolID: task.SchoolID, Revision: task.Revision, At: s.now(), Data: resultData(task)})
 }

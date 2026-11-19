@@ -3,6 +3,7 @@ package moderation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -17,8 +18,41 @@ var (
 	ErrUnavailable     = errors.New("unavailable")
 )
 
+var ValidCategories = []string{
+	"spam",
+	"personal_attack",
+	"copyright",
+	"wrong_teacher",
+	"academic_integrity",
+	"privacy_leak",
+	"low_quality",
+	"author_update",
+	"other",
+}
+
+// ReasonError attaches a closed i18n-ready reason code and optional retry cooldown
+// while preserving errors.Is compatibility with the underlying sentinel error.
+type ReasonError struct {
+	Base       error
+	Reason     string
+	RetryAfter int
+}
+
+func (e ReasonError) Error() string {
+	if e.Base == nil {
+		return e.Reason
+	}
+	return e.Base.Error()
+}
+func (e ReasonError) Unwrap() error { return e.Base }
+
+func withReason(base error, reason string) error {
+	return ReasonError{Base: base, Reason: reason}
+}
+
 type Principal struct{ Subject string }
 type Object struct {
+	AppendID                  string
 	ID, Kind, SchoolID, Owner string
 	Revision                  int64
 	Visible                   bool
@@ -43,20 +77,24 @@ type PolicyView struct {
 	Source     string  `json:"source"`
 }
 type Submission struct {
+	AppendID       string   `json:"append_id,omitempty"`
 	PreviousTaskID string   `json:"previous_task_id,omitempty"`
 	ObjectID       string   `json:"object_id"`
 	Kind           string   `json:"kind"`
+	Category       string   `json:"category,omitempty"`
 	Reason         string   `json:"reason"`
 	Evidence       []string `json:"evidence"`
 	ProposedBody   string   `json:"proposed_body,omitempty"`
 }
 type Decision struct {
+	AppendID         string  `json:"append_id,omitempty"`
 	TeacherID        string  `json:"teacher_id,omitempty"`
 	EvidenceRevision string  `json:"evidence_revision,omitempty"`
 	ID               string  `json:"id"`
 	ObjectID         string  `json:"object_id"`
 	Revision         int64   `json:"revision"`
 	Action           string  `json:"action"`
+	Category         string  `json:"category,omitempty"`
 	Body             *string `json:"body,omitempty"`
 	Subject          string  `json:"subject,omitempty"`
 	AuthorHandle     string  `json:"author_handle,omitempty"`
@@ -77,6 +115,7 @@ type Task struct {
 	UpdatedAt      time.Time  `json:"updated_at"`
 	Decision       *Decision  `json:"decision,omitempty"`
 	DecidedBy      string     `json:"decided_by,omitempty"`
+	RetriedBy      string     `json:"retried_by,omitempty"`
 	DecidedAt      *time.Time `json:"decided_at,omitempty"`
 	Attempts       int        `json:"attempts"`
 	NextAttempt    time.Time  `json:"next_attempt"`
@@ -84,19 +123,40 @@ type Task struct {
 	ErrorCode      string     `json:"error_code,omitempty"`
 }
 type TaskView struct {
-	CanAppeal      bool       `json:"can_appeal,omitempty"`
-	ContentKind    string     `json:"content_kind,omitempty"`
-	ID             string     `json:"id"`
-	SchoolID       string     `json:"school_id"`
-	Submission     Submission `json:"submission"`
-	ObjectRevision int64      `json:"object_revision"`
-	Revision       int64      `json:"revision"`
-	State          string     `json:"state"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	Decision       *Decision  `json:"decision,omitempty"`
-	ErrorCode      string     `json:"error_code,omitempty"`
+	RelatedWaitingCount *int       `json:"related_waiting_count,omitempty"`
+	CanAppeal           bool       `json:"can_appeal,omitempty"`
+	PreviousTaskID      string     `json:"previous_task_id,omitempty"`
+	ContentKind         string     `json:"content_kind,omitempty"`
+	ID                  string     `json:"id"`
+	SchoolID            string     `json:"school_id"`
+	Submission          Submission `json:"submission"`
+	ObjectRevision      int64      `json:"object_revision"`
+	Revision            int64      `json:"revision"`
+	State               string     `json:"state"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	Decision            *Decision  `json:"decision,omitempty"`
+	ErrorCode           string     `json:"error_code,omitempty"`
 }
+
+// Signed participates in the canonical hashes of decisions and batch previews.
+// Only the public view omits it, including for receipts persisted before upgrade.
+func (v TaskView) MarshalJSON() ([]byte, error) {
+	type plainView TaskView
+	type wireDecision struct {
+		Decision
+		Signed *bool `json:"signed,omitempty"`
+	}
+	var decision *wireDecision
+	if safe := publicDecision(v.Decision); safe != nil {
+		decision = &wireDecision{Decision: *safe}
+	}
+	return json.Marshal(struct {
+		plainView
+		Decision *wireDecision `json:"decision,omitempty"`
+	}{plainView(v), decision})
+}
+
 type Decide struct {
 	Revision int64    `json:"revision"`
 	Decision Decision `json:"decision"`

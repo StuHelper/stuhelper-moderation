@@ -180,12 +180,42 @@ func TestPolicyScopeReplayAndPrivateDecisionProjection(t *testing.T) {
 		t.Fatal("event duplicated")
 	}
 	body := "Private edited text"
-	d := m.Decide{Revision: 1, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "edit", Body: &body, Subject: "anonymous-account", Reason: "Correction"}}
+	d := m.Decide{Revision: 1, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "edit", Body: &body, Subject: "anonymous-account", AuthorHandle: "handle-1", EvidenceRevision: "enrollment-rev-1", Signed: true, Reason: "Correction"}}
 	decided, e := s.Decide(ctx, m.Principal{Subject: "admin"}, task.ID, "decide", d)
 	if e != nil {
 		t.Fatal(e)
 	}
-	if decided.Decision.Body != nil || decided.Decision.Subject != "" {
-		t.Fatal("decision leaked private identity or gated body")
+	if decided.Decision.Body != nil || decided.Decision.Subject != "" || decided.Decision.AuthorHandle != "" || decided.Decision.EvidenceRevision != "" || decided.Decision.Signed {
+		t.Fatal("decision leaked private identity, enrollment evidence, or gated body")
+	}
+}
+
+func TestAppendTaskTracksOneItemAndBindsItsDecision(t *testing.T) {
+	svc, _, _ := fixture(t)
+	ctx := context.Background()
+	object := m.Object{ID: "review", AppendID: "one", Kind: "course", SchoolID: "school", Owner: "author", Revision: 1}
+	one, err := svc.Track(ctx, "event", object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object.Revision++
+	same, err := svc.Track(ctx, "next", object)
+	if err != nil || same.ID != one.ID {
+		t.Fatalf("duplicate task: %+v %v", same, err)
+	}
+	object.AppendID = "two"
+	two, err := svc.Track(ctx, "next", object)
+	if err != nil || two.ID == one.ID {
+		t.Fatal("distinct append task", err)
+	}
+	in := m.Decide{Revision: one.Revision, Decision: m.Decision{ObjectID: "review", AppendID: "two", Revision: 1, Action: "reject_append", Reason: "feedback"}}
+	p := m.Principal{Subject: "admin"}
+	if _, err = svc.Decide(ctx, p, one.ID, "crossed", in); !errors.Is(err, m.ErrInput) {
+		t.Fatalf("cross-item decision: %v", err)
+	}
+	in.Decision.AppendID = "one"
+	v, err := svc.Decide(ctx, p, one.ID, "valid", in)
+	if err != nil || v.Decision.AppendID != "one" {
+		t.Fatalf("decision: %+v %v", v, err)
 	}
 }
