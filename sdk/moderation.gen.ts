@@ -274,7 +274,7 @@ export interface components {
             /** Format: int64 */
             revision: number;
             /** @enum {string} */
-            action: "publish" | "hide" | "restore" | "delete" | "edit" | "identity" | "dismiss" | "feature" | "unfeature" | "reassign";
+            action: "publish" | "hide" | "restore" | "delete" | "edit" | "identity" | "dismiss" | "feature" | "unfeature" | "reassign" | "approve_append" | "reject_append";
             body?: string;
             subject?: string;
             signed?: boolean;
@@ -283,6 +283,8 @@ export interface components {
             author_handle?: string;
             teacher_id?: string;
             evidence_revision?: string;
+            /** @description 此任务对应的单条追评 ID。追评裁决须与任务一致。 */
+            append_id?: string;
         };
         DecisionInput: {
             id?: string;
@@ -290,7 +292,7 @@ export interface components {
             /** Format: int64 */
             revision: number;
             /** @enum {string} */
-            action: "publish" | "hide" | "restore" | "delete" | "edit" | "identity" | "dismiss" | "feature" | "unfeature" | "reassign";
+            action: "publish" | "hide" | "restore" | "delete" | "edit" | "identity" | "dismiss" | "feature" | "unfeature" | "reassign" | "approve_append" | "reject_append";
             body?: string;
             subject?: string;
             signed?: boolean;
@@ -299,6 +301,8 @@ export interface components {
             author_handle?: string;
             teacher_id?: string;
             evidence_revision?: string;
+            /** @description 此任务对应的单条追评 ID。追评裁决须与任务一致。 */
+            append_id?: string;
         };
         Policy: {
             school_id: string;
@@ -318,6 +322,8 @@ export interface components {
             evidence: string[];
             proposed_body?: string;
             previous_task_id?: string;
+            /** @description 此任务对应的单条追评 ID。追评裁决须与任务一致。 */
+            append_id?: string;
         };
         TaskView: {
             id: string;

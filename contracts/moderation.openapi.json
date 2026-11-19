@@ -2064,7 +2064,9 @@
               "dismiss",
               "feature",
               "unfeature",
-              "reassign"
+              "reassign",
+              "approve_append",
+              "reject_append"
             ]
           },
           "body": {
@@ -2089,6 +2091,12 @@
           },
           "evidence_revision": {
             "type": "string"
+          },
+          "append_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "此任务对应的单条追评 ID。追评裁决须与任务一致。"
           }
         },
         "required": [
@@ -2125,7 +2133,9 @@
               "dismiss",
               "feature",
               "unfeature",
-              "reassign"
+              "reassign",
+              "approve_append",
+              "reject_append"
             ]
           },
           "body": {
@@ -2150,6 +2160,12 @@
           },
           "evidence_revision": {
             "type": "string"
+          },
+          "append_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "此任务对应的单条追评 ID。追评裁决须与任务一致。"
           }
         },
         "required": [
@@ -2228,6 +2244,12 @@
           },
           "previous_task_id": {
             "type": "string"
+          },
+          "append_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "此任务对应的单条追评 ID。追评裁决须与任务一致。"
           }
         },
         "required": [

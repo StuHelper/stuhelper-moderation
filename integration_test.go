@@ -189,3 +189,33 @@ func TestPolicyScopeReplayAndPrivateDecisionProjection(t *testing.T) {
 		t.Fatal("decision leaked private identity, enrollment evidence, or gated body")
 	}
 }
+
+func TestAppendTaskTracksOneItemAndBindsItsDecision(t *testing.T) {
+	svc, _, _ := fixture(t)
+	ctx := context.Background()
+	object := m.Object{ID: "review", AppendID: "one", Kind: "course", SchoolID: "school", Owner: "author", Revision: 1}
+	one, err := svc.Track(ctx, "event", object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object.Revision++
+	same, err := svc.Track(ctx, "next", object)
+	if err != nil || same.ID != one.ID {
+		t.Fatalf("duplicate task: %+v %v", same, err)
+	}
+	object.AppendID = "two"
+	two, err := svc.Track(ctx, "next", object)
+	if err != nil || two.ID == one.ID {
+		t.Fatal("distinct append task", err)
+	}
+	in := m.Decide{Revision: one.Revision, Decision: m.Decision{ObjectID: "review", AppendID: "two", Revision: 1, Action: "reject_append", Reason: "feedback"}}
+	p := m.Principal{Subject: "admin"}
+	if _, err = svc.Decide(ctx, p, one.ID, "crossed", in); !errors.Is(err, m.ErrInput) {
+		t.Fatalf("cross-item decision: %v", err)
+	}
+	in.Decision.AppendID = "one"
+	v, err := svc.Decide(ctx, p, one.ID, "valid", in)
+	if err != nil || v.Decision.AppendID != "one" {
+		t.Fatalf("decision: %+v %v", v, err)
+	}
+}
