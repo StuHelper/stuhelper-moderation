@@ -19,47 +19,84 @@ capability_requires:
       api: 1
 scenario_tests:
   CM-01:
+    - submission_replay_test.go#TestSubmissionReplaysLegacyNilEvidence
     - complaints_test.go#TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
+    - submission_safety_test.go#TestAuthorRequestSupplementCannotOverwriteConcurrentDecision
   CM-02:
+    - integration_test.go#TestAppendTaskTracksOneItemAndBindsItsDecision
     - integration_test.go#TestDecisionDeliveryRecoversUnknownResultAndRejectsStaleRevision
+    - dependency_worker_test.go#TestMissingDependenciesReturnUnavailableWithoutPanic
+    - dependency_worker_test.go#TestWorkerShutdownPersistsAppliedResultInspectHasTimeoutAndRetryResetsBackoff
+    - privacy_events_test.go#TestWorkNormalizesWrappedAndMultilineErrorsWithoutPoisonLoop
+    - linked_reports_test.go#TestRelatedWaitingCountAndLinkedReportResolution
+    - linked_reports_test.go#TestDismissCascadesOnlyForReportOrReviewAndRespectsObjectRevision
   CM-05:
     - integration_test.go#TestPolicyScopeReplayAndPrivateDecisionProjection
+    - pagination_test.go#TestTimeOrderedTaskPaginationAndQueueSummary
+    - pagination_test.go#TestMigratedTimestampCursorUsesDatabasePrecision
     - policies_test.go#TestEffectivePolicyAndAdminInitiatedReviewAreScoped
     - policies_test.go#TestResourcePolicyDefaultsToReviewAndUsesScopedQueue
+    - privacy_events_test.go#TestDecisionProjectionHidesEnrollmentEvidenceAndSignedState
+    - privacy_events_test.go#TestDecisionAndBatchReplayWireCompatibility
+    - recusal_policy_preview_test.go#TestModeratorConflictOfInterestRecusalAndSuperAdminExemption
+    - recusal_policy_preview_test.go#TestBlockedTermsNormalizationAndPolicyDryRunPreview
   CM-10:
-    - appeal_upgrade_test.go#TestAppealMigrationPreservesHistoricalDuplicates
     - categories_errors_appeal_test.go#TestClosedCategoriesErrorReasonsRetryAfterAndCanAppeal
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
+    - submission_safety_test.go#TestAppealEnforcesSingleAppealAppliedStateAndRecusal
+    - submission_safety_test.go#TestAppealMigrationPreservesHistoricalDuplicates
+    - contract_alignment_test.go#TestOpenAPIAndHTTPHandlerAlignment
+    - contract_test.go#TestConvergedEditRequestCannotOverwriteConcurrentDecision
+    - contract_test.go#TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance
   CM-12:
+    - batch_validation_runtime_test.go#TestReplacedDecisionRejectsStaleWorkerResult
     - operations_test.go#TestBatchPreviewAndRetryPreservePerItemResults
+    - batch_validation_runtime_test.go#TestBatchValidationSameObjectConflictRedecideAndRevokedModeratorRetry
+    - batch_validation_runtime_test.go#TestInputValidationFeedbackClockDownloadAuditAndCheckRuntime
   CM-13:
     - object_access_test.go#TestNotificationTaskBatchKeepsReceiptPermissions
     - operations_test.go#TestAffectedAuthorSeesDecisionWithoutReportersPrivateEvidence
+    - query_plan_ordering_test.go#TestTasksAndFeedbackUseTimeOrderedPaginationWithoutMissingNewArrivals
+    - query_plan_ordering_test.go#TestOwnerlessTaskMetadataBackfill
+    - postgres/query_plan_test.go#TestTasksAndFeedbackQueriesAvoidSeqScanOnPopulatedTables
+    - task_columns_replay_retention_test.go#TestSaveTaskSyncsColumnsReplayPreservesCanAppealAndExpiredKeyDoesNotCollide
   ACAD-15:
     - report_test.go#TestNewReportsRequireAdmissionButOwnPendingEvidenceRemainsAvailable
     - report_test.go#TestPendingEvidenceCannotOverwriteConcurrentDecision
+    - submission_safety_test.go#TestReportSupplementBypassesSubmitOutageAndTrustedPortsValidateObject
   CM-15:
     - complaints_test.go#TestComplaintRateLimitIsPerAccountAndReplayDoesNotConsumeQuota
   CM-16:
     - outbox_delivery_test.go#TestOutboxCommitNotificationAndRollback
     - outbox_delivery_test.go#TestDecisionResultsAreDurableAndReplaySafe
     - outbox_delivery_test.go#TestDecisionOutboxFailureRollsBackDecision
+    - privacy_events_test.go#TestDismissEmitsStrictlyIncreasingRevisionsInOrder
   CM-17:
+    - task_columns_replay_retention_test.go#TestAuditRetentionValidatesArguments
+    - task_columns_replay_retention_test.go#TestCleanupPreservesConcurrentRenewals
     - audit_test.go#TestAuditFiltersScopesAndProjection
     - audit_test.go#TestAuditSnapshotExcludesBackfillAndLateCommit
     - audit_test.go#TestAuditDefaultsAndTransactionRollback
     - audit_test.go#TestAuditBatchLimitAndRecordedOutcome
     - audit_test.go#TestAuditDecisionSavedIsNotExecutionSuccess
+    - audit_snapshot_regression_test.go#TestEmptyFeedbackCleanupDoesNotInvalidateAuditSnapshot
+    - audit_snapshot_regression_test.go#TestReadAuditSnapshotStaysWithin256BytesUnderManyConcurrentWriters
+    - retention_health_test.go#TestNonFeedbackRetentionBoundedCleanupAndAuditSnapshotSafety
+    - retention_health_test.go#TestModerationHealthSnapshotAndHTTPAuthorization
   CM-18:
     - outbox_exclusion_test.go#TestOutboxExcludesDeferredSubjectsBeforeLimit
     - postgres/outbox_test.go#TestPendingOutboxPlanUsesPartialIndex
   CM-19:
     - feedback_test.go#TestFeedbackConcurrentIngestAuthorizationAndAudit
+    - pagination_test.go#TestFeedbackTimeOrderedCursorPagination
+    - feedback_workflow_test.go#TestFeedbackHTTPHandlerAssignmentRelatedLinksAndSpamReplyGuard
   CM-20:
     - feedback_test.go#TestFeedbackReplyUnknownIsNeverResentAndRetentionDeletesMaterials
     - feedback_test.go#TestFeedbackLeapDayRetentionMatchesDatabaseCalendarMonths
     - feedback_test.go#TestFeedbackRetentionUsesUTCRegardlessOfDatabaseTimezone
+    - feedback_safety_test.go#TestFeedbackSlowCleanupBlobDeleteDoesNotBlockConcurrentReplyOrUpdate
   CM-21:
     - feedback_test.go#TestFeedbackRateCapacityAndCursor
+    - feedback_safety_test.go#TestFeedbackValidationEnforcesAttachmentLimitsSenderNormalizationAndHeaderSafety

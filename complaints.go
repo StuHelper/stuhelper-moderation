@@ -15,12 +15,12 @@ func (s *Service) SubmitResourceComplaint(ctx context.Context, p Principal, key 
 	if !validCategory(in.Category) {
 		return TaskView{}, withReason(ErrInput, "invalid_category")
 	}
-	if !keyOK(key) || in.Kind != "report" || in.PreviousTaskID != "" || in.ProposedBody != "" || object.Kind != "resource" || object.ID != in.ObjectID || object.ID == "" || len(object.ID) > 128 || object.Revision < 1 || object.Owner == "" || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || len(in.Evidence) < 2 || len(in.Evidence) > 5 {
+	if !keyOK(key) || in.Kind != "report" || in.PreviousTaskID != "" || in.ProposedBody != "" || object.Kind != "resource" || object.ID != in.ObjectID || !keyOK(object.ID) || !keyOK(object.SchoolID) || object.Revision < 1 || strings.TrimSpace(object.Owner) == "" || !textOK(object.Owner, 256) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || len(in.Evidence) < 2 || len(in.Evidence) > 5 {
 		return TaskView{}, withReason(ErrInput, "invalid_parameter")
 	}
 	for _, value := range in.Evidence {
 		if strings.TrimSpace(value) == "" || !textOK(value, 2000) {
-			return TaskView{}, ErrInput
+			return TaskView{}, withReason(ErrInput, "invalid_parameter")
 		}
 	}
 	return s.saveReport(ctx, p, key, in, &object)

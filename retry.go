@@ -12,7 +12,7 @@ func (s *Service) Retry(ctx context.Context, p Principal, id, key string, revisi
 	}
 	rk := digest([]string{p.Subject, "retry", id, key})
 	h := digest(revision)
-	err := s.Repo.Transaction(ctx, func(t Transaction) error {
+	err := s.tx(ctx, func(t Transaction) error {
 		if e := t.Lock(id); e != nil {
 			return e
 		}
@@ -37,7 +37,21 @@ func (s *Service) Retry(ctx context.Context, p Principal, id, key string, revisi
 		if task.Revision != revision {
 			return withReason(ErrConflict, "stale_revision")
 		}
+		if task.Submission.Kind == "appeal" {
+			if e = s.auth(ctx, p, "review", task.SchoolID); e != nil {
+				return e
+			}
+			prior, e := t.Task(task.Submission.PreviousTaskID)
+			if e != nil {
+				return e
+			}
+			if prior.DecidedBy == p.Subject {
+				return ErrForbidden
+			}
+		}
 		task.State = "decided"
+		task.RetriedBy = p.Subject
+		task.Attempts = 0
 		task.NextAttempt = s.now()
 		task.LeaseUntil = time.Time{}
 		task.ErrorCode = ""
@@ -51,7 +65,7 @@ func (s *Service) Retry(ctx context.Context, p Principal, id, key string, revisi
 		if e = s.record(t, rk, h, "retried", p, task); e != nil {
 			return e
 		}
-		out = view(task)
+		out = viewFor(p, task)
 		return nil
 	})
 	return out, err

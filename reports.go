@@ -11,79 +11,32 @@ import (
 func (s *Service) submitReport(ctx context.Context, p Principal, key string, in Submission) (TaskView, error) {
 	return s.saveReport(ctx, p, key, in, nil)
 }
+
 func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Submission, object *Object) (TaskView, error) {
 	var out TaskView
-	if e := s.auth(ctx, p, "submit", ""); e != nil {
-		return out, e
+	if p.Subject == "" {
+		return out, ErrForbidden
 	}
+	if in.Evidence == nil {
+		in.Evidence = []string{}
+	}
+	in.Kind = "report"
 	operation := digest([]string{p.Subject, in.Kind, in.ObjectID, key})
 	payload := digest(in)
 	needsFacts := errors.New("report creation needs current facts")
-	apply := func(t Transaction) error {
-		if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
-			return e
-		}
-		cached, found, e := replay(t, operation, payload, s.now())
-		if e != nil {
-			return e
-		}
-		if found {
-			out = cached
-			return nil
-		}
-		task, e := t.Active(p.Subject, in.ObjectID, "report")
-		if e != nil && !errors.Is(e, ErrNotFound) {
-			return e
-		}
-		if errors.Is(e, ErrNotFound) {
-			if object == nil {
-				return needsFacts
-			}
-			if in.Evidence == nil {
-				in.Evidence = []string{}
-			}
-			task = Task{ContentOwner: object.Owner, ContentKind: object.Kind, ID: operation, SchoolID: object.SchoolID, Owner: p.Subject, Submission: in, ObjectRevision: object.Revision, State: "waiting", CreatedAt: s.now()}
-		} else {
-			if e = t.Lock(task.ID); e != nil {
-				return e
-			}
-			task, e = t.Task(task.ID)
-			if e != nil {
-				return e
-			}
-			if task.State != "waiting" {
-				return withReason(ErrConflict, "task_not_waiting")
-			}
-			if task.Submission.Category == "" && in.Category != "" {
-				task.Submission.Category = in.Category
-			}
-			if in.Reason != task.Submission.Reason {
-				task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)
-			}
-			task.Submission.Evidence = append(task.Submission.Evidence, in.Evidence...)
-			if len(task.Submission.Evidence) > 20 {
-				return withReason(ErrInput, "invalid_parameter")
-			}
-		}
+	checkRateLimit := func(t Transaction) error {
 		limiter, ok := t.(interface{ LimitSubmission(string, time.Time) error })
 		if !ok {
 			return ErrUnavailable
 		}
-		if err := limiter.LimitSubmission(p.Subject, s.now()); err != nil {
-			return err
-		}
-		task.Revision++
-		task.UpdatedAt = s.now()
-		if e = t.SaveTask(task); e != nil {
-			return e
-		}
-		if e = s.record(t, operation, payload, "submitted", p, task); e != nil {
-			return e
-		}
-		out = viewFor(p, task)
-		return nil
+		return limiter.LimitSubmission(p.Subject, s.now())
 	}
-	err := s.Repo.Transaction(ctx, apply)
+	apply := func(t Transaction) error {
+		var txErr error
+		out, txErr = s.upsertSubmissionTx(t, p, operation, payload, in, object, needsFacts, checkRateLimit)
+		return txErr
+	}
+	err := s.tx(ctx, apply)
 	if !errors.Is(err, needsFacts) {
 		return out, err
 	}
@@ -105,6 +58,6 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 	object = &current
 	// Recheck local state under the same lock: a concurrent creation merges, and
 	// a concurrent decision cannot be overwritten by late evidence.
-	err = s.Repo.Transaction(ctx, apply)
+	err = s.tx(ctx, apply)
 	return out, err
 }

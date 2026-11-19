@@ -9,6 +9,7 @@ import (
 	"github.com/StuHelper/stuhelper-moderation/sdk"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -97,7 +98,7 @@ func TestClosedCategoriesErrorReasonsRetryAfterAndCanAppeal(t *testing.T) {
 		t.Fatalf("expected appeal_not_allowed 409, got %v %+v", err, appealOnPublished)
 	}
 
-	// 4. Adverse hide decision -> can_appeal == true before appeal, false after first appeal; second appeal rejected with already_appealed; appeal task itself has can_appeal == false.
+	// 4. Adverse hide decision -> can_appeal == true before appeal, false after first appeal; additional evidence updates the same waiting appeal; appeal task itself has can_appeal == false.
 	catAttack := sdk.ViolationCategory("personal_attack")
 	reportResp, err := client.SubmitTaskWithResponse(ctx, &sdk.SubmitTaskParams{IdempotencyKey: "rep-1"}, sdk.Submission{
 		ObjectId: "review",
@@ -166,8 +167,8 @@ func TestClosedCategoriesErrorReasonsRetryAfterAndCanAppeal(t *testing.T) {
 		Evidence:       []string{},
 		PreviousTaskId: &reportID,
 	}, asActor("author"))
-	if err != nil || dupAppealResp.StatusCode() != 409 || dupAppealResp.JSON409 == nil || dupAppealResp.JSON409.Reason == nil || string(*dupAppealResp.JSON409.Reason) != "already_appealed" {
-		t.Fatalf("expected already_appealed 409, got %v %+v", err, dupAppealResp)
+	if err != nil || dupAppealResp.StatusCode() != 200 || dupAppealResp.JSON200 == nil || dupAppealResp.JSON200.Id != appealID || dupAppealResp.JSON200.Revision != appealResp.JSON200.Revision+1 || !slices.Contains(dupAppealResp.JSON200.Submission.Evidence, "Second appeal on same task") {
+		t.Fatalf("expected the existing waiting appeal to include the supplement, got %v %+v", err, dupAppealResp)
 	}
 
 	// Original moderator deciding appeal returns 403 self_review_forbidden.
@@ -175,8 +176,8 @@ func TestClosedCategoriesErrorReasonsRetryAfterAndCanAppeal(t *testing.T) {
 	curRev = c.revision
 	c.mu.Unlock()
 	selfRevResp, err := client.DecideTaskWithResponse(ctx, appealID, &sdk.DecideTaskParams{IdempotencyKey: "self-rev"}, sdk.Decide{
-		Revision: 1,
-		Decision: sdk.Decision{Id: "", ObjectId: "review", Revision: int(curRev), Action: sdk.DecisionAction("dismiss"), Reason: "Self review"},
+		Revision: dupAppealResp.JSON200.Revision,
+		Decision: sdk.DecisionInput{ObjectId: "review", Revision: curRev, Action: sdk.DecisionInputAction("dismiss"), Reason: "Self review"},
 	}, asActor("admin"))
 	if err != nil || selfRevResp.StatusCode() != 403 || selfRevResp.JSON403 == nil || selfRevResp.JSON403.Reason == nil || string(*selfRevResp.JSON403.Reason) != "self_review_forbidden" {
 		t.Fatalf("expected self_review_forbidden 403, got %v %+v", err, selfRevResp)
@@ -184,7 +185,7 @@ func TestClosedCategoriesErrorReasonsRetryAfterAndCanAppeal(t *testing.T) {
 
 	// Second reviewer dismisses appeal -> appeal task itself must still have CanAppeal=false.
 	if _, err = s.Decide(ctx, m.Principal{Subject: "reviewer"}, appealID, "rev-decide", m.Decide{
-		Revision: 1,
+		Revision: dupAppealResp.JSON200.Revision,
 		Decision: m.Decision{ObjectID: "review", Revision: curRev, Action: "dismiss", Reason: "Upheld original decision"},
 	}); err != nil {
 		t.Fatal(err)
@@ -192,6 +193,14 @@ func TestClosedCategoriesErrorReasonsRetryAfterAndCanAppeal(t *testing.T) {
 	appealDone, err := s.Get(ctx, m.Principal{Subject: "author"}, appealID)
 	if err != nil || appealDone.CanAppeal {
 		t.Fatalf("appeal task itself must never have CanAppeal=true: %+v %v", appealDone, err)
+	}
+
+	completed, err := client.SubmitTaskWithResponse(ctx, &sdk.SubmitTaskParams{IdempotencyKey: "completed-appeal"}, sdk.Submission{
+		ObjectId: "review", Kind: sdk.SubmissionKindAppeal, PreviousTaskId: &reportID,
+		Reason: "Additional evidence after the decision", Evidence: []string{},
+	}, asActor("author"))
+	if err != nil || completed.JSON409 == nil || completed.JSON409.Reason == nil || string(*completed.JSON409.Reason) != "already_appealed" {
+		t.Fatal("expected a completed appeal to reject another application", err)
 	}
 
 	// 5. Rate limit 429 includes Retry-After header and reason="submission_rate_limited".
