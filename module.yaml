@@ -42,6 +42,7 @@ scenario_tests:
     - recusal_policy_preview_test.go#TestModeratorConflictOfInterestRecusalAndSuperAdminExemption
     - recusal_policy_preview_test.go#TestBlockedTermsNormalizationAndPolicyDryRunPreview
   CM-10:
+    - categories_errors_appeal_test.go#TestClosedCategoriesErrorReasonsRetryAfterAndCanAppeal
     - operations_test.go#TestAppealRequiresContentOwnerAndAnotherReviewer
     - contract_test.go#TestGeneratedAppealSubmissionPreservesRequestFields
     - submission_safety_test.go#TestAppealEnforcesSingleAppealAppliedStateAndRecusal

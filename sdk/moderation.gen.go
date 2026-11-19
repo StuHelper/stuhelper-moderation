@@ -113,6 +113,54 @@ func (e DecisionInputAction) Valid() bool {
 	}
 }
 
+// Defines values for ErrorReason.
+const (
+	AlreadyAppealed       ErrorReason = "already_appealed"
+	AppealNotAllowed      ErrorReason = "appeal_not_allowed"
+	CrossOriginForbidden  ErrorReason = "cross_origin_forbidden"
+	IdempotencyMismatch   ErrorReason = "idempotency_mismatch"
+	InsufficientScope     ErrorReason = "insufficient_scope"
+	InvalidCategory       ErrorReason = "invalid_category"
+	InvalidParameter      ErrorReason = "invalid_parameter"
+	RetryNotAllowed       ErrorReason = "retry_not_allowed"
+	SelfReviewForbidden   ErrorReason = "self_review_forbidden"
+	StaleRevision         ErrorReason = "stale_revision"
+	SubmissionRateLimited ErrorReason = "submission_rate_limited"
+	TaskNotWaiting        ErrorReason = "task_not_waiting"
+)
+
+// Valid indicates whether the value is a known member of the ErrorReason enum.
+func (e ErrorReason) Valid() bool {
+	switch e {
+	case AlreadyAppealed:
+		return true
+	case AppealNotAllowed:
+		return true
+	case CrossOriginForbidden:
+		return true
+	case IdempotencyMismatch:
+		return true
+	case InsufficientScope:
+		return true
+	case InvalidCategory:
+		return true
+	case InvalidParameter:
+		return true
+	case RetryNotAllowed:
+		return true
+	case SelfReviewForbidden:
+		return true
+	case StaleRevision:
+		return true
+	case SubmissionRateLimited:
+		return true
+	case TaskNotWaiting:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeedbackState.
 const (
 	FeedbackStateNew        FeedbackState = "new"
@@ -434,6 +482,45 @@ func (e TaskSubmissionKind) Valid() bool {
 	}
 }
 
+// Defines values for ViolationCategory.
+const (
+	ViolationCategoryAcademicIntegrity ViolationCategory = "academic_integrity"
+	ViolationCategoryAuthorUpdate      ViolationCategory = "author_update"
+	ViolationCategoryCopyright         ViolationCategory = "copyright"
+	ViolationCategoryLowQuality        ViolationCategory = "low_quality"
+	ViolationCategoryOther             ViolationCategory = "other"
+	ViolationCategoryPersonalAttack    ViolationCategory = "personal_attack"
+	ViolationCategoryPrivacyLeak       ViolationCategory = "privacy_leak"
+	ViolationCategorySpam              ViolationCategory = "spam"
+	ViolationCategoryWrongTeacher      ViolationCategory = "wrong_teacher"
+)
+
+// Valid indicates whether the value is a known member of the ViolationCategory enum.
+func (e ViolationCategory) Valid() bool {
+	switch e {
+	case ViolationCategoryAcademicIntegrity:
+		return true
+	case ViolationCategoryAuthorUpdate:
+		return true
+	case ViolationCategoryCopyright:
+		return true
+	case ViolationCategoryLowQuality:
+		return true
+	case ViolationCategoryOther:
+		return true
+	case ViolationCategoryPersonalAttack:
+		return true
+	case ViolationCategoryPrivacyLeak:
+		return true
+	case ViolationCategorySpam:
+		return true
+	case ViolationCategoryWrongTeacher:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListFeedbackParamsState.
 const (
 	ListFeedbackParamsStateNew        ListFeedbackParamsState = "new"
@@ -546,16 +633,19 @@ type Decision struct {
 	AppendId *string `json:"append_id,omitempty"`
 
 	// AuthorHandle Discussion-local public author handle, used instead of a private account ID for identity moderation.
-	AuthorHandle     *string `json:"author_handle,omitempty"`
-	Body             *string `json:"body,omitempty"`
-	EvidenceRevision *string `json:"evidence_revision,omitempty"`
-	Id               string  `json:"id"`
-	ObjectId         string  `json:"object_id"`
-	Reason           string  `json:"reason"`
-	Revision         int64   `json:"revision"`
-	Signed           *bool   `json:"signed,omitempty"`
-	Subject          *string `json:"subject,omitempty"`
-	TeacherId        *string `json:"teacher_id,omitempty"`
+	AuthorHandle *string `json:"author_handle,omitempty"`
+	Body         *string `json:"body,omitempty"`
+
+	// Category Closed violation or disposition category code used as an i18n key.
+	Category         *ViolationCategory `json:"category,omitempty"`
+	EvidenceRevision *string            `json:"evidence_revision,omitempty"`
+	Id               string             `json:"id"`
+	ObjectId         string             `json:"object_id"`
+	Reason           string             `json:"reason"`
+	Revision         int64              `json:"revision"`
+	Signed           *bool              `json:"signed,omitempty"`
+	Subject          *string            `json:"subject,omitempty"`
+	TeacherId        *string            `json:"teacher_id,omitempty"`
 }
 
 // DecisionAction defines model for Decision.Action.
@@ -569,16 +659,19 @@ type DecisionInput struct {
 	AppendId *string `json:"append_id,omitempty"`
 
 	// AuthorHandle Discussion-local public author handle, used instead of a private account ID for identity moderation.
-	AuthorHandle     *string `json:"author_handle,omitempty"`
-	Body             *string `json:"body,omitempty"`
-	EvidenceRevision *string `json:"evidence_revision,omitempty"`
-	Id               *string `json:"id,omitempty"`
-	ObjectId         string  `json:"object_id"`
-	Reason           string  `json:"reason"`
-	Revision         int64   `json:"revision"`
-	Signed           *bool   `json:"signed,omitempty"`
-	Subject          *string `json:"subject,omitempty"`
-	TeacherId        *string `json:"teacher_id,omitempty"`
+	AuthorHandle *string `json:"author_handle,omitempty"`
+	Body         *string `json:"body,omitempty"`
+
+	// Category Closed violation or disposition category code used as an i18n key.
+	Category         *ViolationCategory `json:"category,omitempty"`
+	EvidenceRevision *string            `json:"evidence_revision,omitempty"`
+	Id               *string            `json:"id,omitempty"`
+	ObjectId         string             `json:"object_id"`
+	Reason           string             `json:"reason"`
+	Revision         int64              `json:"revision"`
+	Signed           *bool              `json:"signed,omitempty"`
+	Subject          *string            `json:"subject,omitempty"`
+	TeacherId        *string            `json:"teacher_id,omitempty"`
 }
 
 // DecisionInputAction defines model for DecisionInput.Action.
@@ -586,8 +679,12 @@ type DecisionInputAction string
 
 // Error defines model for Error.
 type Error struct {
-	Code string `json:"code"`
+	Code   string       `json:"code"`
+	Reason *ErrorReason `json:"reason,omitempty"`
 }
+
+// ErrorReason defines model for Error.Reason.
+type ErrorReason string
 
 // Feedback defines model for Feedback.
 type Feedback struct {
@@ -773,9 +870,11 @@ type Saved struct {
 
 // Submission Reports and author requests require an authenticated user; review tasks may only be opened by a moderator in the object school. Appeals require the content owner and a previous applied task; the service verifies the relationship and current eligibility.
 type Submission struct {
-	Evidence []string       `json:"evidence"`
-	Kind     SubmissionKind `json:"kind"`
-	ObjectId string         `json:"object_id"`
+	// Category Closed violation or disposition category code used as an i18n key.
+	Category *ViolationCategory `json:"category,omitempty"`
+	Evidence []string           `json:"evidence"`
+	Kind     SubmissionKind     `json:"kind"`
+	ObjectId string             `json:"object_id"`
 
 	// PreviousTaskId Required for appeal; identifies the original applied task. Other request kinds must omit it.
 	PreviousTaskId *string `json:"previous_task_id,omitempty"`
@@ -795,7 +894,10 @@ type TaskPage struct {
 // TaskSubmission defines model for TaskSubmission.
 type TaskSubmission struct {
 	// AppendId 此任务对应的单条追评 ID。追评裁决须与任务一致。
-	AppendId       *string            `json:"append_id,omitempty"`
+	AppendId *string `json:"append_id,omitempty"`
+
+	// Category Closed violation or disposition category code used as an i18n key.
+	Category       *ViolationCategory `json:"category,omitempty"`
 	Evidence       []string           `json:"evidence"`
 	Kind           TaskSubmissionKind `json:"kind"`
 	ObjectId       string             `json:"object_id"`
@@ -828,6 +930,9 @@ type TaskView struct {
 	Submission          TaskSubmission `json:"submission"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 }
+
+// ViolationCategory Closed violation or disposition category code used as an i18n key.
+type ViolationCategory string
 
 // ListFeedbackParams defines parameters for ListFeedback.
 type ListFeedbackParams struct {
@@ -3757,6 +3862,11 @@ func (r ListTasksResponse) ContentType() string {
 	return ""
 }
 
+// SubmitTaskResponse429Headers the declared response headers of an HTTP 429 response for SubmitTask
+type SubmitTaskResponse429Headers struct {
+	RetryAfter *int
+}
+
 type SubmitTaskResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3776,6 +3886,8 @@ type SubmitTaskResponse struct {
 	JSON429 *Error
 	// JSON503 the response for an HTTP 503 `application/json` response
 	JSON503 *Error
+	// Headers429 the parsed response headers for an HTTP 429 response
+	Headers429 *SubmitTaskResponse429Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -5457,6 +5569,19 @@ func ParseSubmitTaskResponse(rsp *http.Response) (*SubmitTaskResponse, error) {
 		}
 		response.JSON503 = &dest
 
+	}
+
+	switch {
+	case rsp.StatusCode == 429:
+		var headers SubmitTaskResponse429Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
+		response.Headers429 = &headers
 	}
 
 	return response, nil

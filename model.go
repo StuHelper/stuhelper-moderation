@@ -18,6 +18,38 @@ var (
 	ErrUnavailable     = errors.New("unavailable")
 )
 
+var ValidCategories = []string{
+	"spam",
+	"personal_attack",
+	"copyright",
+	"wrong_teacher",
+	"academic_integrity",
+	"privacy_leak",
+	"low_quality",
+	"author_update",
+	"other",
+}
+
+// ReasonError attaches a closed i18n-ready reason code and optional retry cooldown
+// while preserving errors.Is compatibility with the underlying sentinel error.
+type ReasonError struct {
+	Base       error
+	Reason     string
+	RetryAfter int
+}
+
+func (e ReasonError) Error() string {
+	if e.Base == nil {
+		return e.Reason
+	}
+	return e.Base.Error()
+}
+func (e ReasonError) Unwrap() error { return e.Base }
+
+func withReason(base error, reason string) error {
+	return ReasonError{Base: base, Reason: reason}
+}
+
 type Principal struct{ Subject string }
 type Object struct {
 	AppendID                  string
@@ -49,6 +81,7 @@ type Submission struct {
 	PreviousTaskID string   `json:"previous_task_id,omitempty"`
 	ObjectID       string   `json:"object_id"`
 	Kind           string   `json:"kind"`
+	Category       string   `json:"category,omitempty"`
 	Reason         string   `json:"reason"`
 	Evidence       []string `json:"evidence"`
 	ProposedBody   string   `json:"proposed_body,omitempty"`
@@ -61,6 +94,7 @@ type Decision struct {
 	ObjectID         string  `json:"object_id"`
 	Revision         int64   `json:"revision"`
 	Action           string  `json:"action"`
+	Category         string  `json:"category,omitempty"`
 	Body             *string `json:"body,omitempty"`
 	Subject          string  `json:"subject,omitempty"`
 	AuthorHandle     string  `json:"author_handle,omitempty"`

@@ -397,7 +397,7 @@ func (s *Service) DecideBatch(ctx context.Context, p Principal, key string, in B
 		old, e := t.Replay(rk)
 		if e == nil && s.now().Before(old.Until) {
 			if old.Digest != hash {
-				return ErrConflict
+				return withReason(ErrConflict, "idempotency_mismatch")
 			}
 			return nil
 		}

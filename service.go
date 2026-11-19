@@ -79,7 +79,7 @@ func cleanToken(v string, max int) bool {
 	return true
 }
 func validateDecision(d Decision) bool {
-	if !keyOK(d.ObjectID) || d.Revision < 1 || !slices.Contains([]string{"approve_append", "reject_append", "publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || strings.TrimSpace(d.Reason) == "" || !textOK(d.Reason, 2000) {
+	if !validCategory(d.Category) || !keyOK(d.ObjectID) || d.Revision < 1 || !slices.Contains([]string{"approve_append", "reject_append", "publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || strings.TrimSpace(d.Reason) == "" || !textOK(d.Reason, 2000) {
 		return false
 	}
 	appendAction := d.Action == "approve_append" || d.Action == "reject_append"
@@ -110,21 +110,39 @@ func canDecideTask(task Task, revision int64) bool {
 }
 func validateDecisionTarget(object Object, task Task, d Decision) error {
 	if task.Submission.AppendID != d.AppendID {
-		return ErrInput
+		return withReason(ErrInput, "invalid_parameter")
 	}
 	if object.Kind == "resource" && !slices.Contains([]string{"publish", "hide", "restore", "delete", "dismiss"}, d.Action) {
-		return ErrInput
+		return withReason(ErrInput, "invalid_parameter")
 	}
 	if object.SchoolID != task.SchoolID || object.Revision != d.Revision || d.ObjectID != object.ID {
-		return ErrConflict
+		return withReason(ErrConflict, "stale_revision")
 	}
 	return nil
 }
+func validCategory(v string) bool {
+	return v == "" || slices.Contains(ValidCategories, v)
+}
+
+func isAdverseToAuthor(task Task) bool {
+	if task.Decision == nil || task.Submission.Kind == "appeal" {
+		return false
+	}
+	switch task.Decision.Action {
+	case "reject_append", "hide", "delete", "edit", "identity", "reassign", "unfeature":
+		return true
+	case "dismiss":
+		return task.Submission.Kind == "edit_request" || task.Submission.Kind == "delete_request" || task.Submission.Kind == "review"
+	default:
+		return false
+	}
+}
+
 func publicDecision(d *Decision) *Decision {
 	if d == nil {
 		return nil
 	}
-	safe := Decision{AppendID: d.AppendID, ID: d.ID, ObjectID: d.ObjectID, Revision: d.Revision, Action: d.Action, Reason: d.Reason}
+	safe := Decision{AppendID: d.AppendID, ID: d.ID, ObjectID: d.ObjectID, Revision: d.Revision, Action: d.Action, Reason: d.Reason, Category: d.Category}
 	if d.Action == "reassign" {
 		safe.TeacherID = d.TeacherID
 	}
@@ -218,7 +236,7 @@ func (s *Service) resolveRelatedReports(t Transaction, primary Task) error {
 }
 func (s *Service) auth(ctx context.Context, p Principal, action, school string) error {
 	if p.Subject == "" {
-		return ErrForbidden
+		return withReason(ErrForbidden, "insufficient_scope")
 	}
 	if s == nil || s.Access == nil {
 		return ErrUnavailable
@@ -237,7 +255,7 @@ func replay(t Transaction, key, hash string, now time.Time) (TaskView, bool, err
 		return TaskView{}, false, nil
 	}
 	if r.Digest != hash {
-		return TaskView{}, false, ErrConflict
+		return TaskView{}, false, withReason(ErrConflict, "idempotency_mismatch")
 	}
 	r.View.Decision = publicDecision(r.View.Decision)
 	return r.View, true, nil
@@ -300,8 +318,8 @@ func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payl
 			return out, e
 		}
 		in.AppendID = previous.Submission.AppendID
-		if previous.Submission.ObjectID != in.ObjectID || previous.Submission.Kind == "appeal" || previous.Decision == nil || previous.State != "applied" {
-			return out, ErrConflict
+		if previous.Submission.ObjectID != in.ObjectID || !isAdverseToAuthor(previous) || previous.State != "applied" {
+			return out, withReason(ErrConflict, "appeal_not_allowed")
 		}
 	}
 	task, e := t.Active(p.Subject, in.ObjectID, in.Kind)
@@ -321,7 +339,7 @@ func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payl
 				return out, e
 			}
 			if appealed[in.PreviousTaskID] {
-				return out, ErrConflict
+				return out, withReason(ErrConflict, "already_appealed")
 			}
 		}
 		now := s.now()
@@ -349,17 +367,20 @@ func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payl
 			return out, e
 		}
 		if task.State != "waiting" || (in.Kind == "appeal" && task.Submission.PreviousTaskID != in.PreviousTaskID) {
-			return out, ErrConflict
+			return out, withReason(ErrConflict, "task_not_waiting")
 		}
 		if task.Submission.Evidence == nil {
 			task.Submission.Evidence = []string{}
+		}
+		if task.Submission.Category == "" {
+			task.Submission.Category = in.Category
 		}
 		if in.Reason != task.Submission.Reason {
 			task.Submission.Evidence = append(task.Submission.Evidence, in.Reason)
 		}
 		task.Submission.Evidence = append(task.Submission.Evidence, in.Evidence...)
 		if len(task.Submission.Evidence) > 20 {
-			return out, ErrInput
+			return out, withReason(ErrInput, "invalid_parameter")
 		}
 		if in.Kind == "edit_request" {
 			task.Submission.ProposedBody = in.ProposedBody
@@ -393,7 +414,7 @@ func (s *Service) Cleanup(ctx context.Context, limit int) error {
 		limit = 200
 	}
 	if limit < 1 || limit > 500 {
-		return ErrInput
+		return withReason(ErrInput, "invalid_parameter")
 	}
 	cleaner, ok := s.Repo.(retentionRepository)
 	if !ok {
@@ -428,14 +449,17 @@ func (s *Service) Check(ctx context.Context, school, kind, title, body string) (
 func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submission) (TaskView, error) {
 	var out TaskView
 	if p.Subject == "" {
-		return out, ErrForbidden
+		return out, withReason(ErrForbidden, "insufficient_scope")
+	}
+	if !validCategory(in.Category) {
+		return out, withReason(ErrInput, "invalid_category")
 	}
 	if in.AppendID != "" || !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || !slices.Contains([]string{"report", "edit_request", "delete_request", "review", "appeal"}, in.Kind) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
-		return out, ErrInput
+		return out, withReason(ErrInput, "invalid_parameter")
 	}
 	for _, v := range in.Evidence {
 		if !textOK(v, 2000) {
-			return out, ErrInput
+			return out, withReason(ErrInput, "invalid_parameter")
 		}
 	}
 	if in.Evidence == nil {
@@ -443,7 +467,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	}
 	if in.Kind == "report" {
 		if in.PreviousTaskID != "" {
-			return out, ErrInput
+			return out, withReason(ErrInput, "invalid_parameter")
 		}
 		return s.submitReport(ctx, p, key, in)
 	}
@@ -458,17 +482,17 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 		return out, ErrNotFound
 	}
 	if in.Kind == "edit_request" && strings.TrimSpace(in.ProposedBody) == "" {
-		return out, ErrInput
+		return out, withReason(ErrInput, "invalid_parameter")
 	}
 	if e = s.auth(ctx, p, "submit", object.SchoolID); e != nil {
 		return out, e
 	}
 	if in.Kind == "appeal" {
 		if !keyOK(in.PreviousTaskID) {
-			return out, ErrInput
+			return out, withReason(ErrInput, "invalid_parameter")
 		}
 	} else if in.PreviousTaskID != "" {
-		return out, ErrInput
+		return out, withReason(ErrInput, "invalid_parameter")
 	}
 	if in.Kind == "review" {
 		if e = s.auth(ctx, p, "manage", object.SchoolID); e != nil {
@@ -489,12 +513,12 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 func (s *Service) Track(ctx context.Context, eventID string, object Object) (TaskView, error) {
 	var out TaskView
 	if !keyOK(eventID) || !keyOK(object.ID) || !keyOK(object.SchoolID) || strings.TrimSpace(object.Owner) == "" || !textOK(object.Owner, 256) || object.Revision < 1 || (object.Kind != "" && !slices.Contains([]string{"course", "mentor", "reply", "resource"}, object.Kind)) {
-		return out, ErrInput
+		return out, withReason(ErrInput, "invalid_parameter")
 	}
 	id := digest([]string{"content", eventID})
 	if object.AppendID != "" {
 		if !keyOK(object.AppendID) || (object.Kind != "course" && object.Kind != "mentor") {
-			return out, ErrInput
+			return out, withReason(ErrInput, "invalid_parameter")
 		}
 		id = digest([]string{"append", object.ID, object.AppendID})
 	}
@@ -582,8 +606,11 @@ func isSelfFavorableDecision(p Principal, task Task, objectOwner, action string)
 func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in Decide) (TaskView, error) {
 	var out TaskView
 	d := in.Decision
+	if !validCategory(d.Category) {
+		return out, withReason(ErrInput, "invalid_category")
+	}
 	if !keyOK(key) || in.Revision < 1 || !validateDecision(d) {
-		return out, ErrInput
+		return out, withReason(ErrInput, "invalid_parameter")
 	}
 	rk := digest([]string{p.Subject, "decide", id, key})
 	h := digest(in)
@@ -622,11 +649,14 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 				return e
 			}
 			if prior.DecidedBy == p.Subject {
-				return ErrForbidden
+				return withReason(ErrForbidden, "self_review_forbidden")
 			}
 		}
 		if !canDecideTask(task, in.Revision) {
-			return ErrConflict
+			if task.Revision != in.Revision {
+				return withReason(ErrConflict, "stale_revision")
+			}
+			return withReason(ErrConflict, "task_not_waiting")
 		}
 		if port, ok := t.(RelatedTaskTransaction); ok {
 			inFlight, err := port.HasDecidedTaskOnObject(task.SchoolID, task.Submission.ObjectID, task.ID)
@@ -700,11 +730,11 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 }
 func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy Policy) error {
 	if !keyOK(key) {
-		return ErrInput
+		return withReason(ErrInput, "invalid_parameter")
 	}
 	legacyHash := digest(policy)
 	if !keyOK(policy.SchoolID) || !slices.Contains([]string{"course", "mentor", "reply", "resource"}, policy.Kind) || !slices.Contains([]string{"published", "pending", "review"}, policy.Mode) {
-		return ErrInput
+		return withReason(ErrInput, "invalid_parameter")
 	}
 	normalized, err := normalizeBlockedTerms(policy.BlockedTerms)
 	if err != nil {
@@ -723,7 +753,7 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 		cached, err := t.Replay(replayKey)
 		if err == nil && s.now().Before(cached.Until) {
 			if cached.Digest != requestHash && cached.Digest != legacyHash {
-				return ErrConflict
+				return withReason(ErrConflict, "idempotency_mismatch")
 			}
 			return nil
 		}
@@ -735,7 +765,7 @@ func (s *Service) SetPolicy(ctx context.Context, p Principal, key string, policy
 			return e
 		}
 		if old.Revision != policy.Revision {
-			return ErrConflict
+			return withReason(ErrConflict, "stale_revision")
 		}
 		policy.Revision++
 		if e = t.SavePolicy(policy); e != nil {
@@ -762,7 +792,7 @@ func appealedTasks(t Transaction, ids []string) (map[string]bool, error) {
 
 func viewFor(p Principal, task Task) TaskView {
 	out := view(task)
-	out.CanAppeal = p.Subject != "" && task.ContentOwner == p.Subject && task.Decision != nil && task.State == "applied" && task.Submission.Kind != "appeal"
+	out.CanAppeal = p.Subject != "" && task.ContentOwner == p.Subject && task.State == "applied" && isAdverseToAuthor(task)
 	return out
 }
 

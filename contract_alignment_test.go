@@ -50,9 +50,12 @@ func TestOpenAPIAndHTTPHandlerAlignment(t *testing.T) {
 	// 2. Appeal TaskView must populate top-level previous_task_id matching OpenAPI.
 	decided, err := s.Decide(ctx, m.Principal{Subject: "admin"}, task.ID, "dec-1", m.Decide{
 		Revision: task.Revision,
-		Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "dismiss", Reason: "Dismissed"},
+		Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "hide", Reason: "Requires review"},
 	})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Work(ctx, 10); err != nil {
 		t.Fatal(err)
 	}
 	appeal, err := s.Submit(ctx, m.Principal{Subject: "author"}, "appeal-1", m.Submission{

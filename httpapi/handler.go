@@ -51,7 +51,7 @@ func (h Handler) Routes() http.Handler {
 		if r.Method != "GET" && r.Header.Get("Origin") != "" {
 			u, e := url.Parse(r.Header.Get("Origin"))
 			if e != nil || u.Host != r.Host {
-				respond(w, nil, m.ErrForbidden)
+				respond(w, nil, m.ReasonError{Base: m.ErrForbidden, Reason: "cross_origin_forbidden"})
 				return
 			}
 		}
@@ -78,8 +78,21 @@ func respond(w http.ResponseWriter, v any, e error) {
 				code = x.e.Error()
 			}
 		}
+		var re m.ReasonError
+		hasReason := errors.As(e, &re)
+		if status == 429 {
+			retryAfter := 60
+			if hasReason && re.RetryAfter >= 1 {
+				retryAfter = re.RetryAfter
+			}
+			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+		}
 		w.WriteHeader(status)
-		_ = json.NewEncoder(w).Encode(map[string]string{"code": code})
+		body := map[string]string{"code": code}
+		if hasReason && re.Reason != "" {
+			body["reason"] = re.Reason
+		}
+		_ = json.NewEncoder(w).Encode(body)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(v)

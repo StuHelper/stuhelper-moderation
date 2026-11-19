@@ -254,14 +254,22 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Closed violation or disposition category code used as an i18n key.
+         * @enum {string}
+         */
+        ViolationCategory: "spam" | "personal_attack" | "copyright" | "wrong_teacher" | "academic_integrity" | "privacy_leak" | "low_quality" | "author_update" | "other";
         Error: {
             code: string;
+            /** @enum {string} */
+            reason?: "idempotency_mismatch" | "stale_revision" | "task_not_waiting" | "self_review_forbidden" | "insufficient_scope" | "cross_origin_forbidden" | "appeal_not_allowed" | "already_appealed" | "retry_not_allowed" | "submission_rate_limited" | "invalid_category" | "invalid_parameter";
         };
         /** @description Reports and author requests require an authenticated user; review tasks may only be opened by a moderator in the object school. Appeals require the content owner and a previous applied task; the service verifies the relationship and current eligibility. */
         Submission: {
             object_id: string;
             /** @enum {string} */
             kind: "report" | "edit_request" | "delete_request" | "review" | "appeal";
+            category?: components["schemas"]["ViolationCategory"];
             reason: string;
             evidence: string[];
             proposed_body?: string;
@@ -278,6 +286,7 @@ export interface components {
             body?: string;
             subject?: string;
             signed?: boolean;
+            category?: components["schemas"]["ViolationCategory"];
             reason: string;
             /** @description Discussion-local public author handle, used instead of a private account ID for identity moderation. */
             author_handle?: string;
@@ -303,6 +312,7 @@ export interface components {
             evidence_revision?: string;
             /** @description 此任务对应的单条追评 ID。追评裁决须与任务一致。 */
             append_id?: string;
+            category?: components["schemas"]["ViolationCategory"];
         };
         Policy: {
             school_id: string;
@@ -318,6 +328,7 @@ export interface components {
             object_id: string;
             /** @enum {string} */
             kind: "report" | "edit_request" | "delete_request" | "review" | "appeal";
+            category?: components["schemas"]["ViolationCategory"];
             reason: string;
             evidence: string[];
             proposed_body?: string;
@@ -678,6 +689,8 @@ export interface operations {
             /** @description 请求过于频繁，稍后重试 */
             429: {
                 headers: {
+                    /** @description Seconds until the caller may submit a new request. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
