@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -230,5 +231,68 @@ func TestFixedCategoryMigrationQueueAndComplaintReplay(t *testing.T) {
 	tasks, err = s.FilteredList(ctx, admin, filter)
 	if err != nil || len(tasks) != 0 {
 		t.Fatalf("decision category did not override submission category: %+v, %v", tasks, err)
+	}
+
+	t.Run("merged_resource_complaints", checkMergedResourceComplaintCategories)
+}
+
+func checkMergedResourceComplaintCategories(t *testing.T) {
+	s, _, _ := fixture(t)
+	ctx := context.Background()
+	admin := m.Principal{Subject: "admin"}
+	reporter := m.Principal{Subject: "reporter"}
+	for _, tc := range []struct {
+		objectID, initial, supplement, want string
+	}{
+		{"resource:classified", "copyright", "spam", "copyright"},
+		{"resource:uncategorized", "", "other_ip", "other_ip"},
+	} {
+		object := m.Object{ID: tc.objectID, Kind: "resource", SchoolID: "school", Owner: "author", Revision: 1, Visible: true}
+		first := m.Submission{
+			Kind: "report", ObjectID: object.ID, Category: tc.initial,
+			Reason: "Original report", Evidence: []string{"Original evidence", "Original contact"},
+		}
+		var original m.TaskView
+		var err error
+		if tc.initial == "" {
+			s.Content = complaintTarget{object: object}
+			original, err = s.Submit(ctx, reporter, "initial", first)
+		} else {
+			original, err = s.SubmitResourceComplaint(ctx, reporter, "initial", first, object)
+		}
+		if err != nil || original.Submission.Category != tc.initial {
+			t.Fatalf("%s: initial submission: %+v, %v", tc.objectID, original, err)
+		}
+
+		later := m.Submission{
+			Kind: "report", ObjectID: object.ID, Category: tc.supplement,
+			Reason: "Supplementary explanation", Evidence: []string{"Additional evidence", "Updated contact"},
+		}
+		merged, err := s.SubmitResourceComplaint(ctx, reporter, "supplement", later, object)
+		wantEvidence := []string{"Original evidence", "Original contact", "Supplementary explanation", "Additional evidence", "Updated contact"}
+		if err != nil || merged.ID != original.ID || merged.Revision != original.Revision+1 ||
+			merged.Submission.Category != tc.want || merged.Submission.Reason != first.Reason || !slices.Equal(merged.Submission.Evidence, wantEvidence) {
+			t.Fatalf("%s: complaint must merge into the original task: %+v, %v", tc.objectID, merged, err)
+		}
+		replayed, err := s.SubmitResourceComplaint(ctx, reporter, "supplement", later, object)
+		if err != nil || replayed.ID != merged.ID || replayed.Revision != merged.Revision ||
+			replayed.Submission.Category != tc.want || !slices.Equal(replayed.Submission.Evidence, wantEvidence) {
+			t.Fatalf("%s: complaint replay must preserve the merged task: %+v, %v", tc.objectID, replayed, err)
+		}
+		filter := m.TaskFilter{School: "school", Admin: true, Limit: 10, Category: tc.want}
+		tasks, err := s.FilteredList(ctx, admin, filter)
+		if err != nil || len(tasks) != 1 || tasks[0].ID != original.ID || !slices.Equal(tasks[0].Submission.Evidence, wantEvidence) {
+			t.Fatalf("%s: expected one persisted task under %q: %+v, %v", tc.objectID, tc.want, tasks, err)
+		}
+	}
+
+	filter := m.TaskFilter{School: "school", Admin: true, Limit: 10, Category: "spam"}
+	tasks, err := s.FilteredList(ctx, admin, filter)
+	if err != nil || len(tasks) != 0 {
+		t.Fatalf("replacement category appeared in the filter: %+v, %v", tasks, err)
+	}
+	summary, err := s.QueueSummary(ctx, admin, "school")
+	if err != nil || summary.Waiting != 2 || !maps.Equal(summary.ByCategory, map[string]int{"copyright": 1, "other_ip": 1}) {
+		t.Fatalf("unexpected merged complaint counts: %+v, %v", summary, err)
 	}
 }
