@@ -31,6 +31,8 @@ func (h Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/moderation/tasks/page", h.listPage)
 	mux.HandleFunc("GET /api/v1/moderation/tasks/summary", h.summary)
 	mux.HandleFunc("POST /api/v1/moderation/tasks", h.submit)
+	mux.HandleFunc("POST /api/v1/moderation/teacher-homepage-complaints/{teacher_id}", h.submitTeacherHomepageComplaint)
+	mux.HandleFunc("GET /api/v1/moderation/teacher-homepage-complaints/{teacher_id}/target", h.teacherHomepageComplaintTarget)
 	mux.HandleFunc("GET /api/v1/moderation/tasks/{id}", h.get)
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/decisions", h.decide)
 	mux.HandleFunc("POST /api/v1/moderation/tasks/{id}/retry", h.retry)
@@ -146,17 +148,22 @@ func parseTaskFilter(r *http.Request) (m.TaskFilter, error) {
 	if rawAdmin != "" && rawAdmin != "true" && rawAdmin != "false" {
 		return m.TaskFilter{}, m.ErrInput
 	}
+	includeTeacherHomepage, err := includeTeacherHomepage(r)
+	if err != nil {
+		return m.TaskFilter{}, err
+	}
 	filter := m.TaskFilter{
-		School:      q.Get("school_id"),
-		State:       q.Get("state"),
-		After:       q.Get("after"),
-		Order:       q.Get("order"),
-		Limit:       n,
-		Admin:       rawAdmin == "true",
-		Kind:        q.Get("kind"),
-		ContentKind: q.Get("content_kind"),
-		ObjectID:    q.Get("object_id"),
-		Category:    q.Get("category"),
+		IncludeTeacherHomepage: includeTeacherHomepage,
+		School:                 q.Get("school_id"),
+		State:                  q.Get("state"),
+		After:                  q.Get("after"),
+		Order:                  q.Get("order"),
+		Limit:                  n,
+		Admin:                  rawAdmin == "true",
+		Kind:                   q.Get("kind"),
+		ContentKind:            q.Get("content_kind"),
+		ObjectID:               q.Get("object_id"),
+		Category:               q.Get("category"),
 	}
 	for key, dest := range map[string]**time.Time{"from": &filter.From, "until": &filter.Until} {
 		if q.Get(key) != "" {
@@ -203,7 +210,12 @@ func (h Handler) summary(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	v, e := h.Service.QueueSummary(r.Context(), p, r.URL.Query().Get("school_id"))
+	include, err := includeTeacherHomepage(r)
+	if err != nil {
+		respond(w, nil, err)
+		return
+	}
+	v, e := h.Service.QueueSummaryIncludingTeacherHomepage(r.Context(), p, r.URL.Query().Get("school_id"), include)
 	respond(w, v, e)
 }
 func (h Handler) get(w http.ResponseWriter, r *http.Request) {

@@ -15,7 +15,7 @@ type TaskFilter struct {
 	From, Until, CursorAt                                                     *time.Time
 	CursorID                                                                  string
 	Limit                                                                     int
-	Admin                                                                     bool
+	Admin, IncludeTeacherHomepage                                             bool
 }
 
 type TaskPage struct {
@@ -24,10 +24,11 @@ type TaskPage struct {
 }
 
 type QueueContentCounts struct {
-	Course   int `json:"course"`
-	Mentor   int `json:"mentor"`
-	Reply    int `json:"reply"`
-	Resource int `json:"resource"`
+	Course          int `json:"course"`
+	Mentor          int `json:"mentor"`
+	Reply           int `json:"reply"`
+	Resource        int `json:"resource"`
+	TeacherHomepage int `json:"teacher_homepage,omitempty"`
 }
 
 type QueueRequestCounts struct {
@@ -94,7 +95,7 @@ func (s *Service) FilteredPage(ctx context.Context, p Principal, f TaskFilter) (
 	if p.Subject == "" {
 		return out, ErrForbidden
 	}
-	if f.Limit < 1 || f.Limit > 100 || len(f.After) > 256 || len(f.ObjectID) > 128 || f.From != nil && f.Until != nil && !f.From.Before(*f.Until) {
+	if f.Limit < 1 || f.Limit > 100 || len(f.After) > 256 || len(f.ObjectID) > 128 && !validModerationObjectID(f.ObjectID) || f.From != nil && f.Until != nil && !f.From.Before(*f.Until) {
 		return out, ErrInput
 	}
 	if f.State != "" && !slices.Contains([]string{"waiting", "decided", "applied", "failed"}, f.State) {
@@ -106,12 +107,13 @@ func (s *Service) FilteredPage(ctx context.Context, p Principal, f TaskFilter) (
 	if f.Kind != "" && !slices.Contains([]string{"review", "report", "edit_request", "delete_request", "appeal"}, f.Kind) {
 		return out, ErrInput
 	}
-	if f.ContentKind != "" && !slices.Contains([]string{"course", "mentor", "reply", "resource"}, f.ContentKind) {
+	if f.ContentKind != "" && !slices.Contains([]string{"course", "mentor", "reply", "resource", TeacherHomepageContentKind}, f.ContentKind) {
 		return out, ErrInput
 	}
 	if !validCategory(f.Category) {
 		return out, withReason(ErrInput, "invalid_category")
 	}
+	f.IncludeTeacherHomepage = f.IncludeTeacherHomepage || f.ContentKind == TeacherHomepageContentKind
 	f.Owner = p.Subject
 	if f.Admin {
 		if f.School == "" || !keyOK(f.School) {
@@ -233,6 +235,10 @@ func (s *Service) FilteredList(ctx context.Context, p Principal, f TaskFilter) (
 }
 
 func (s *Service) QueueSummary(ctx context.Context, p Principal, school string) (QueueSummary, error) {
+	return s.QueueSummaryIncludingTeacherHomepage(ctx, p, school, false)
+}
+
+func (s *Service) QueueSummaryIncludingTeacherHomepage(ctx context.Context, p Principal, school string, includeTeacherHomepage bool) (QueueSummary, error) {
 	var out QueueSummary
 	if p.Subject == "" {
 		return out, ErrForbidden
@@ -249,7 +255,17 @@ func (s *Service) QueueSummary(ctx context.Context, p Principal, school string) 
 			return ErrUnavailable
 		}
 		var err error
-		out, err = port.QueueSummary(school)
+		if includeTeacherHomepage {
+			inclusive, ok := t.(interface {
+				QueueSummaryIncludingTeacherHomepage(string) (QueueSummary, error)
+			})
+			if !ok {
+				return ErrUnavailable
+			}
+			out, err = inclusive.QueueSummaryIncludingTeacherHomepage(school)
+		} else {
+			out, err = port.QueueSummary(school)
+		}
 		return err
 	})
 	return out, err
@@ -339,7 +355,7 @@ func (s *Service) PreviewBatch(ctx context.Context, p Principal, in BatchRequest
 		}
 		var object Object
 		if e == nil {
-			object, e = s.inspect(ctx, p, task.Submission.ObjectID)
+			object, e = s.inspectDecisionTarget(ctx, p, task, item.Decision)
 			if e == nil {
 				if isSelfFavorableDecision(p, task, object.Owner, item.Decision.Action) {
 					e = s.auth(ctx, p, "self_approve", "*")

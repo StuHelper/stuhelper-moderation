@@ -12,7 +12,9 @@ moderation.decided.v1 与决定同事务写入，表示决定已保存。moderat
 
 结果 data 包含 task_id、owner（申请人）、content_owner、object_id、content_kind、request_kind、action、state、revision、decision_id。事件不含举报证据、正文、身份原值或管理员账号。
 
-内容通过、驳回、下架分别对应 publish、dismiss、hide。举报与资料下架申请通过 request_kind=report/delete_request 区分，侵权投诉的任务类型沿用 report。
+内容通过、驳回、下架分别对应 publish、dismiss、hide。举报与资料下架申请通过 request_kind=report/delete_request 区分，侵权投诉与教师主页投诉的任务类型沿用 report。
+
+教师主页目标的 content_kind 为 teacher_homepage，object_id 为 teacher-homepage: 加目录规范 ID。结果通知以举报回执为目标。
 
 所有 outbox 写入在同一事务执行 pg_notify('moderation_outbox', '')。通知仅用于唤醒，数据以 outbox 为准。回滚不产生事件或通知。
 

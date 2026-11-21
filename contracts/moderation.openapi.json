@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "StuHelper Moderation",
-    "version": "0.5.0"
+    "version": "0.6.0"
   },
   "servers": [
     {
@@ -161,7 +161,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by course, mentor, reply, or resource."
+            "description": "按内容类型筛选。使用 teacher_homepage 时读取教师主页投诉。"
           },
           {
             "in": "query",
@@ -198,6 +198,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "include_teacher_homepage",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "包含教师主页投诉。任务列表使用 content_kind=teacher_homepage 时自动包含。"
           }
         ]
       },
@@ -441,7 +450,8 @@
             "name": "content_kind",
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "按内容类型筛选。使用 teacher_homepage 时读取教师主页投诉。"
           },
           {
             "in": "query",
@@ -478,6 +488,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "include_teacher_homepage",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "包含教师主页投诉。任务列表使用 content_kind=teacher_homepage 时自动包含。"
           }
         ]
       }
@@ -550,6 +569,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "include_teacher_homepage",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "包含教师主页投诉。任务列表使用 content_kind=teacher_homepage 时自动包含。"
           }
         ]
       }
@@ -1999,6 +2027,229 @@
           }
         }
       }
+    },
+    "/api/v1/moderation/teacher-homepage-complaints/{teacher_id}": {
+      "post": {
+        "operationId": "submitTeacherHomepageComplaint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "请求过于频繁，稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the caller may submit a new request.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeacherHomepageComplaint"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teacher_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "description": "当前目录教师的规范 ID。"
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "description": "登录用户可以向本站的教师主页提交投诉，收到本人可查的回执。同校审核管理员通过现有队列查阅和处理。分类沿用固定 ViolationCategory；每账号每分钟最多 10 次新提交，幂等重放不占次数。回执不包含教师主页资料。教师本人更正申请使用独立接口。"
+      }
+    },
+    "/api/v1/moderation/teacher-homepage-complaints/{teacher_id}/target": {
+      "get": {
+        "operationId": "getTeacherHomepageComplaintTarget",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherHomepageComplaintTarget"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "teacher_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "description": "当前目录教师的规范 ID。"
+          }
+        ],
+        "description": "具备当前学校 moderation.manage 权限的审核员可读取有效资料修订与可见状态，用于复核最新版本。对教师主页投诉只允许 hide 或 dismiss。hide 收起主页资料和照片，保留目录与评价。"
+      }
     }
   },
   "components": {
@@ -2389,7 +2640,7 @@
           },
           "content_kind": {
             "type": "string",
-            "description": "Owning content type, including resource for learning materials."
+            "description": "内容所属类型，例如课业资料 resource 或教师主页 teacher_homepage。"
           },
           "previous_task_id": {
             "type": "string"
@@ -2957,6 +3208,11 @@
           "resource": {
             "type": "integer",
             "minimum": 0
+          },
+          "teacher_homepage": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "显式包含教师主页投诉时返回有待处理任务的数量，零可省略。"
           }
         },
         "required": [
@@ -3112,6 +3368,68 @@
           "feedback_active_count",
           "feedback_active_bytes",
           "feedback_tombstone_count"
+        ]
+      },
+      "TeacherHomepageComplaint": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ViolationCategory"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "具体说明。必填，不可仅为空白，最多 2000 个 Unicode 字符。选择 other 时在此字段说明具体情况。"
+          },
+          "evidence": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "description": "相关证据及说明，最多五项。随本人回执及同校审核队列保存。"
+          }
+        },
+        "required": [
+          "category",
+          "reason",
+          "evidence"
+        ]
+      },
+      "TeacherHomepageComplaintTarget": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "object_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 145,
+            "description": "现有审核任务使用的教师主页对象标识。"
+          },
+          "school_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "有效资料修订。提交审核决定时原样带回。"
+          },
+          "visible": {
+            "type": "boolean",
+            "description": "当前存在可展示的教师主页资料。"
+          }
+        },
+        "required": [
+          "object_id",
+          "school_id",
+          "revision",
+          "visible"
         ]
       }
     }

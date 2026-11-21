@@ -314,3 +314,75 @@ BEGIN
  RETURN removed;
 END $$;
 REVOKE ALL ON FUNCTION moderation.cleanup_task_audit(timestamptz, integer) FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS moderation.teacher_homepage_complaint_holds (
+ task_id text PRIMARY KEY REFERENCES moderation.tasks(id) ON DELETE CASCADE,
+ basis text NOT NULL CHECK (length(trim(basis)) BETWEEN 1 AND 512),
+ purpose text NOT NULL CHECK (length(trim(purpose)) BETWEEN 1 AND 512),
+ end_condition text NOT NULL CHECK (length(trim(end_condition)) BETWEEN 1 AND 512),
+ placed_at timestamptz NOT NULL DEFAULT current_timestamp CHECK (isfinite(placed_at)),
+ review_at timestamptz NOT NULL CHECK (isfinite(review_at)),
+ ends_at timestamptz NOT NULL CHECK (isfinite(ends_at)),
+ released_at timestamptz CHECK (isfinite(released_at)),
+ CHECK (placed_at <= review_at AND review_at <= ends_at AND placed_at < ends_at),
+ CHECK (released_at IS NULL OR placed_at <= released_at)
+);
+ALTER TABLE moderation.teacher_homepage_complaint_holds ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON moderation.teacher_homepage_complaint_holds FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION moderation.lock_teacher_homepage_complaint_hold() RETURNS trigger
+LANGUAGE plpgsql SET search_path=pg_catalog AS $$
+BEGIN
+ IF TG_OP='UPDATE' AND OLD.task_id<>NEW.task_id THEN
+  RAISE EXCEPTION 'invalid_hold_scope' USING ERRCODE='22023';
+ END IF;
+ PERFORM id FROM moderation.tasks WHERE id=NEW.task_id AND content_kind='teacher_homepage' AND kind='report' FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'invalid_hold_scope' USING ERRCODE='22023'; END IF;
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION moderation.lock_teacher_homepage_complaint_hold() FROM PUBLIC;
+DROP TRIGGER IF EXISTS teacher_homepage_complaint_hold_scope ON moderation.teacher_homepage_complaint_holds;
+CREATE TRIGGER teacher_homepage_complaint_hold_scope BEFORE INSERT OR UPDATE ON moderation.teacher_homepage_complaint_holds
+ FOR EACH ROW EXECUTE FUNCTION moderation.lock_teacher_homepage_complaint_hold();
+
+CREATE INDEX IF NOT EXISTS moderation_teacher_homepage_complaint_retention ON moderation.tasks(updated_at,id)
+ WHERE content_kind='teacher_homepage' AND kind='report' AND state='applied';
+CREATE INDEX IF NOT EXISTS moderation_replays_by_task_id ON moderation.replays((data->>'TaskID'));
+
+CREATE OR REPLACE FUNCTION moderation.cleanup_teacher_homepage_complaints(cutoff timestamptz, max_rows integer) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog SET TimeZone='UTC' AS $$
+DECLARE
+ candidate_ids text[];
+ expired_ids text[];
+ removed integer;
+BEGIN
+ IF cutoff IS NULL OR NOT isfinite(cutoff) OR cutoff > current_timestamp - interval '12 months' THEN
+  RAISE EXCEPTION 'invalid_cutoff' USING ERRCODE='22023';
+ END IF;
+ IF max_rows IS NULL OR max_rows < 1 OR max_rows > 500 THEN
+  RAISE EXCEPTION 'invalid_limit' USING ERRCODE='22023';
+ END IF;
+
+ SELECT ARRAY(
+  SELECT t.id FROM moderation.tasks t
+  WHERE t.content_kind='teacher_homepage' AND t.kind='report' AND t.state='applied' AND t.updated_at<=cutoff
+    AND NOT EXISTS(SELECT 1 FROM moderation.teacher_homepage_complaint_holds h
+     WHERE h.task_id=t.id AND h.released_at IS NULL AND h.ends_at>current_timestamp)
+  ORDER BY t.updated_at,t.id LIMIT max_rows FOR UPDATE OF t SKIP LOCKED
+ ) INTO candidate_ids;
+ IF cardinality(candidate_ids)=0 THEN RETURN 0; END IF;
+
+ -- Hold writes lock the same task. Check again in a fresh snapshot after
+ -- locking the candidates in case a hold committed after selection began.
+ SELECT ARRAY(
+  SELECT candidate.id FROM unnest(candidate_ids) AS candidate(id)
+  WHERE NOT EXISTS(SELECT 1 FROM moderation.teacher_homepage_complaint_holds h
+   WHERE h.task_id=candidate.id AND h.released_at IS NULL AND h.ends_at>current_timestamp)
+ ) INTO expired_ids;
+
+ DELETE FROM moderation.replays WHERE data->>'TaskID'=ANY(expired_ids);
+ DELETE FROM moderation.tasks WHERE id=ANY(expired_ids);
+ GET DIAGNOSTICS removed=ROW_COUNT;
+ RETURN removed;
+END $$;
+REVOKE ALL ON FUNCTION moderation.cleanup_teacher_homepage_complaints(timestamptz, integer) FROM PUBLIC;

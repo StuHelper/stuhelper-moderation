@@ -20,6 +20,9 @@ func buildTaskQuery(f m.TaskFilter, hasCursor bool, cursorTime time.Time) (strin
 	}
 
 	extraConds := []string{}
+	if !f.IncludeTeacherHomepage && f.ContentKind != m.TeacherHomepageContentKind {
+		extraConds = append(extraConds, "content_kind <> 'teacher_homepage'")
+	}
 	if f.School != "" {
 		extraConds = append(extraConds, "school_id="+add(f.School))
 	}
@@ -108,6 +111,14 @@ func (t *transaction) TaskCursorAnchor(id string) (time.Time, time.Time, error) 
 }
 
 func (t *transaction) QueueSummary(school string) (m.QueueSummary, error) {
+	return t.queueSummary(school, false)
+}
+
+func (t *transaction) QueueSummaryIncludingTeacherHomepage(school string) (m.QueueSummary, error) {
+	return t.queueSummary(school, true)
+}
+
+func (t *transaction) queueSummary(school string, includeTeacherHomepage bool) (m.QueueSummary, error) {
 	out := m.QueueSummary{SchoolID: school}
 	var counts []byte
 	err := t.tx.QueryRowContext(t.ctx, `SELECT
@@ -118,6 +129,7 @@ func (t *transaction) QueueSummary(school string) (m.QueueSummary, error) {
  count(*) FILTER (WHERE state='waiting' AND content_kind='mentor'),
  count(*) FILTER (WHERE state='waiting' AND content_kind='reply'),
  count(*) FILTER (WHERE state='waiting' AND content_kind='resource'),
+ count(*) FILTER (WHERE state='waiting' AND content_kind='teacher_homepage'),
  count(*) FILTER (WHERE state='waiting' AND kind='review'),
  count(*) FILTER (WHERE state='waiting' AND kind='report'),
  count(*) FILTER (WHERE state='waiting' AND kind='edit_request'),
@@ -125,10 +137,11 @@ func (t *transaction) QueueSummary(school string) (m.QueueSummary, error) {
  count(*) FILTER (WHERE state='waiting' AND kind='appeal'),
  (SELECT COALESCE(jsonb_object_agg(category, total), '{}'::jsonb) FROM (
    SELECT `+taskCategorySQL+` AS category, count(*) AS total
-   FROM moderation.tasks WHERE school_id=$1 AND state='waiting' AND `+taskCategorySQL+` IS NOT NULL
+   FROM moderation.tasks WHERE school_id=$1 AND ($2 OR content_kind<>'teacher_homepage')
+     AND state='waiting' AND `+taskCategorySQL+` IS NOT NULL
    GROUP BY category
  ) AS category_counts)
- FROM moderation.tasks WHERE school_id=$1`, school).Scan(
+ FROM moderation.tasks WHERE school_id=$1 AND ($2 OR content_kind<>'teacher_homepage')`, school, includeTeacherHomepage).Scan(
 		&out.Waiting,
 		&out.Decided,
 		&out.Failed,
@@ -136,6 +149,7 @@ func (t *transaction) QueueSummary(school string) (m.QueueSummary, error) {
 		&out.ByContentKind.Mentor,
 		&out.ByContentKind.Reply,
 		&out.ByContentKind.Resource,
+		&out.ByContentKind.TeacherHomepage,
 		&out.ByRequestKind.Review,
 		&out.ByRequestKind.Report,
 		&out.ByRequestKind.EditRequest,
@@ -174,7 +188,8 @@ func (t *transaction) RelatedWaitingCounts(school string, objectIDs []string) (m
 }
 
 func (t *transaction) WaitingReportsByObject(school, objectID string, maxObjectRevision int64, excludeID string) ([]m.Task, error) {
-	return list[m.Task](t, `SELECT data FROM moderation.tasks WHERE school_id=$1 AND object_id=$2 AND kind='report' AND state='waiting' AND id<>$3 AND COALESCE((data->>'object_revision')::bigint,0)<=$4 ORDER BY id ASC`, school, objectID, excludeID, maxObjectRevision)
+	return list[m.Task](t, `SELECT data FROM moderation.tasks WHERE school_id=$1 AND object_id=$2 AND kind='report' AND state='waiting' AND id<>$3 AND CASE WHEN content_kind='teacher_homepage' THEN (data->>'object_revision')::bigint=$4
+     ELSE COALESCE((data->>'object_revision')::bigint,0)<=$4 END ORDER BY id ASC`, school, objectID, excludeID, maxObjectRevision)
 }
 
 func (t *transaction) HasDecidedTaskOnObject(school, objectID, excludeID string) (bool, error) {
