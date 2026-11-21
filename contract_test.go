@@ -467,6 +467,7 @@ func TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance(t *testing.T) {
 		if _, err = s.SubmitResourceComplaint(ctx, m.Principal{Subject: "rate-actor"}, fmt.Sprintf("rk-%d", i), m.Submission{
 			Kind:     "report",
 			ObjectID: fmt.Sprintf("res-%d", i),
+			Category: "copyright",
 			Reason:   "Complaint",
 			Evidence: []string{"E1", "E2"},
 		}, m.Object{ID: fmt.Sprintf("res-%d", i), Kind: "resource", SchoolID: "school", Owner: "uploader", Revision: 1}); err != nil {

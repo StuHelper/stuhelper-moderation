@@ -1,5 +1,5 @@
 id: moderation
-version: 0.4.0 # 模块清单版本。源码发行版本由 Git tag 标识。
+version: 0.5.0 # 模块清单版本。源码发行版本由 Git tag 标识。
 kind: module
 api: 1
 critical: false
@@ -102,3 +102,7 @@ scenario_tests:
   CM-21:
     - feedback_test.go#TestFeedbackRateCapacityAndCursor
     - feedback_safety_test.go#TestFeedbackValidationEnforcesAttachmentLimitsSenderNormalizationAndHeaderSafety
+  CM-22:
+    - violation_categories_test.go#TestFixedCategoriesAndRequiredOtherReason
+  CM-23:
+    - violation_categories_test.go#TestFixedCategoryMigrationQueueAndComplaintReplay

@@ -208,7 +208,7 @@ func TestReportSupplementBypassesSubmitOutageAndTrustedPortsValidateObject(t *te
 
 	// Trusted SubmitResourceComplaint port works without user "submit" admission, and validates SchoolID.
 	validObj := m.Object{ID: "resource:v1", Kind: "resource", SchoolID: "school", Owner: "uploader", Revision: 1, Visible: true}
-	compIn := m.Submission{Kind: "report", ObjectID: validObj.ID, Reason: "Copyright", Evidence: []string{"Proof", "contact@example.test"}}
+	compIn := m.Submission{Kind: "report", ObjectID: validObj.ID, Category: "copyright", Reason: "Copyright", Evidence: []string{"Proof", "contact@example.test"}}
 	if _, err = s.SubmitResourceComplaint(ctx, m.Principal{Subject: "rightsholder"}, "comp-ok", compIn, validObj); err != nil {
 		t.Fatalf("trusted complaint port blocked by user qualification gate: %v", err)
 	}

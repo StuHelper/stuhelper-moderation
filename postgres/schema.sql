@@ -69,6 +69,34 @@ CREATE TABLE IF NOT EXISTS moderation.replays(key text PRIMARY KEY,until timesta
 ALTER TABLE moderation.replays ADD COLUMN IF NOT EXISTS until timestamptz;
 UPDATE moderation.replays SET until=(data->>'Until')::timestamptz WHERE until IS NULL AND (data ? 'Until');
 CREATE INDEX IF NOT EXISTS moderation_replays_until ON moderation.replays(until) WHERE until IS NOT NULL;
+
+-- All nine previously published codes still have the same meaning. Unrecognized
+-- nonempty codes and uncategorized resource complaints move to other. Remaining
+-- uncategorized tasks stay uncategorized. Keep the original rationale and hashes.
+DO $$
+DECLARE fixed_categories constant text[] := ARRAY[
+ 'illegal_content','pornography','gambling_drugs','fraud','violence_threat','minors_harm',
+ 'personal_attack','harassment_discrimination','defamation_rumor','privacy_leak','impersonation',
+ 'copyright','other_ip','academic_integrity','leaked_exam','fake_review','wrong_teacher','wrong_info',
+ 'spam','malware','duplicate','low_quality','author_update','other'
+];
+BEGIN
+ UPDATE moderation.tasks SET data=jsonb_set(data,'{submission,category}','"other"')
+ WHERE NULLIF(data#>>'{submission,category}','') <> ALL(fixed_categories)
+    OR (content_kind='resource' AND kind='report' AND NULLIF(data#>>'{submission,category}','') IS NULL);
+ UPDATE moderation.tasks SET data=jsonb_set(data,'{decision,category}','"other"')
+ WHERE NULLIF(data#>>'{decision,category}','') <> ALL(fixed_categories);
+
+ UPDATE moderation.replays SET data=jsonb_set(data,'{View,submission,category}','"other"')
+ WHERE NULLIF(data#>>'{View,submission,category}','') <> ALL(fixed_categories)
+    OR (data#>>'{View,content_kind}'='resource' AND data#>>'{View,submission,kind}'='report'
+        AND NULLIF(data#>>'{View,submission,category}','') IS NULL);
+ UPDATE moderation.replays SET data=jsonb_set(data,'{View,decision,category}','"other"')
+ WHERE NULLIF(data#>>'{View,decision,category}','') <> ALL(fixed_categories);
+END $$;
+CREATE INDEX IF NOT EXISTS moderation_school_category_created ON moderation.tasks
+ (school_id,(COALESCE(NULLIF(data#>>'{decision,category}',''),NULLIF(data#>>'{submission,category}',''))),created_at,id COLLATE "C");
+
 CREATE TABLE IF NOT EXISTS moderation.audit (
  id text PRIMARY KEY, time timestamptz NOT NULL, data jsonb NOT NULL,
  actor text NOT NULL, target text NOT NULL, action text NOT NULL,

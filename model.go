@@ -18,18 +18,6 @@ var (
 	ErrUnavailable     = errors.New("unavailable")
 )
 
-var ValidCategories = []string{
-	"spam",
-	"personal_attack",
-	"copyright",
-	"wrong_teacher",
-	"academic_integrity",
-	"privacy_leak",
-	"low_quality",
-	"author_update",
-	"other",
-}
-
 // ReasonError attaches a closed i18n-ready reason code and optional retry cooldown
 // while preserving errors.Is compatibility with the underlying sentinel error.
 type ReasonError struct {

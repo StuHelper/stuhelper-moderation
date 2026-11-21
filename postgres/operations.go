@@ -1,12 +1,16 @@
 package postgres
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	m "github.com/StuHelper/stuhelper-moderation"
 	"strings"
 	"time"
 )
+
+// Match the expression index in schema.sql so the queue can seek by category.
+const taskCategorySQL = `COALESCE(NULLIF(data#>>'{decision,category}',''),NULLIF(data#>>'{submission,category}',''))`
 
 func buildTaskQuery(f m.TaskFilter, hasCursor bool, cursorTime time.Time) (string, []any) {
 	args := []any{}
@@ -24,6 +28,9 @@ func buildTaskQuery(f m.TaskFilter, hasCursor bool, cursorTime time.Time) (strin
 	}
 	if f.Kind != "" {
 		extraConds = append(extraConds, "kind="+add(f.Kind))
+	}
+	if f.Category != "" {
+		extraConds = append(extraConds, taskCategorySQL+"="+add(f.Category))
 	}
 	if f.ContentKind != "" {
 		extraConds = append(extraConds, "content_kind="+add(f.ContentKind))
@@ -102,6 +109,7 @@ func (t *transaction) TaskCursorAnchor(id string) (time.Time, time.Time, error) 
 
 func (t *transaction) QueueSummary(school string) (m.QueueSummary, error) {
 	out := m.QueueSummary{SchoolID: school}
+	var counts []byte
 	err := t.tx.QueryRowContext(t.ctx, `SELECT
  count(*) FILTER (WHERE state='waiting'),
  count(*) FILTER (WHERE state='decided'),
@@ -114,7 +122,12 @@ func (t *transaction) QueueSummary(school string) (m.QueueSummary, error) {
  count(*) FILTER (WHERE state='waiting' AND kind='report'),
  count(*) FILTER (WHERE state='waiting' AND kind='edit_request'),
  count(*) FILTER (WHERE state='waiting' AND kind='delete_request'),
- count(*) FILTER (WHERE state='waiting' AND kind='appeal')
+ count(*) FILTER (WHERE state='waiting' AND kind='appeal'),
+ (SELECT COALESCE(jsonb_object_agg(category, total), '{}'::jsonb) FROM (
+   SELECT `+taskCategorySQL+` AS category, count(*) AS total
+   FROM moderation.tasks WHERE school_id=$1 AND state='waiting' AND `+taskCategorySQL+` IS NOT NULL
+   GROUP BY category
+ ) AS category_counts)
  FROM moderation.tasks WHERE school_id=$1`, school).Scan(
 		&out.Waiting,
 		&out.Decided,
@@ -128,8 +141,15 @@ func (t *transaction) QueueSummary(school string) (m.QueueSummary, error) {
 		&out.ByRequestKind.EditRequest,
 		&out.ByRequestKind.DeleteRequest,
 		&out.ByRequestKind.Appeal,
+		&counts,
 	)
-	return out, safe(err)
+	if err != nil {
+		return out, safe(err)
+	}
+	if err := json.Unmarshal(counts, &out.ByCategory); err != nil {
+		return out, m.ErrUnavailable
+	}
+	return out, nil
 }
 
 func (t *transaction) RelatedWaitingCounts(school string, objectIDs []string) (map[string]int, error) {

@@ -23,6 +23,14 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 	in.Kind = "report"
 	operation := digest([]string{p.Subject, in.Kind, in.ObjectID, key})
 	payload := digest(in)
+	var migratedComplaintHash string
+	if object != nil && in.Category == "other" {
+		// The resources migration classifies old complaints as other. Verify the
+		// original payload for an existing receipt when delivery lost its result.
+		original := in
+		original.Category = ""
+		migratedComplaintHash = digest(original)
+	}
 	needsFacts := errors.New("report creation needs current facts")
 	checkRateLimit := func(t Transaction) error {
 		limiter, ok := t.(interface{ LimitSubmission(string, time.Time) error })
@@ -33,7 +41,7 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 	}
 	apply := func(t Transaction) error {
 		var txErr error
-		out, txErr = s.upsertSubmissionTx(t, p, operation, payload, in, object, needsFacts, checkRateLimit)
+		out, txErr = s.upsertSubmissionTx(t, p, operation, payload, migratedComplaintHash, in, object, needsFacts, checkRateLimit)
 		return txErr
 	}
 	err := s.tx(ctx, apply)

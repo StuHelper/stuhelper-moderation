@@ -1,0 +1,208 @@
+package moderation_test
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"maps"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	m "github.com/StuHelper/stuhelper-moderation"
+	"github.com/StuHelper/stuhelper-moderation/httpapi"
+	"github.com/StuHelper/stuhelper-moderation/postgres"
+	"github.com/StuHelper/stuhelper-moderation/sdk"
+)
+
+func TestFixedCategoriesAndRequiredOtherReason(t *testing.T) {
+	s, _, _ := fixture(t)
+	ctx := context.Background()
+	server := httptest.NewServer(httpapi.Handler{
+		Service: s,
+		Authenticate: func(r *http.Request) (m.Principal, error) {
+			return m.Principal{Subject: r.Header.Get("X-Actor")}, nil
+		},
+	}.Routes())
+	defer server.Close()
+	client, err := sdk.NewClientWithResponses(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	submit := func(category sdk.ViolationCategory, reason string) (*sdk.SubmitTaskResponse, error) {
+		return client.SubmitTaskWithResponse(ctx, &sdk.SubmitTaskParams{IdempotencyKey: "report"}, sdk.Submission{
+			ObjectId: "review",
+			Kind:     sdk.SubmissionKindReport,
+			Category: &category,
+			Reason:   reason,
+			Evidence: []string{},
+		}, func(_ context.Context, r *http.Request) error {
+			r.Header.Set("X-Actor", "reporter-"+string(category))
+			return nil
+		})
+	}
+
+	other := sdk.ViolationCategoryOther
+	for _, reason := range []string{"", "  \t\u3000", strings.Repeat("说", 2001)} {
+		resp, err := submit(other, reason)
+		if err != nil || resp.JSON400 == nil || resp.JSON400.Reason == nil || *resp.JSON400.Reason != sdk.InvalidParameter {
+			t.Fatalf("other reason of length %d: expected invalid_parameter, got %v %+v", len(reason), err, resp)
+		}
+	}
+	unknown := sdk.ViolationCategory("obsolete")
+	bad, err := submit(unknown, "补充说明")
+	if err != nil || bad.JSON400 == nil || bad.JSON400.Reason == nil || *bad.JSON400.Reason != sdk.InvalidCategory {
+		t.Fatalf("expected invalid_category, got %v %+v", err, bad)
+	}
+
+	categories := []sdk.ViolationCategory{
+		"illegal_content", "pornography", "gambling_drugs", "fraud", "violence_threat", "minors_harm",
+		"personal_attack", "harassment_discrimination", "defamation_rumor", "privacy_leak", "impersonation",
+		"copyright", "other_ip", "academic_integrity", "leaked_exam", "fake_review", "wrong_teacher", "wrong_info",
+		"spam", "malware", "duplicate", "low_quality", "author_update", other,
+	}
+	for _, category := range categories {
+		resp, err := submit(category, strings.Repeat("说", 2000))
+		if err != nil || resp.JSON200 == nil || resp.JSON200.Submission.Category == nil || *resp.JSON200.Submission.Category != category {
+			t.Fatalf("category %q at the Unicode limit: %v %+v", category, err, resp)
+		}
+	}
+
+	summary, err := s.QueueSummary(ctx, m.Principal{Subject: "admin"}, "school")
+	if err != nil || summary.Waiting != len(categories) || len(summary.ByCategory) != len(categories) {
+		t.Fatalf("invalid submissions changed the queue: %+v, %v", summary, err)
+	}
+	admin := func(_ context.Context, r *http.Request) error {
+		r.Header.Set("X-Actor", "admin")
+		return nil
+	}
+	school := "school"
+	adminQuery := "true"
+	page, err := client.ListTaskPageWithResponse(ctx, &sdk.ListTaskPageParams{Category: &other, SchoolId: &school, Admin: &adminQuery}, admin)
+	if err != nil || page.JSON200 == nil || len(page.JSON200.Items) != 1 {
+		t.Fatalf("filter via generated client: %v %+v", err, page)
+	}
+	task := page.JSON200.Items[0]
+	badDecision, err := client.DecideTaskWithResponse(ctx, task.Id, &sdk.DecideTaskParams{IdempotencyKey: "bad-other-decision"}, sdk.Decide{
+		Revision: task.Revision,
+		Decision: sdk.DecisionInput{ObjectId: "review", Action: "dismiss", Revision: task.ObjectRevision, Category: &other, Reason: "  "},
+	}, admin)
+	if err != nil || badDecision.JSON400 == nil || badDecision.JSON400.Reason == nil || *badDecision.JSON400.Reason != sdk.InvalidParameter {
+		t.Fatalf("decision with other requires a reason: %v %+v", err, badDecision)
+	}
+	unchanged, err := s.Get(ctx, m.Principal{Subject: "admin"}, task.Id)
+	if err != nil || unchanged.Revision != task.Revision || unchanged.State != "waiting" || unchanged.Decision != nil {
+		t.Fatalf("invalid decision changed task: %+v, %v", unchanged, err)
+	}
+}
+
+func TestFixedCategoryMigrationQueueAndComplaintReplay(t *testing.T) {
+	repo, migration := database(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	s := &m.Service{Repo: repo, Access: access{}, Clock: func() time.Time { return now }}
+	admin := m.Principal{Subject: "admin"}
+	reporter := m.Principal{Subject: "reporter"}
+	object := m.Object{ID: "resource:legacy", Kind: "resource", SchoolID: "school", Owner: "author", Revision: 1}
+
+	digest := func(v any) string {
+		sum := sha256.Sum256(mustJSON(t, v))
+		return hex.EncodeToString(sum[:])
+	}
+	oldSubmission := m.Submission{ObjectID: object.ID, Kind: "report", Reason: "Original complaint", Evidence: []string{"Evidence", "Contact"}}
+	key := "legacy-delivery"
+	operation := digest([]string{reporter.Subject, "report", object.ID, key})
+	original := m.Task{
+		ID: operation, Owner: reporter.Subject, ContentOwner: object.Owner, ContentKind: object.Kind, SchoolID: object.SchoolID,
+		Submission: oldSubmission, ObjectRevision: 1, Revision: 1, State: "waiting", CreatedAt: now, UpdatedAt: now,
+	}
+	if err := repo.Transaction(ctx, func(tx m.Transaction) error {
+		if err := tx.SaveTask(original); err != nil {
+			return err
+		}
+		oldView := m.TaskView{
+			ID: original.ID, ContentKind: original.ContentKind, SchoolID: original.SchoolID, Submission: oldSubmission,
+			State: original.State, Revision: original.Revision, ObjectRevision: original.ObjectRevision, CreatedAt: now, UpdatedAt: now,
+		}
+		if err := tx.SaveReplay(operation, m.Replay{TaskID: original.ID, Digest: digest(oldSubmission), View: oldView, Until: now.Add(time.Hour)}); err != nil {
+			return err
+		}
+		for _, task := range []m.Task{
+			{ID: "same-category", State: "waiting", Submission: m.Submission{Category: "copyright"}},
+			{ID: "no-category", State: "waiting"},
+			{ID: "unknown-category", State: "waiting", Submission: m.Submission{Category: "old_label"}},
+			{ID: "decision-overrides", State: "applied", Submission: m.Submission{Category: "spam"}, Decision: &m.Decision{Category: "old_decision", Reason: "Original decision"}},
+			{ID: "foreign-category", State: "waiting", SchoolID: "other-school", Submission: m.Submission{Category: "copyright"}},
+		} {
+			task.Owner = task.ID
+			task.ContentKind = "course"
+			if task.SchoolID == "" {
+				task.SchoolID = "school"
+			}
+			task.Submission.ObjectID = task.ID
+			task.Submission.Kind = "report"
+			task.Submission.Reason = "Original report"
+			task.CreatedAt = now
+			if err := tx.SaveTask(task); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, err := migration.ExecContext(ctx, postgres.Schema); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	updated := oldSubmission
+	updated.Category = "other"
+	replayed, err := s.SubmitResourceComplaint(ctx, reporter, key, updated, object)
+	if err != nil || replayed.ID != original.ID || replayed.Revision != 1 || len(replayed.Submission.Evidence) != 2 || replayed.Submission.Category != "other" || replayed.Submission.Reason != oldSubmission.Reason {
+		t.Fatalf("migration did not recover the original complaint: %+v, %v", replayed, err)
+	}
+	changed := updated
+	changed.Reason = "Changed complaint"
+	if _, err = s.SubmitResourceComplaint(ctx, reporter, key, changed, object); !errors.Is(err, m.ErrConflict) {
+		t.Fatalf("same key with changed content must conflict: %v", err)
+	}
+	changed = updated
+	changed.Category = "copyright"
+	if _, err = s.SubmitResourceComplaint(ctx, reporter, key, changed, object); !errors.Is(err, m.ErrConflict) {
+		t.Fatalf("same key with changed category must conflict: %v", err)
+	}
+	if err := repo.Transaction(ctx, func(tx m.Transaction) error {
+		receipt, err := tx.Replay(operation)
+		if err == nil && receipt.Digest != digest(oldSubmission) {
+			t.Fatal("migration changed the original idempotency digest")
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	summary, err := s.QueueSummary(ctx, admin, "school")
+	if err != nil || summary.Waiting != 4 || !maps.Equal(summary.ByCategory, map[string]int{"copyright": 1, "other": 2}) {
+		t.Fatalf("unexpected category queue summary: %+v, %v", summary, err)
+	}
+	filter := m.TaskFilter{School: "school", Admin: true, Category: "other", Limit: 100}
+	tasks, err := s.FilteredList(ctx, admin, filter)
+	if err != nil || len(tasks) != 3 {
+		t.Fatalf("category filter did not use the new values: %+v, %v", tasks, err)
+	}
+	for _, task := range tasks {
+		if task.ID == "decision-overrides" && (task.Submission.Category != "spam" || task.Decision == nil || task.Decision.Category != "other" || task.Decision.Reason != "Original decision") {
+			t.Fatalf("migration changed the decision's original facts: %+v", task)
+		}
+	}
+	filter.Category = "spam"
+	tasks, err = s.FilteredList(ctx, admin, filter)
+	if err != nil || len(tasks) != 0 {
+		t.Fatalf("decision category did not override submission category: %+v, %v", tasks, err)
+	}
+}

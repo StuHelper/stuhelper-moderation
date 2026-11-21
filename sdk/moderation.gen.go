@@ -484,15 +484,30 @@ func (e TaskSubmissionKind) Valid() bool {
 
 // Defines values for ViolationCategory.
 const (
-	ViolationCategoryAcademicIntegrity ViolationCategory = "academic_integrity"
-	ViolationCategoryAuthorUpdate      ViolationCategory = "author_update"
-	ViolationCategoryCopyright         ViolationCategory = "copyright"
-	ViolationCategoryLowQuality        ViolationCategory = "low_quality"
-	ViolationCategoryOther             ViolationCategory = "other"
-	ViolationCategoryPersonalAttack    ViolationCategory = "personal_attack"
-	ViolationCategoryPrivacyLeak       ViolationCategory = "privacy_leak"
-	ViolationCategorySpam              ViolationCategory = "spam"
-	ViolationCategoryWrongTeacher      ViolationCategory = "wrong_teacher"
+	ViolationCategoryAcademicIntegrity        ViolationCategory = "academic_integrity"
+	ViolationCategoryAuthorUpdate             ViolationCategory = "author_update"
+	ViolationCategoryCopyright                ViolationCategory = "copyright"
+	ViolationCategoryDefamationRumor          ViolationCategory = "defamation_rumor"
+	ViolationCategoryDuplicate                ViolationCategory = "duplicate"
+	ViolationCategoryFakeReview               ViolationCategory = "fake_review"
+	ViolationCategoryFraud                    ViolationCategory = "fraud"
+	ViolationCategoryGamblingDrugs            ViolationCategory = "gambling_drugs"
+	ViolationCategoryHarassmentDiscrimination ViolationCategory = "harassment_discrimination"
+	ViolationCategoryIllegalContent           ViolationCategory = "illegal_content"
+	ViolationCategoryImpersonation            ViolationCategory = "impersonation"
+	ViolationCategoryLeakedExam               ViolationCategory = "leaked_exam"
+	ViolationCategoryLowQuality               ViolationCategory = "low_quality"
+	ViolationCategoryMalware                  ViolationCategory = "malware"
+	ViolationCategoryMinorsHarm               ViolationCategory = "minors_harm"
+	ViolationCategoryOther                    ViolationCategory = "other"
+	ViolationCategoryOtherIp                  ViolationCategory = "other_ip"
+	ViolationCategoryPersonalAttack           ViolationCategory = "personal_attack"
+	ViolationCategoryPornography              ViolationCategory = "pornography"
+	ViolationCategoryPrivacyLeak              ViolationCategory = "privacy_leak"
+	ViolationCategorySpam                     ViolationCategory = "spam"
+	ViolationCategoryViolenceThreat           ViolationCategory = "violence_threat"
+	ViolationCategoryWrongInfo                ViolationCategory = "wrong_info"
+	ViolationCategoryWrongTeacher             ViolationCategory = "wrong_teacher"
 )
 
 // Valid indicates whether the value is a known member of the ViolationCategory enum.
@@ -504,15 +519,45 @@ func (e ViolationCategory) Valid() bool {
 		return true
 	case ViolationCategoryCopyright:
 		return true
+	case ViolationCategoryDefamationRumor:
+		return true
+	case ViolationCategoryDuplicate:
+		return true
+	case ViolationCategoryFakeReview:
+		return true
+	case ViolationCategoryFraud:
+		return true
+	case ViolationCategoryGamblingDrugs:
+		return true
+	case ViolationCategoryHarassmentDiscrimination:
+		return true
+	case ViolationCategoryIllegalContent:
+		return true
+	case ViolationCategoryImpersonation:
+		return true
+	case ViolationCategoryLeakedExam:
+		return true
 	case ViolationCategoryLowQuality:
+		return true
+	case ViolationCategoryMalware:
+		return true
+	case ViolationCategoryMinorsHarm:
 		return true
 	case ViolationCategoryOther:
 		return true
+	case ViolationCategoryOtherIp:
+		return true
 	case ViolationCategoryPersonalAttack:
+		return true
+	case ViolationCategoryPornography:
 		return true
 	case ViolationCategoryPrivacyLeak:
 		return true
 	case ViolationCategorySpam:
+		return true
+	case ViolationCategoryViolenceThreat:
+		return true
+	case ViolationCategoryWrongInfo:
 		return true
 	case ViolationCategoryWrongTeacher:
 		return true
@@ -636,7 +681,32 @@ type Decision struct {
 	AuthorHandle *string `json:"author_handle,omitempty"`
 	Body         *string `json:"body,omitempty"`
 
-	// Category Closed violation or disposition category code used as an i18n key.
+	// Category 固定的违规与处置分类代码。
+	//
+	// - `illegal_content`：违法违规，含危害国家安全、煽动颠覆、恐怖主义、极端主义等违法信息。
+	// - `pornography`：色情低俗，含色情、性暗示及低俗内容。
+	// - `gambling_drugs`：赌博毒品违禁品，含赌博、毒品、管制物品及违禁品交易。
+	// - `fraud`：诈骗钓鱼，含诈骗、钓鱼链接、虚假兼职或套取账号及钱财。
+	// - `violence_threat`：暴力威胁，含宣扬暴力、威胁人身安全及自残自杀引导。
+	// - `minors_harm`：危害未成年人，含不利于未成年人身心健康的内容。
+	// - `personal_attack`：辱骂攻击，含辱骂、人身攻击及挑衅。
+	// - `harassment_discrimination`：骚扰歧视，含骚扰及地域、性别、民族、宗教等歧视。
+	// - `defamation_rumor`：诽谤谣言，含虚构事实、诽谤他人和传播谣言。
+	// - `privacy_leak`：泄露隐私，含泄露他人姓名、联系方式、证件或住址等个人信息。
+	// - `impersonation`：冒充他人，含冒充他人、教师、学校或机构。
+	// - `copyright`：侵犯著作权，含未经许可的教材扫描、课件或论文。
+	// - `other_ip`：侵犯其他权益，含商标、肖像、名誉等其他合法权益。
+	// - `academic_integrity`：学术不端，含代写、代考、作弊工具及抄袭。
+	// - `leaked_exam`：泄露试题，含未公开的试题、答案及考试安排。
+	// - `fake_review`：不实评价，含非亲身经历、刷评、恶意差评或利益相关评价。
+	// - `wrong_teacher`：教师或课程对应错误，含评价或资料关联到错误的教师、课程。
+	// - `wrong_info`：信息错误，含标题、分类、标签、学期等描述与内容不符。
+	// - `spam`：广告垃圾，含广告、引流、无关推广及刷屏。
+	// - `malware`：恶意文件或链接，含病毒、木马、恶意脚本及危险链接。
+	// - `duplicate`：重复内容，与已有内容重复。
+	// - `low_quality`：内容质量低，含无意义、灌水、无法打开或残缺的内容。
+	// - `author_update`：作者要求更新，作者本人要求更正或撤回。
+	// - `other`：其他，以上未覆盖的情况，必须在 reason 中填写说明。
 	Category         *ViolationCategory `json:"category,omitempty"`
 	EvidenceRevision *string            `json:"evidence_revision,omitempty"`
 	Id               string             `json:"id"`
@@ -662,16 +732,43 @@ type DecisionInput struct {
 	AuthorHandle *string `json:"author_handle,omitempty"`
 	Body         *string `json:"body,omitempty"`
 
-	// Category Closed violation or disposition category code used as an i18n key.
+	// Category 固定的违规与处置分类代码。
+	//
+	// - `illegal_content`：违法违规，含危害国家安全、煽动颠覆、恐怖主义、极端主义等违法信息。
+	// - `pornography`：色情低俗，含色情、性暗示及低俗内容。
+	// - `gambling_drugs`：赌博毒品违禁品，含赌博、毒品、管制物品及违禁品交易。
+	// - `fraud`：诈骗钓鱼，含诈骗、钓鱼链接、虚假兼职或套取账号及钱财。
+	// - `violence_threat`：暴力威胁，含宣扬暴力、威胁人身安全及自残自杀引导。
+	// - `minors_harm`：危害未成年人，含不利于未成年人身心健康的内容。
+	// - `personal_attack`：辱骂攻击，含辱骂、人身攻击及挑衅。
+	// - `harassment_discrimination`：骚扰歧视，含骚扰及地域、性别、民族、宗教等歧视。
+	// - `defamation_rumor`：诽谤谣言，含虚构事实、诽谤他人和传播谣言。
+	// - `privacy_leak`：泄露隐私，含泄露他人姓名、联系方式、证件或住址等个人信息。
+	// - `impersonation`：冒充他人，含冒充他人、教师、学校或机构。
+	// - `copyright`：侵犯著作权，含未经许可的教材扫描、课件或论文。
+	// - `other_ip`：侵犯其他权益，含商标、肖像、名誉等其他合法权益。
+	// - `academic_integrity`：学术不端，含代写、代考、作弊工具及抄袭。
+	// - `leaked_exam`：泄露试题，含未公开的试题、答案及考试安排。
+	// - `fake_review`：不实评价，含非亲身经历、刷评、恶意差评或利益相关评价。
+	// - `wrong_teacher`：教师或课程对应错误，含评价或资料关联到错误的教师、课程。
+	// - `wrong_info`：信息错误，含标题、分类、标签、学期等描述与内容不符。
+	// - `spam`：广告垃圾，含广告、引流、无关推广及刷屏。
+	// - `malware`：恶意文件或链接，含病毒、木马、恶意脚本及危险链接。
+	// - `duplicate`：重复内容，与已有内容重复。
+	// - `low_quality`：内容质量低，含无意义、灌水、无法打开或残缺的内容。
+	// - `author_update`：作者要求更新，作者本人要求更正或撤回。
+	// - `other`：其他，以上未覆盖的情况，必须在 reason 中填写说明。
 	Category         *ViolationCategory `json:"category,omitempty"`
 	EvidenceRevision *string            `json:"evidence_revision,omitempty"`
 	Id               *string            `json:"id,omitempty"`
 	ObjectId         string             `json:"object_id"`
-	Reason           string             `json:"reason"`
-	Revision         int64              `json:"revision"`
-	Signed           *bool              `json:"signed,omitempty"`
-	Subject          *string            `json:"subject,omitempty"`
-	TeacherId        *string            `json:"teacher_id,omitempty"`
+
+	// Reason 具体说明。必填，不可仅为空白，最多 2000 个 Unicode 字符。选择 other 时在此字段说明具体情况。
+	Reason    string  `json:"reason"`
+	Revision  int64   `json:"revision"`
+	Signed    *bool   `json:"signed,omitempty"`
+	Subject   *string `json:"subject,omitempty"`
+	TeacherId *string `json:"teacher_id,omitempty"`
 }
 
 // DecisionInputAction defines model for DecisionInput.Action.
@@ -855,6 +952,8 @@ type QueueRequestCounts struct {
 
 // QueueSummary defines model for QueueSummary.
 type QueueSummary struct {
+	// ByCategory 本校待处理任务按固定分类的计数。键为 ViolationCategory，只返回非零分类，未分类任务仍计入 waiting。
+	ByCategory    map[string]int     `json:"by_category"`
 	ByContentKind QueueContentCounts `json:"by_content_kind"`
 	ByRequestKind QueueRequestCounts `json:"by_request_kind"`
 	Decided       int                `json:"decided"`
@@ -870,7 +969,32 @@ type Saved struct {
 
 // Submission Reports and author requests require an authenticated user; review tasks may only be opened by a moderator in the object school. Appeals require the content owner and a previous applied task; the service verifies the relationship and current eligibility.
 type Submission struct {
-	// Category Closed violation or disposition category code used as an i18n key.
+	// Category 固定的违规与处置分类代码。
+	//
+	// - `illegal_content`：违法违规，含危害国家安全、煽动颠覆、恐怖主义、极端主义等违法信息。
+	// - `pornography`：色情低俗，含色情、性暗示及低俗内容。
+	// - `gambling_drugs`：赌博毒品违禁品，含赌博、毒品、管制物品及违禁品交易。
+	// - `fraud`：诈骗钓鱼，含诈骗、钓鱼链接、虚假兼职或套取账号及钱财。
+	// - `violence_threat`：暴力威胁，含宣扬暴力、威胁人身安全及自残自杀引导。
+	// - `minors_harm`：危害未成年人，含不利于未成年人身心健康的内容。
+	// - `personal_attack`：辱骂攻击，含辱骂、人身攻击及挑衅。
+	// - `harassment_discrimination`：骚扰歧视，含骚扰及地域、性别、民族、宗教等歧视。
+	// - `defamation_rumor`：诽谤谣言，含虚构事实、诽谤他人和传播谣言。
+	// - `privacy_leak`：泄露隐私，含泄露他人姓名、联系方式、证件或住址等个人信息。
+	// - `impersonation`：冒充他人，含冒充他人、教师、学校或机构。
+	// - `copyright`：侵犯著作权，含未经许可的教材扫描、课件或论文。
+	// - `other_ip`：侵犯其他权益，含商标、肖像、名誉等其他合法权益。
+	// - `academic_integrity`：学术不端，含代写、代考、作弊工具及抄袭。
+	// - `leaked_exam`：泄露试题，含未公开的试题、答案及考试安排。
+	// - `fake_review`：不实评价，含非亲身经历、刷评、恶意差评或利益相关评价。
+	// - `wrong_teacher`：教师或课程对应错误，含评价或资料关联到错误的教师、课程。
+	// - `wrong_info`：信息错误，含标题、分类、标签、学期等描述与内容不符。
+	// - `spam`：广告垃圾，含广告、引流、无关推广及刷屏。
+	// - `malware`：恶意文件或链接，含病毒、木马、恶意脚本及危险链接。
+	// - `duplicate`：重复内容，与已有内容重复。
+	// - `low_quality`：内容质量低，含无意义、灌水、无法打开或残缺的内容。
+	// - `author_update`：作者要求更新，作者本人要求更正或撤回。
+	// - `other`：其他，以上未覆盖的情况，必须在 reason 中填写说明。
 	Category *ViolationCategory `json:"category,omitempty"`
 	Evidence []string           `json:"evidence"`
 	Kind     SubmissionKind     `json:"kind"`
@@ -879,7 +1003,9 @@ type Submission struct {
 	// PreviousTaskId Required for appeal; identifies the original applied task. Other request kinds must omit it.
 	PreviousTaskId *string `json:"previous_task_id,omitempty"`
 	ProposedBody   *string `json:"proposed_body,omitempty"`
-	Reason         string  `json:"reason"`
+
+	// Reason 具体说明。必填，不可仅为空白，最多 2000 个 Unicode 字符。选择 other 时在此字段说明具体情况。
+	Reason string `json:"reason"`
 }
 
 // SubmissionKind defines model for Submission.Kind.
@@ -896,7 +1022,32 @@ type TaskSubmission struct {
 	// AppendId 此任务对应的单条追评 ID。追评裁决须与任务一致。
 	AppendId *string `json:"append_id,omitempty"`
 
-	// Category Closed violation or disposition category code used as an i18n key.
+	// Category 固定的违规与处置分类代码。
+	//
+	// - `illegal_content`：违法违规，含危害国家安全、煽动颠覆、恐怖主义、极端主义等违法信息。
+	// - `pornography`：色情低俗，含色情、性暗示及低俗内容。
+	// - `gambling_drugs`：赌博毒品违禁品，含赌博、毒品、管制物品及违禁品交易。
+	// - `fraud`：诈骗钓鱼，含诈骗、钓鱼链接、虚假兼职或套取账号及钱财。
+	// - `violence_threat`：暴力威胁，含宣扬暴力、威胁人身安全及自残自杀引导。
+	// - `minors_harm`：危害未成年人，含不利于未成年人身心健康的内容。
+	// - `personal_attack`：辱骂攻击，含辱骂、人身攻击及挑衅。
+	// - `harassment_discrimination`：骚扰歧视，含骚扰及地域、性别、民族、宗教等歧视。
+	// - `defamation_rumor`：诽谤谣言，含虚构事实、诽谤他人和传播谣言。
+	// - `privacy_leak`：泄露隐私，含泄露他人姓名、联系方式、证件或住址等个人信息。
+	// - `impersonation`：冒充他人，含冒充他人、教师、学校或机构。
+	// - `copyright`：侵犯著作权，含未经许可的教材扫描、课件或论文。
+	// - `other_ip`：侵犯其他权益，含商标、肖像、名誉等其他合法权益。
+	// - `academic_integrity`：学术不端，含代写、代考、作弊工具及抄袭。
+	// - `leaked_exam`：泄露试题，含未公开的试题、答案及考试安排。
+	// - `fake_review`：不实评价，含非亲身经历、刷评、恶意差评或利益相关评价。
+	// - `wrong_teacher`：教师或课程对应错误，含评价或资料关联到错误的教师、课程。
+	// - `wrong_info`：信息错误，含标题、分类、标签、学期等描述与内容不符。
+	// - `spam`：广告垃圾，含广告、引流、无关推广及刷屏。
+	// - `malware`：恶意文件或链接，含病毒、木马、恶意脚本及危险链接。
+	// - `duplicate`：重复内容，与已有内容重复。
+	// - `low_quality`：内容质量低，含无意义、灌水、无法打开或残缺的内容。
+	// - `author_update`：作者要求更新，作者本人要求更正或撤回。
+	// - `other`：其他，以上未覆盖的情况，必须在 reason 中填写说明。
 	Category       *ViolationCategory `json:"category,omitempty"`
 	Evidence       []string           `json:"evidence"`
 	Kind           TaskSubmissionKind `json:"kind"`
@@ -931,7 +1082,32 @@ type TaskView struct {
 	UpdatedAt           time.Time      `json:"updated_at"`
 }
 
-// ViolationCategory Closed violation or disposition category code used as an i18n key.
+// ViolationCategory 固定的违规与处置分类代码。
+//
+// - `illegal_content`：违法违规，含危害国家安全、煽动颠覆、恐怖主义、极端主义等违法信息。
+// - `pornography`：色情低俗，含色情、性暗示及低俗内容。
+// - `gambling_drugs`：赌博毒品违禁品，含赌博、毒品、管制物品及违禁品交易。
+// - `fraud`：诈骗钓鱼，含诈骗、钓鱼链接、虚假兼职或套取账号及钱财。
+// - `violence_threat`：暴力威胁，含宣扬暴力、威胁人身安全及自残自杀引导。
+// - `minors_harm`：危害未成年人，含不利于未成年人身心健康的内容。
+// - `personal_attack`：辱骂攻击，含辱骂、人身攻击及挑衅。
+// - `harassment_discrimination`：骚扰歧视，含骚扰及地域、性别、民族、宗教等歧视。
+// - `defamation_rumor`：诽谤谣言，含虚构事实、诽谤他人和传播谣言。
+// - `privacy_leak`：泄露隐私，含泄露他人姓名、联系方式、证件或住址等个人信息。
+// - `impersonation`：冒充他人，含冒充他人、教师、学校或机构。
+// - `copyright`：侵犯著作权，含未经许可的教材扫描、课件或论文。
+// - `other_ip`：侵犯其他权益，含商标、肖像、名誉等其他合法权益。
+// - `academic_integrity`：学术不端，含代写、代考、作弊工具及抄袭。
+// - `leaked_exam`：泄露试题，含未公开的试题、答案及考试安排。
+// - `fake_review`：不实评价，含非亲身经历、刷评、恶意差评或利益相关评价。
+// - `wrong_teacher`：教师或课程对应错误，含评价或资料关联到错误的教师、课程。
+// - `wrong_info`：信息错误，含标题、分类、标签、学期等描述与内容不符。
+// - `spam`：广告垃圾，含广告、引流、无关推广及刷屏。
+// - `malware`：恶意文件或链接，含病毒、木马、恶意脚本及危险链接。
+// - `duplicate`：重复内容，与已有内容重复。
+// - `low_quality`：内容质量低，含无意义、灌水、无法打开或残缺的内容。
+// - `author_update`：作者要求更新，作者本人要求更正或撤回。
+// - `other`：其他，以上未覆盖的情况，必须在 reason 中填写说明。
 type ViolationCategory string
 
 // ListFeedbackParams defines parameters for ListFeedback.
@@ -985,9 +1161,12 @@ type ListTasksParams struct {
 	// ContentKind Filter by course, mentor, reply, or resource.
 	ContentKind *string `form:"content_kind,omitempty" json:"content_kind,omitempty"`
 	Kind        *string `form:"kind,omitempty" json:"kind,omitempty"`
-	ObjectId    *string `form:"object_id,omitempty" json:"object_id,omitempty"`
-	From        *string `form:"from,omitempty" json:"from,omitempty"`
-	Until       *string `form:"until,omitempty" json:"until,omitempty"`
+
+	// Category 按固定分类筛选。优先使用审核决定的分类，决定未填写分类时使用提交分类。
+	Category *ViolationCategory `form:"category,omitempty" json:"category,omitempty"`
+	ObjectId *string            `form:"object_id,omitempty" json:"object_id,omitempty"`
+	From     *string            `form:"from,omitempty" json:"from,omitempty"`
+	Until    *string            `form:"until,omitempty" json:"until,omitempty"`
 }
 
 // ListTasksParamsOrder defines parameters for ListTasks.
@@ -1018,9 +1197,12 @@ type ListTaskPageParams struct {
 	Admin       *string                  `form:"admin,omitempty" json:"admin,omitempty"`
 	ContentKind *string                  `form:"content_kind,omitempty" json:"content_kind,omitempty"`
 	Kind        *string                  `form:"kind,omitempty" json:"kind,omitempty"`
-	ObjectId    *string                  `form:"object_id,omitempty" json:"object_id,omitempty"`
-	From        *string                  `form:"from,omitempty" json:"from,omitempty"`
-	Until       *string                  `form:"until,omitempty" json:"until,omitempty"`
+
+	// Category 按固定分类筛选。优先使用审核决定的分类，决定未填写分类时使用提交分类。
+	Category *ViolationCategory `form:"category,omitempty" json:"category,omitempty"`
+	ObjectId *string            `form:"object_id,omitempty" json:"object_id,omitempty"`
+	From     *string            `form:"from,omitempty" json:"from,omitempty"`
+	Until    *string            `form:"until,omitempty" json:"until,omitempty"`
 }
 
 // ListTaskPageParamsOrder defines parameters for ListTaskPage.
@@ -2259,6 +2441,18 @@ func NewListTasksRequest(server string, params *ListTasksParams) (*http.Request,
 
 		}
 
+		if params.Category != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "category", *params.Category, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.ObjectId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "object_id", *params.ObjectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -2585,6 +2779,18 @@ func NewListTaskPageRequest(server string, params *ListTaskPageParams) (*http.Re
 		if params.Kind != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", *params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Category != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "category", *params.Category, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
