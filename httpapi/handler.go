@@ -156,6 +156,7 @@ func parseTaskFilter(r *http.Request) (m.TaskFilter, error) {
 		Kind:        q.Get("kind"),
 		ContentKind: q.Get("content_kind"),
 		ObjectID:    q.Get("object_id"),
+		Category:    q.Get("category"),
 	}
 	for key, dest := range map[string]**time.Time{"from": &filter.From, "until": &filter.Until} {
 		if q.Get(key) != "" {

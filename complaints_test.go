@@ -24,7 +24,7 @@ func TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass(t *testi
 	p := m.Principal{Subject: "reporter"}
 	object := m.Object{ID: "resource:version", Kind: "resource", SchoolID: "school", Owner: "uploader", Revision: 1, Visible: true}
 	s.Content = complaintTarget{Content: s.Content, object: object}
-	in := m.Submission{Kind: "report", ObjectID: object.ID, Reason: "Complaint", Evidence: []string{"Rights evidence", "Contact"}}
+	in := m.Submission{Kind: "report", ObjectID: object.ID, Category: "copyright", Reason: "Complaint", Evidence: []string{"Rights evidence", "Contact"}}
 	original, e := s.SubmitResourceComplaint(ctx, p, "ambiguous", in, object)
 	if e != nil {
 		t.Fatal(e)
@@ -75,6 +75,11 @@ func TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass(t *testi
 	if _, e = s.SubmitResourceComplaint(ctx, p, "missing", missing, object); !errors.Is(e, m.ErrInput) {
 		t.Fatal(e)
 	}
+	missing = in
+	missing.Category = ""
+	if _, e = s.SubmitResourceComplaint(ctx, p, "missing-category", missing, object); !errors.Is(e, m.ErrInput) {
+		t.Fatal("uncategorized trusted complaint", e)
+	}
 }
 
 func TestComplaintRateLimitIsPerAccountAndReplayDoesNotConsumeQuota(t *testing.T) {
@@ -85,7 +90,7 @@ func TestComplaintRateLimitIsPerAccountAndReplayDoesNotConsumeQuota(t *testing.T
 	p := m.Principal{Subject: "reporter"}
 	submit := func(i int, key string, who m.Principal) error {
 		object := m.Object{ID: fmt.Sprintf("resource-%d", i), Kind: "resource", SchoolID: "school", Owner: "uploader", Revision: 1}
-		_, e := s.SubmitResourceComplaint(ctx, who, key, m.Submission{Kind: "report", ObjectID: object.ID, Reason: "Complaint", Evidence: []string{"Evidence", "Contact"}}, object)
+		_, e := s.SubmitResourceComplaint(ctx, who, key, m.Submission{Kind: "report", ObjectID: object.ID, Category: "copyright", Reason: "Complaint", Evidence: []string{"Evidence", "Contact"}}, object)
 		return e
 	}
 	for i := 0; i < 10; i++ {

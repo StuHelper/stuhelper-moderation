@@ -12,6 +12,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/StuHelper/stuhelper-moderation/sdk"
 )
 
 type Service struct {
@@ -61,6 +63,10 @@ func textOK(v string, max int) bool {
 	return utf8.ValidString(v) && utf8.RuneCountInString(v) <= max && !strings.ContainsRune(v, 0)
 }
 
+func validReason(v string) bool {
+	return strings.TrimSpace(v) != "" && textOK(v, 2000)
+}
+
 type RelatedTaskTransaction interface {
 	RelatedWaitingCounts(school string, objectIDs []string) (map[string]int, error)
 	WaitingReportsByObject(school, objectID string, maxObjectRevision int64, excludeID string) ([]Task, error)
@@ -79,7 +85,7 @@ func cleanToken(v string, max int) bool {
 	return true
 }
 func validateDecision(d Decision) bool {
-	if !validCategory(d.Category) || !keyOK(d.ObjectID) || d.Revision < 1 || !slices.Contains([]string{"approve_append", "reject_append", "publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || strings.TrimSpace(d.Reason) == "" || !textOK(d.Reason, 2000) {
+	if !validCategory(d.Category) || !keyOK(d.ObjectID) || d.Revision < 1 || !slices.Contains([]string{"approve_append", "reject_append", "publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || !validReason(d.Reason) {
 		return false
 	}
 	appendAction := d.Action == "approve_append" || d.Action == "reject_append"
@@ -121,7 +127,7 @@ func validateDecisionTarget(object Object, task Task, d Decision) error {
 	return nil
 }
 func validCategory(v string) bool {
-	return v == "" || slices.Contains(ValidCategories, v)
+	return v == "" || sdk.ViolationCategory(v).Valid()
 }
 
 func isAdverseToAuthor(task Task) bool {
@@ -290,13 +296,16 @@ func (s *Service) record(t Transaction, key, hash, action string, p Principal, t
 	return s.recordWithView(t, key, hash, action, p, task, viewFor(p, task))
 }
 
-func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payload string, in Submission, object *Object, missingObjectErr error, beforeSave func(Transaction) error) (TaskView, error) {
+func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payload, migratedComplaintHash string, in Submission, object *Object, missingObjectErr error, beforeSave func(Transaction) error) (TaskView, error) {
 	var out TaskView
 	if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
 		return out, e
 	}
 	now := s.now()
 	cached, found, e := replay(t, operation, payload, now)
+	if errors.Is(e, ErrConflict) && migratedComplaintHash != "" {
+		cached, found, e = replay(t, operation, migratedComplaintHash, now)
+	}
 	if errors.Is(e, ErrConflict) && len(in.Evidence) == 0 {
 		// Older receipts hashed omitted evidence as null instead of an empty array.
 		legacy := in
@@ -454,7 +463,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	if !validCategory(in.Category) {
 		return out, withReason(ErrInput, "invalid_category")
 	}
-	if in.AppendID != "" || !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || !slices.Contains([]string{"report", "edit_request", "delete_request", "review", "appeal"}, in.Kind) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
+	if in.AppendID != "" || !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || !slices.Contains([]string{"report", "edit_request", "delete_request", "review", "appeal"}, in.Kind) || !validReason(in.Reason) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
 		return out, withReason(ErrInput, "invalid_parameter")
 	}
 	for _, v := range in.Evidence {
@@ -503,7 +512,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	h := digest(in)
 	err := s.tx(ctx, func(t Transaction) error {
 		var txErr error
-		out, txErr = s.upsertSubmissionTx(t, p, rk, h, in, &object, ErrUnavailable, nil)
+		out, txErr = s.upsertSubmissionTx(t, p, rk, h, "", in, &object, ErrUnavailable, nil)
 		return txErr
 	})
 	return out, err

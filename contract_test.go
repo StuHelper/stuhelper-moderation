@@ -132,14 +132,38 @@ type openAPIDoc struct {
 }
 
 type openAPISchema struct {
-	Ref                  string                   `json:"$ref"`
-	Type                 string                   `json:"type"`
-	Nullable             bool                     `json:"nullable"`
-	AdditionalProperties *bool                    `json:"additionalProperties"`
-	Required             []string                 `json:"required"`
-	Enum                 []string                 `json:"enum"`
-	Properties           map[string]openAPISchema `json:"properties"`
-	Items                *openAPISchema           `json:"items"`
+	Ref                  string                      `json:"$ref"`
+	Type                 string                      `json:"type"`
+	Nullable             bool                        `json:"nullable"`
+	AdditionalProperties openAPIAdditionalProperties `json:"additionalProperties"`
+	Required             []string                    `json:"required"`
+	Enum                 []string                    `json:"enum"`
+	Properties           map[string]openAPISchema    `json:"properties"`
+	Items                *openAPISchema              `json:"items"`
+	Minimum              *float64                    `json:"minimum"`
+}
+
+type openAPIAdditionalProperties struct {
+	Forbidden bool
+	Schema    *openAPISchema
+}
+
+func (p *openAPIAdditionalProperties) UnmarshalJSON(raw []byte) error {
+	switch string(raw) {
+	case "true", "false":
+		*p = openAPIAdditionalProperties{Forbidden: string(raw) == "false"}
+		return nil
+	default:
+		var schema *openAPISchema
+		if err := json.Unmarshal(raw, &schema); err != nil {
+			return err
+		}
+		if schema == nil {
+			return errors.New("additionalProperties requires a boolean or schema")
+		}
+		*p = openAPIAdditionalProperties{Schema: schema}
+		return nil
+	}
 }
 
 func loadOpenAPIDoc(t *testing.T) openAPIDoc {
@@ -183,16 +207,15 @@ func assertConformsSchema(t *testing.T, doc openAPIDoc, schema openAPISchema, va
 				t.Fatalf("%s: missing required field %q in %v", path, req, obj)
 			}
 		}
-		if schema.AdditionalProperties != nil && !*schema.AdditionalProperties {
-			for k := range obj {
-				if _, declared := schema.Properties[k]; !declared {
-					t.Fatalf("%s: undeclared field %q in strict schema", path, k)
-				}
-			}
-		}
 		for k, v := range obj {
-			if propSchema, declared := schema.Properties[k]; declared {
+			propSchema, declared := schema.Properties[k]
+			switch {
+			case declared:
 				assertConformsSchema(t, doc, propSchema, v, path+"."+k)
+			case schema.AdditionalProperties.Forbidden:
+				t.Fatalf("%s: undeclared field %q in strict schema", path, k)
+			case schema.AdditionalProperties.Schema != nil:
+				assertConformsSchema(t, doc, *schema.AdditionalProperties.Schema, v, path+"."+k)
 			}
 		}
 	case "array":
@@ -217,6 +240,9 @@ func assertConformsSchema(t *testing.T, doc openAPIDoc, schema openAPISchema, va
 		num, ok := val.(float64)
 		if !ok || num != float64(int64(num)) {
 			t.Fatalf("%s: expected integer, got %v (%T)", path, val, val)
+		}
+		if schema.Minimum != nil && num < *schema.Minimum {
+			t.Fatalf("%s: expected at least %v, got %v", path, *schema.Minimum, num)
 		}
 	case "boolean":
 		if _, ok := val.(bool); !ok {
@@ -334,11 +360,13 @@ func TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance(t *testing.T) {
 	validateJSONBytes(t, doc, "Error", pol409.Body)
 
 	// SubmitTask (200, 400, 404, 409) & GetTask (200, 404) & ListTasks (200)
+	category := sdk.ViolationCategorySpam
 	sub200, err := client.SubmitTaskWithResponse(ctx, &sdk.SubmitTaskParams{IdempotencyKey: "sub-1"}, sdk.Submission{
 		ObjectId: "review",
 		Kind:     sdk.SubmissionKindReport,
 		Reason:   "Contract report",
 		Evidence: []string{"item-1"},
+		Category: &category,
 	}, asActor("reporter"))
 	if err != nil || sub200.StatusCode() != 200 || sub200.JSON200 == nil {
 		t.Fatalf("submitTask 200 failed: %v %+v", err, sub200)
@@ -376,6 +404,12 @@ func TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance(t *testing.T) {
 		t.Fatalf("listTasks 200 failed: %v %+v", err, list200)
 	}
 	validateJSONBytes(t, doc, "TaskView[]", list200.Body)
+
+	summary, err := client.GetQueueSummaryWithResponse(ctx, &sdk.GetQueueSummaryParams{SchoolId: schoolID}, asActor("admin"))
+	if err != nil || summary.JSON200 == nil || summary.JSON200.ByCategory[string(category)] != 1 {
+		t.Fatalf("getQueueSummary did not count the categorized task: %v %+v", err, summary)
+	}
+	validateJSONBytes(t, doc, "QueueSummary", summary.Body)
 
 	// PreviewBatch & DecideBatch (200)
 	batchReq := sdk.BatchRequest{
@@ -467,6 +501,7 @@ func TestGeneratedSDKAllRoutesAndOpenAPISchemaConformance(t *testing.T) {
 		if _, err = s.SubmitResourceComplaint(ctx, m.Principal{Subject: "rate-actor"}, fmt.Sprintf("rk-%d", i), m.Submission{
 			Kind:     "report",
 			ObjectID: fmt.Sprintf("res-%d", i),
+			Category: "copyright",
 			Reason:   "Complaint",
 			Evidence: []string{"E1", "E2"},
 		}, m.Object{ID: fmt.Sprintf("res-%d", i), Kind: "resource", SchoolID: "school", Owner: "uploader", Revision: 1}); err != nil {

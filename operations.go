@@ -11,11 +11,11 @@ import (
 )
 
 type TaskFilter struct {
-	Owner, School, State, After, Order, Kind, ContentKind, ObjectID string
-	From, Until, CursorAt                                           *time.Time
-	CursorID                                                        string
-	Limit                                                           int
-	Admin                                                           bool
+	Owner, School, State, After, Order, Kind, ContentKind, ObjectID, Category string
+	From, Until, CursorAt                                                     *time.Time
+	CursorID                                                                  string
+	Limit                                                                     int
+	Admin                                                                     bool
 }
 
 type TaskPage struct {
@@ -45,6 +45,7 @@ type QueueSummary struct {
 	Failed        int                `json:"failed"`
 	ByContentKind QueueContentCounts `json:"by_content_kind"`
 	ByRequestKind QueueRequestCounts `json:"by_request_kind"`
+	ByCategory    map[string]int     `json:"by_category"`
 }
 
 type QueuePaginationTransaction interface {
@@ -107,6 +108,9 @@ func (s *Service) FilteredPage(ctx context.Context, p Principal, f TaskFilter) (
 	}
 	if f.ContentKind != "" && !slices.Contains([]string{"course", "mentor", "reply", "resource"}, f.ContentKind) {
 		return out, ErrInput
+	}
+	if !validCategory(f.Category) {
+		return out, withReason(ErrInput, "invalid_category")
 	}
 	f.Owner = p.Subject
 	if f.Admin {

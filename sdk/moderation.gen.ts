@@ -255,10 +255,35 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
-         * @description Closed violation or disposition category code used as an i18n key.
+         * @description 固定的违规与处置分类代码。
+         *
+         *     - `illegal_content`：违法违规，含危害国家安全、煽动颠覆、恐怖主义、极端主义等违法信息。
+         *     - `pornography`：色情低俗，含色情、性暗示及低俗内容。
+         *     - `gambling_drugs`：赌博毒品违禁品，含赌博、毒品、管制物品及违禁品交易。
+         *     - `fraud`：诈骗钓鱼，含诈骗、钓鱼链接、虚假兼职或套取账号及钱财。
+         *     - `violence_threat`：暴力威胁，含宣扬暴力、威胁人身安全及自残自杀引导。
+         *     - `minors_harm`：危害未成年人，含不利于未成年人身心健康的内容。
+         *     - `personal_attack`：辱骂攻击，含辱骂、人身攻击及挑衅。
+         *     - `harassment_discrimination`：骚扰歧视，含骚扰及地域、性别、民族、宗教等歧视。
+         *     - `defamation_rumor`：诽谤谣言，含虚构事实、诽谤他人和传播谣言。
+         *     - `privacy_leak`：泄露隐私，含泄露他人姓名、联系方式、证件或住址等个人信息。
+         *     - `impersonation`：冒充他人，含冒充他人、教师、学校或机构。
+         *     - `copyright`：侵犯著作权，含未经许可的教材扫描、课件或论文。
+         *     - `other_ip`：侵犯其他权益，含商标、肖像、名誉等其他合法权益。
+         *     - `academic_integrity`：学术不端，含代写、代考、作弊工具及抄袭。
+         *     - `leaked_exam`：泄露试题，含未公开的试题、答案及考试安排。
+         *     - `fake_review`：不实评价，含非亲身经历、刷评、恶意差评或利益相关评价。
+         *     - `wrong_teacher`：教师或课程对应错误，含评价或资料关联到错误的教师、课程。
+         *     - `wrong_info`：信息错误，含标题、分类、标签、学期等描述与内容不符。
+         *     - `spam`：广告垃圾，含广告、引流、无关推广及刷屏。
+         *     - `malware`：恶意文件或链接，含病毒、木马、恶意脚本及危险链接。
+         *     - `duplicate`：重复内容，与已有内容重复。
+         *     - `low_quality`：内容质量低，含无意义、灌水、无法打开或残缺的内容。
+         *     - `author_update`：作者要求更新，作者本人要求更正或撤回。
+         *     - `other`：其他，以上未覆盖的情况，必须在 reason 中填写说明。
          * @enum {string}
          */
-        ViolationCategory: "spam" | "personal_attack" | "copyright" | "wrong_teacher" | "academic_integrity" | "privacy_leak" | "low_quality" | "author_update" | "other";
+        ViolationCategory: "illegal_content" | "pornography" | "gambling_drugs" | "fraud" | "violence_threat" | "minors_harm" | "personal_attack" | "harassment_discrimination" | "defamation_rumor" | "privacy_leak" | "impersonation" | "copyright" | "other_ip" | "academic_integrity" | "leaked_exam" | "fake_review" | "wrong_teacher" | "wrong_info" | "spam" | "malware" | "duplicate" | "low_quality" | "author_update" | "other";
         Error: {
             code: string;
             /** @enum {string} */
@@ -270,6 +295,7 @@ export interface components {
             /** @enum {string} */
             kind: "report" | "edit_request" | "delete_request" | "review" | "appeal";
             category?: components["schemas"]["ViolationCategory"];
+            /** @description 具体说明。必填，不可仅为空白，最多 2000 个 Unicode 字符。选择 other 时在此字段说明具体情况。 */
             reason: string;
             evidence: string[];
             proposed_body?: string;
@@ -305,6 +331,7 @@ export interface components {
             body?: string;
             subject?: string;
             signed?: boolean;
+            /** @description 具体说明。必填，不可仅为空白，最多 2000 个 Unicode 字符。选择 other 时在此字段说明具体情况。 */
             reason: string;
             /** @description Discussion-local public author handle, used instead of a private account ID for identity moderation. */
             author_handle?: string;
@@ -500,6 +527,10 @@ export interface components {
             failed: number;
             by_content_kind: components["schemas"]["QueueContentCounts"];
             by_request_kind: components["schemas"]["QueueRequestCounts"];
+            /** @description 本校待处理任务按固定分类的计数。键为 ViolationCategory，只返回非零分类，未分类任务仍计入 waiting。 */
+            by_category: {
+                [key: string]: number;
+            };
         };
         FeedbackPage: {
             items: components["schemas"]["Feedback"][];
@@ -540,6 +571,8 @@ export interface operations {
                 /** @description Filter by course, mentor, reply, or resource. */
                 content_kind?: string;
                 kind?: string;
+                /** @description 按固定分类筛选。优先使用审核决定的分类，决定未填写分类时使用提交分类。 */
+                category?: components["schemas"]["ViolationCategory"];
                 object_id?: string;
                 from?: string;
                 until?: string;
@@ -719,6 +752,8 @@ export interface operations {
                 admin?: string;
                 content_kind?: string;
                 kind?: string;
+                /** @description 按固定分类筛选。优先使用审核决定的分类，决定未填写分类时使用提交分类。 */
+                category?: components["schemas"]["ViolationCategory"];
                 object_id?: string;
                 from?: string;
                 until?: string;
