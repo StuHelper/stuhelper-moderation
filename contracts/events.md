@@ -10,7 +10,7 @@ updated: 2026-11-22
 
 moderation.decided.v1 与决定同事务写入，表示决定已保存。moderation.result.v1 与终态 applied/failed 同事务写入。dismiss 在决定事务中按严格递增的任务修订号依次写入 decided.v1 与 result.v1；其他动作在内容模块确认执行后产生结果。
 
-结果 data 包含 task_id、owner（申请人）、content_owner、object_id、content_kind、request_kind、action、state、revision、decision_id。事件不含举报证据、正文、身份原值或管理员账号。通知消费者只订阅 result.v1，并区分执行成功与失败。
+结果 data 包含 task_id、owner（申请人）、content_owner、object_id、content_kind、request_kind、action、state、revision、decision_id。事件不含举报证据、正文、身份原值或管理员账号。
 
 内容通过、驳回、下架分别对应 publish、dismiss、hide。举报与资料下架申请通过 request_kind=report/delete_request 区分，侵权投诉的任务类型沿用 report。
 
