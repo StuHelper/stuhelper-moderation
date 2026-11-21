@@ -250,6 +250,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/moderation/teacher-homepage-complaints/{teacher_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 登录用户可以向本站的教师主页提交投诉，收到本人可查的回执。同校审核管理员通过现有队列查阅和处理。分类沿用固定 ViolationCategory；每账号每分钟最多 10 次新提交，幂等重放不占次数。回执不包含教师主页资料。教师本人更正申请使用独立接口。 */
+        post: operations["submitTeacherHomepageComplaint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/moderation/teacher-homepage-complaints/{teacher_id}/target": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 具备当前学校 moderation.manage 权限的审核员可读取有效资料修订与可见状态，用于复核最新版本。对教师主页投诉只允许 hide 或 dismiss。hide 收起主页资料和照片，保留目录与评价。 */
+        get: operations["getTeacherHomepageComplaintTarget"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -378,7 +412,7 @@ export interface components {
             updated_at: string;
             decision?: components["schemas"]["Decision"];
             error_code?: string;
-            /** @description Owning content type, including resource for learning materials. */
+            /** @description 内容所属类型，例如课业资料 resource 或教师主页 teacher_homepage。 */
             content_kind?: string;
             previous_task_id?: string;
             can_appeal?: boolean;
@@ -512,6 +546,8 @@ export interface components {
             mentor: number;
             reply: number;
             resource: number;
+            /** @description 显式包含教师主页投诉时返回有待处理任务的数量，零可省略。 */
+            teacher_homepage?: number;
         };
         QueueRequestCounts: {
             review: number;
@@ -549,6 +585,25 @@ export interface components {
             feedback_active_bytes: number;
             feedback_tombstone_count: number;
         };
+        TeacherHomepageComplaint: {
+            category: components["schemas"]["ViolationCategory"];
+            /** @description 具体说明。必填，不可仅为空白，最多 2000 个 Unicode 字符。选择 other 时在此字段说明具体情况。 */
+            reason: string;
+            /** @description 相关证据及说明，最多五项。随本人回执及同校审核队列保存。 */
+            evidence: string[];
+        };
+        TeacherHomepageComplaintTarget: {
+            /** @description 现有审核任务使用的教师主页对象标识。 */
+            object_id: string;
+            school_id: string;
+            /**
+             * Format: int64
+             * @description 有效资料修订。提交审核决定时原样带回。
+             */
+            revision: number;
+            /** @description 当前存在可展示的教师主页资料。 */
+            visible: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -568,7 +623,7 @@ export interface operations {
                 order?: "oldest" | "newest" | "updated_desc";
                 limit?: number;
                 admin?: string;
-                /** @description Filter by course, mentor, reply, or resource. */
+                /** @description 按内容类型筛选。使用 teacher_homepage 时读取教师主页投诉。 */
                 content_kind?: string;
                 kind?: string;
                 /** @description 按固定分类筛选。优先使用审核决定的分类，决定未填写分类时使用提交分类。 */
@@ -576,6 +631,8 @@ export interface operations {
                 object_id?: string;
                 from?: string;
                 until?: string;
+                /** @description 包含教师主页投诉。任务列表使用 content_kind=teacher_homepage 时自动包含。 */
+                include_teacher_homepage?: boolean;
             };
             header?: never;
             path?: never;
@@ -750,6 +807,7 @@ export interface operations {
                 order?: "oldest" | "newest" | "updated_desc";
                 limit?: number;
                 admin?: string;
+                /** @description 按内容类型筛选。使用 teacher_homepage 时读取教师主页投诉。 */
                 content_kind?: string;
                 kind?: string;
                 /** @description 按固定分类筛选。优先使用审核决定的分类，决定未填写分类时使用提交分类。 */
@@ -757,6 +815,8 @@ export interface operations {
                 object_id?: string;
                 from?: string;
                 until?: string;
+                /** @description 包含教师主页投诉。任务列表使用 content_kind=teacher_homepage 时自动包含。 */
+                include_teacher_homepage?: boolean;
             };
             header?: never;
             path?: never;
@@ -815,6 +875,8 @@ export interface operations {
         parameters: {
             query: {
                 school_id: string;
+                /** @description 包含教师主页投诉。任务列表使用 content_kind=teacher_homepage 时自动包含。 */
+                include_teacher_homepage?: boolean;
             };
             header?: never;
             path?: never;
@@ -1944,6 +2006,168 @@ export interface operations {
             };
             /** @description Not permitted */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Required dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    submitTeacherHomepageComplaint: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                /** @description 当前目录教师的规范 ID。 */
+                teacher_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeacherHomepageComplaint"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskView"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not permitted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Revision or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description 请求过于频繁，稍后重试 */
+            429: {
+                headers: {
+                    /** @description Seconds until the caller may submit a new request. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Required dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getTeacherHomepageComplaintTarget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 当前目录教师的规范 ID。 */
+                teacher_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherHomepageComplaintTarget"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not permitted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

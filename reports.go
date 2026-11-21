@@ -13,6 +13,22 @@ func (s *Service) submitReport(ctx context.Context, p Principal, key string, in 
 }
 
 func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Submission, object *Object) (TaskView, error) {
+	return s.saveReportUsing(ctx, p, key, in, object, func(call context.Context) (Object, error) {
+		if s.Content == nil {
+			return Object{}, ErrUnavailable
+		}
+		current, err := s.Content.Inspect(call, p, in.ObjectID)
+		if err != nil {
+			return Object{}, err
+		}
+		if !current.Visible {
+			return Object{}, ErrNotFound
+		}
+		return current, s.auth(call, p, "report", current.SchoolID)
+	})
+}
+
+func (s *Service) saveReportUsing(ctx context.Context, p Principal, key string, in Submission, object *Object, load func(context.Context) (Object, error)) (TaskView, error) {
 	var out TaskView
 	if p.Subject == "" {
 		return out, ErrForbidden
@@ -48,19 +64,10 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 	if !errors.Is(err, needsFacts) {
 		return out, err
 	}
-	if s.Content == nil {
-		return out, ErrUnavailable
-	}
 	call, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	current, e := s.Content.Inspect(call, p, in.ObjectID)
+	current, e := load(call)
 	if e != nil {
-		return out, e
-	}
-	if !current.Visible {
-		return out, ErrNotFound
-	}
-	if e = s.auth(call, p, "report", current.SchoolID); e != nil {
 		return out, e
 	}
 	object = &current

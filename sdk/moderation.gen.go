@@ -939,6 +939,9 @@ type QueueContentCounts struct {
 	Mentor   int `json:"mentor"`
 	Reply    int `json:"reply"`
 	Resource int `json:"resource"`
+
+	// TeacherHomepage 显式包含教师主页投诉时返回有待处理任务的数量，零可省略。
+	TeacherHomepage *int `json:"teacher_homepage,omitempty"`
 }
 
 // QueueRequestCounts defines model for QueueRequestCounts.
@@ -1064,7 +1067,7 @@ type TaskSubmissionKind string
 type TaskView struct {
 	CanAppeal *bool `json:"can_appeal,omitempty"`
 
-	// ContentKind Owning content type, including resource for learning materials.
+	// ContentKind 内容所属类型，例如课业资料 resource 或教师主页 teacher_homepage。
 	ContentKind    *string   `json:"content_kind,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 	Decision       *Decision `json:"decision,omitempty"`
@@ -1080,6 +1083,56 @@ type TaskView struct {
 	State               string         `json:"state"`
 	Submission          TaskSubmission `json:"submission"`
 	UpdatedAt           time.Time      `json:"updated_at"`
+}
+
+// TeacherHomepageComplaint defines model for TeacherHomepageComplaint.
+type TeacherHomepageComplaint struct {
+	// Category 固定的违规与处置分类代码。
+	//
+	// - `illegal_content`：违法违规，含危害国家安全、煽动颠覆、恐怖主义、极端主义等违法信息。
+	// - `pornography`：色情低俗，含色情、性暗示及低俗内容。
+	// - `gambling_drugs`：赌博毒品违禁品，含赌博、毒品、管制物品及违禁品交易。
+	// - `fraud`：诈骗钓鱼，含诈骗、钓鱼链接、虚假兼职或套取账号及钱财。
+	// - `violence_threat`：暴力威胁，含宣扬暴力、威胁人身安全及自残自杀引导。
+	// - `minors_harm`：危害未成年人，含不利于未成年人身心健康的内容。
+	// - `personal_attack`：辱骂攻击，含辱骂、人身攻击及挑衅。
+	// - `harassment_discrimination`：骚扰歧视，含骚扰及地域、性别、民族、宗教等歧视。
+	// - `defamation_rumor`：诽谤谣言，含虚构事实、诽谤他人和传播谣言。
+	// - `privacy_leak`：泄露隐私，含泄露他人姓名、联系方式、证件或住址等个人信息。
+	// - `impersonation`：冒充他人，含冒充他人、教师、学校或机构。
+	// - `copyright`：侵犯著作权，含未经许可的教材扫描、课件或论文。
+	// - `other_ip`：侵犯其他权益，含商标、肖像、名誉等其他合法权益。
+	// - `academic_integrity`：学术不端，含代写、代考、作弊工具及抄袭。
+	// - `leaked_exam`：泄露试题，含未公开的试题、答案及考试安排。
+	// - `fake_review`：不实评价，含非亲身经历、刷评、恶意差评或利益相关评价。
+	// - `wrong_teacher`：教师或课程对应错误，含评价或资料关联到错误的教师、课程。
+	// - `wrong_info`：信息错误，含标题、分类、标签、学期等描述与内容不符。
+	// - `spam`：广告垃圾，含广告、引流、无关推广及刷屏。
+	// - `malware`：恶意文件或链接，含病毒、木马、恶意脚本及危险链接。
+	// - `duplicate`：重复内容，与已有内容重复。
+	// - `low_quality`：内容质量低，含无意义、灌水、无法打开或残缺的内容。
+	// - `author_update`：作者要求更新，作者本人要求更正或撤回。
+	// - `other`：其他，以上未覆盖的情况，必须在 reason 中填写说明。
+	Category ViolationCategory `json:"category"`
+
+	// Evidence 相关证据及说明，最多五项。随本人回执及同校审核队列保存。
+	Evidence []string `json:"evidence"`
+
+	// Reason 具体说明。必填，不可仅为空白，最多 2000 个 Unicode 字符。选择 other 时在此字段说明具体情况。
+	Reason string `json:"reason"`
+}
+
+// TeacherHomepageComplaintTarget defines model for TeacherHomepageComplaintTarget.
+type TeacherHomepageComplaintTarget struct {
+	// ObjectId 现有审核任务使用的教师主页对象标识。
+	ObjectId string `json:"object_id"`
+
+	// Revision 有效资料修订。提交审核决定时原样带回。
+	Revision int64  `json:"revision"`
+	SchoolId string `json:"school_id"`
+
+	// Visible 当前存在可展示的教师主页资料。
+	Visible bool `json:"visible"`
 }
 
 // ViolationCategory 固定的违规与处置分类代码。
@@ -1158,7 +1211,7 @@ type ListTasksParams struct {
 	Limit *int                  `form:"limit,omitempty" json:"limit,omitempty"`
 	Admin *string               `form:"admin,omitempty" json:"admin,omitempty"`
 
-	// ContentKind Filter by course, mentor, reply, or resource.
+	// ContentKind 按内容类型筛选。使用 teacher_homepage 时读取教师主页投诉。
 	ContentKind *string `form:"content_kind,omitempty" json:"content_kind,omitempty"`
 	Kind        *string `form:"kind,omitempty" json:"kind,omitempty"`
 
@@ -1167,6 +1220,9 @@ type ListTasksParams struct {
 	ObjectId *string            `form:"object_id,omitempty" json:"object_id,omitempty"`
 	From     *string            `form:"from,omitempty" json:"from,omitempty"`
 	Until    *string            `form:"until,omitempty" json:"until,omitempty"`
+
+	// IncludeTeacherHomepage 包含教师主页投诉。任务列表使用 content_kind=teacher_homepage 时自动包含。
+	IncludeTeacherHomepage *bool `form:"include_teacher_homepage,omitempty" json:"include_teacher_homepage,omitempty"`
 }
 
 // ListTasksParamsOrder defines parameters for ListTasks.
@@ -1189,20 +1245,25 @@ type PreviewBatchParams struct {
 
 // ListTaskPageParams defines parameters for ListTaskPage.
 type ListTaskPageParams struct {
-	SchoolId    *string                  `form:"school_id,omitempty" json:"school_id,omitempty"`
-	State       *string                  `form:"state,omitempty" json:"state,omitempty"`
-	After       *string                  `form:"after,omitempty" json:"after,omitempty"`
-	Order       *ListTaskPageParamsOrder `form:"order,omitempty" json:"order,omitempty"`
-	Limit       *int                     `form:"limit,omitempty" json:"limit,omitempty"`
-	Admin       *string                  `form:"admin,omitempty" json:"admin,omitempty"`
-	ContentKind *string                  `form:"content_kind,omitempty" json:"content_kind,omitempty"`
-	Kind        *string                  `form:"kind,omitempty" json:"kind,omitempty"`
+	SchoolId *string                  `form:"school_id,omitempty" json:"school_id,omitempty"`
+	State    *string                  `form:"state,omitempty" json:"state,omitempty"`
+	After    *string                  `form:"after,omitempty" json:"after,omitempty"`
+	Order    *ListTaskPageParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Limit    *int                     `form:"limit,omitempty" json:"limit,omitempty"`
+	Admin    *string                  `form:"admin,omitempty" json:"admin,omitempty"`
+
+	// ContentKind 按内容类型筛选。使用 teacher_homepage 时读取教师主页投诉。
+	ContentKind *string `form:"content_kind,omitempty" json:"content_kind,omitempty"`
+	Kind        *string `form:"kind,omitempty" json:"kind,omitempty"`
 
 	// Category 按固定分类筛选。优先使用审核决定的分类，决定未填写分类时使用提交分类。
 	Category *ViolationCategory `form:"category,omitempty" json:"category,omitempty"`
 	ObjectId *string            `form:"object_id,omitempty" json:"object_id,omitempty"`
 	From     *string            `form:"from,omitempty" json:"from,omitempty"`
 	Until    *string            `form:"until,omitempty" json:"until,omitempty"`
+
+	// IncludeTeacherHomepage 包含教师主页投诉。任务列表使用 content_kind=teacher_homepage 时自动包含。
+	IncludeTeacherHomepage *bool `form:"include_teacher_homepage,omitempty" json:"include_teacher_homepage,omitempty"`
 }
 
 // ListTaskPageParamsOrder defines parameters for ListTaskPage.
@@ -1211,6 +1272,9 @@ type ListTaskPageParamsOrder string
 // GetQueueSummaryParams defines parameters for GetQueueSummary.
 type GetQueueSummaryParams struct {
 	SchoolId string `form:"school_id" json:"school_id"`
+
+	// IncludeTeacherHomepage 包含教师主页投诉。任务列表使用 content_kind=teacher_homepage 时自动包含。
+	IncludeTeacherHomepage *bool `form:"include_teacher_homepage,omitempty" json:"include_teacher_homepage,omitempty"`
 }
 
 // DecideTaskParams defines parameters for DecideTask.
@@ -1225,6 +1289,11 @@ type RetryTaskJSONBody struct {
 
 // RetryTaskParams defines parameters for RetryTask.
 type RetryTaskParams struct {
+	IdempotencyKey string `json:"Idempotency-Key"`
+}
+
+// SubmitTeacherHomepageComplaintParams defines parameters for SubmitTeacherHomepageComplaint.
+type SubmitTeacherHomepageComplaintParams struct {
 	IdempotencyKey string `json:"Idempotency-Key"`
 }
 
@@ -1254,6 +1323,9 @@ type DecideTaskJSONRequestBody = Decide
 
 // RetryTaskJSONRequestBody defines body for RetryTask for application/json ContentType.
 type RetryTaskJSONRequestBody RetryTaskJSONBody
+
+// SubmitTeacherHomepageComplaintJSONRequestBody defines body for SubmitTeacherHomepageComplaint for application/json ContentType.
+type SubmitTeacherHomepageComplaintJSONRequestBody = TeacherHomepageComplaint
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -1449,6 +1521,23 @@ type ClientInterface interface {
 	// RetryTask performs a POST /api/v1/moderation/tasks/{id}/retry (the `RetryTask` operationId) request.
 	// Takes a body of the `application/json` content type.
 	RetryTask(ctx context.Context, id string, params *RetryTaskParams, body RetryTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SubmitTeacherHomepageComplaintWithBody performs a POST /api/v1/moderation/teacher-homepage-complaints/{teacher_id} (the `SubmitTeacherHomepageComplaint` operationId) request,
+	// with any type of body and a specified content type.
+	//
+	// 登录用户可以向本站的教师主页提交投诉，收到本人可查的回执。同校审核管理员通过现有队列查阅和处理。分类沿用固定 ViolationCategory；每账号每分钟最多 10 次新提交，幂等重放不占次数。回执不包含教师主页资料。教师本人更正申请使用独立接口。.
+	SubmitTeacherHomepageComplaintWithBody(ctx context.Context, teacherId string, params *SubmitTeacherHomepageComplaintParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SubmitTeacherHomepageComplaint performs a POST /api/v1/moderation/teacher-homepage-complaints/{teacher_id} (the `SubmitTeacherHomepageComplaint` operationId) request.
+	// Takes a body of the `application/json` content type.
+	//
+	// 登录用户可以向本站的教师主页提交投诉，收到本人可查的回执。同校审核管理员通过现有队列查阅和处理。分类沿用固定 ViolationCategory；每账号每分钟最多 10 次新提交，幂等重放不占次数。回执不包含教师主页资料。教师本人更正申请使用独立接口。.
+	SubmitTeacherHomepageComplaint(ctx context.Context, teacherId string, params *SubmitTeacherHomepageComplaintParams, body SubmitTeacherHomepageComplaintJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTeacherHomepageComplaintTarget performs a GET /api/v1/moderation/teacher-homepage-complaints/{teacher_id}/target (the `GetTeacherHomepageComplaintTarget` operationId) request.
+	//
+	// 具备当前学校 moderation.manage 权限的审核员可读取有效资料修订与可见状态，用于复核最新版本。对教师主页投诉只允许 hide 或 dismiss。hide 收起主页资料和照片，保留目录与评价。
+	GetTeacherHomepageComplaintTarget(ctx context.Context, teacherId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 // ListFeedback listFeedback
@@ -1832,6 +1921,53 @@ func (c *Client) RetryTaskWithBody(ctx context.Context, id string, params *Retry
 // Takes a body of the `application/json` content type.
 func (c *Client) RetryTask(ctx context.Context, id string, params *RetryTaskParams, body RetryTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRetryTaskRequest(c.Server, id, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SubmitTeacherHomepageComplaintWithBody performs a POST /api/v1/moderation/teacher-homepage-complaints/{teacher_id} (the `SubmitTeacherHomepageComplaint` operationId) request,
+// with any type of body and a specified content type.
+//
+// 登录用户可以向本站的教师主页提交投诉，收到本人可查的回执。同校审核管理员通过现有队列查阅和处理。分类沿用固定 ViolationCategory；每账号每分钟最多 10 次新提交，幂等重放不占次数。回执不包含教师主页资料。教师本人更正申请使用独立接口。.
+func (c *Client) SubmitTeacherHomepageComplaintWithBody(ctx context.Context, teacherId string, params *SubmitTeacherHomepageComplaintParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubmitTeacherHomepageComplaintRequestWithBody(c.Server, teacherId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SubmitTeacherHomepageComplaint performs a POST /api/v1/moderation/teacher-homepage-complaints/{teacher_id} (the `SubmitTeacherHomepageComplaint` operationId) request.
+// Takes a body of the `application/json` content type.
+//
+// 登录用户可以向本站的教师主页提交投诉，收到本人可查的回执。同校审核管理员通过现有队列查阅和处理。分类沿用固定 ViolationCategory；每账号每分钟最多 10 次新提交，幂等重放不占次数。回执不包含教师主页资料。教师本人更正申请使用独立接口。.
+func (c *Client) SubmitTeacherHomepageComplaint(ctx context.Context, teacherId string, params *SubmitTeacherHomepageComplaintParams, body SubmitTeacherHomepageComplaintJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubmitTeacherHomepageComplaintRequest(c.Server, teacherId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetTeacherHomepageComplaintTarget performs a GET /api/v1/moderation/teacher-homepage-complaints/{teacher_id}/target (the `GetTeacherHomepageComplaintTarget` operationId) request.
+//
+// 具备当前学校 moderation.manage 权限的审核员可读取有效资料修订与可见状态，用于复核最新版本。对教师主页投诉只允许 hide 或 dismiss。hide 收起主页资料和照片，保留目录与评价。
+func (c *Client) GetTeacherHomepageComplaintTarget(ctx context.Context, teacherId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTeacherHomepageComplaintTargetRequest(c.Server, teacherId)
 	if err != nil {
 		return nil, err
 	}
@@ -2489,6 +2625,18 @@ func NewListTasksRequest(server string, params *ListTasksParams) (*http.Request,
 
 		}
 
+		if params.IncludeTeacherHomepage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "include_teacher_homepage", *params.IncludeTeacherHomepage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -2836,6 +2984,18 @@ func NewListTaskPageRequest(server string, params *ListTaskPageParams) (*http.Re
 
 		}
 
+		if params.IncludeTeacherHomepage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "include_teacher_homepage", *params.IncludeTeacherHomepage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -2884,6 +3044,18 @@ func NewGetQueueSummaryRequest(server string, params *GetQueueSummaryParams) (*h
 			for _, qp := range strings.Split(queryFrag, "&") {
 				rawQueryFragments = append(rawQueryFragments, qp)
 			}
+		}
+
+		if params.IncludeTeacherHomepage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "include_teacher_homepage", *params.IncludeTeacherHomepage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
 		}
 
 		if encoded := queryValues.Encode(); encoded != "" {
@@ -3049,6 +3221,100 @@ func NewRetryTaskRequestWithBody(server string, id string, params *RetryTaskPara
 
 		req.Header.Set("Idempotency-Key", headerParam0)
 
+	}
+
+	return req, nil
+}
+
+// NewSubmitTeacherHomepageComplaintRequest calls the generic SubmitTeacherHomepageComplaint builder with application/json body
+func NewSubmitTeacherHomepageComplaintRequest(server string, teacherId string, params *SubmitTeacherHomepageComplaintParams, body SubmitTeacherHomepageComplaintJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSubmitTeacherHomepageComplaintRequestWithBody(server, teacherId, params, "application/json", bodyReader)
+}
+
+// NewSubmitTeacherHomepageComplaintRequestWithBody constructs an http.Request for the SubmitTeacherHomepageComplaint method, with any body, and a specified content type
+func NewSubmitTeacherHomepageComplaintRequestWithBody(server string, teacherId string, params *SubmitTeacherHomepageComplaintParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "teacher_id", teacherId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/teacher-homepage-complaints/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewGetTeacherHomepageComplaintTargetRequest constructs an http.Request for the GetTeacherHomepageComplaintTarget method
+func NewGetTeacherHomepageComplaintTargetRequest(server string, teacherId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "teacher_id", teacherId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/moderation/teacher-homepage-complaints/%s/target", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil
@@ -3250,6 +3516,27 @@ type ClientWithResponsesInterface interface {
 	// RetryTaskWithResponse performs a POST /api/v1/moderation/tasks/{id}/retry (the `RetryTask` operationId) request.
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	RetryTaskWithResponse(ctx context.Context, id string, params *RetryTaskParams, body RetryTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*RetryTaskResponse, error)
+
+	// SubmitTeacherHomepageComplaintWithBodyWithResponse performs a POST /api/v1/moderation/teacher-homepage-complaints/{teacher_id} (the `SubmitTeacherHomepageComplaint` operationId) request,
+	// with any type of body and a specified content type.
+	//
+	// 登录用户可以向本站的教师主页提交投诉，收到本人可查的回执。同校审核管理员通过现有队列查阅和处理。分类沿用固定 ViolationCategory；每账号每分钟最多 10 次新提交，幂等重放不占次数。回执不包含教师主页资料。教师本人更正申请使用独立接口。.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	SubmitTeacherHomepageComplaintWithBodyWithResponse(ctx context.Context, teacherId string, params *SubmitTeacherHomepageComplaintParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitTeacherHomepageComplaintResponse, error)
+
+	// SubmitTeacherHomepageComplaintWithResponse performs a POST /api/v1/moderation/teacher-homepage-complaints/{teacher_id} (the `SubmitTeacherHomepageComplaint` operationId) request.
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// 登录用户可以向本站的教师主页提交投诉，收到本人可查的回执。同校审核管理员通过现有队列查阅和处理。分类沿用固定 ViolationCategory；每账号每分钟最多 10 次新提交，幂等重放不占次数。回执不包含教师主页资料。教师本人更正申请使用独立接口。.
+	SubmitTeacherHomepageComplaintWithResponse(ctx context.Context, teacherId string, params *SubmitTeacherHomepageComplaintParams, body SubmitTeacherHomepageComplaintJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitTeacherHomepageComplaintResponse, error)
+
+	// GetTeacherHomepageComplaintTargetWithResponse performs a GET /api/v1/moderation/teacher-homepage-complaints/{teacher_id}/target (the `GetTeacherHomepageComplaintTarget` operationId) request.
+	//
+	// 具备当前学校 moderation.manage 权限的审核员可读取有效资料修订与可见状态，用于复核最新版本。对教师主页投诉只允许 hide 或 dismiss。hide 收起主页资料和照片，保留目录与评价。
+	//
+	// Returns a wrapper object for the known response body format(s).
+	GetTeacherHomepageComplaintTargetWithResponse(ctx context.Context, teacherId string, reqEditors ...RequestEditorFn) (*GetTeacherHomepageComplaintTargetResponse, error)
 }
 
 type ListFeedbackResponse struct {
@@ -4718,6 +5005,179 @@ func (r RetryTaskResponse) ContentType() string {
 	return ""
 }
 
+// SubmitTeacherHomepageComplaintResponse429Headers the declared response headers of an HTTP 429 response for SubmitTeacherHomepageComplaint
+type SubmitTeacherHomepageComplaintResponse429Headers struct {
+	RetryAfter *int
+}
+
+type SubmitTeacherHomepageComplaintResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *TaskView
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers429 the parsed response headers for an HTTP 429 response
+	Headers429 *SubmitTeacherHomepageComplaintResponse429Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SubmitTeacherHomepageComplaintResponse) GetJSON200() *TaskView {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r SubmitTeacherHomepageComplaintResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r SubmitTeacherHomepageComplaintResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r SubmitTeacherHomepageComplaintResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r SubmitTeacherHomepageComplaintResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r SubmitTeacherHomepageComplaintResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r SubmitTeacherHomepageComplaintResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r SubmitTeacherHomepageComplaintResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r SubmitTeacherHomepageComplaintResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SubmitTeacherHomepageComplaintResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SubmitTeacherHomepageComplaintResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SubmitTeacherHomepageComplaintResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetTeacherHomepageComplaintTargetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *TeacherHomepageComplaintTarget
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetTeacherHomepageComplaintTargetResponse) GetJSON200() *TeacherHomepageComplaintTarget {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetTeacherHomepageComplaintTargetResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetTeacherHomepageComplaintTargetResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetTeacherHomepageComplaintTargetResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetTeacherHomepageComplaintTargetResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetTeacherHomepageComplaintTargetResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetTeacherHomepageComplaintTargetResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTeacherHomepageComplaintTargetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTeacherHomepageComplaintTargetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetTeacherHomepageComplaintTargetResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListFeedbackWithResponse listFeedback
 //
 // Returns a wrapper object for the known response body format(s).
@@ -5031,6 +5491,45 @@ func (c *ClientWithResponses) RetryTaskWithResponse(ctx context.Context, id stri
 		return nil, err
 	}
 	return ParseRetryTaskResponse(rsp)
+}
+
+// SubmitTeacherHomepageComplaintWithBodyWithResponse performs a POST /api/v1/moderation/teacher-homepage-complaints/{teacher_id} (the `SubmitTeacherHomepageComplaint` operationId) request,
+// with any type of body and a specified content type.
+//
+// 登录用户可以向本站的教师主页提交投诉，收到本人可查的回执。同校审核管理员通过现有队列查阅和处理。分类沿用固定 ViolationCategory；每账号每分钟最多 10 次新提交，幂等重放不占次数。回执不包含教师主页资料。教师本人更正申请使用独立接口。.
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) SubmitTeacherHomepageComplaintWithBodyWithResponse(ctx context.Context, teacherId string, params *SubmitTeacherHomepageComplaintParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitTeacherHomepageComplaintResponse, error) {
+	rsp, err := c.SubmitTeacherHomepageComplaintWithBody(ctx, teacherId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubmitTeacherHomepageComplaintResponse(rsp)
+}
+
+// SubmitTeacherHomepageComplaintWithResponse performs a POST /api/v1/moderation/teacher-homepage-complaints/{teacher_id} (the `SubmitTeacherHomepageComplaint` operationId) request.
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// 登录用户可以向本站的教师主页提交投诉，收到本人可查的回执。同校审核管理员通过现有队列查阅和处理。分类沿用固定 ViolationCategory；每账号每分钟最多 10 次新提交，幂等重放不占次数。回执不包含教师主页资料。教师本人更正申请使用独立接口。.
+func (c *ClientWithResponses) SubmitTeacherHomepageComplaintWithResponse(ctx context.Context, teacherId string, params *SubmitTeacherHomepageComplaintParams, body SubmitTeacherHomepageComplaintJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitTeacherHomepageComplaintResponse, error) {
+	rsp, err := c.SubmitTeacherHomepageComplaint(ctx, teacherId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubmitTeacherHomepageComplaintResponse(rsp)
+}
+
+// GetTeacherHomepageComplaintTargetWithResponse performs a GET /api/v1/moderation/teacher-homepage-complaints/{teacher_id}/target (the `GetTeacherHomepageComplaintTarget` operationId) request.
+//
+// 具备当前学校 moderation.manage 权限的审核员可读取有效资料修订与可见状态，用于复核最新版本。对教师主页投诉只允许 hide 或 dismiss。hide 收起主页资料和照片，保留目录与评价。
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) GetTeacherHomepageComplaintTargetWithResponse(ctx context.Context, teacherId string, reqEditors ...RequestEditorFn) (*GetTeacherHomepageComplaintTargetResponse, error) {
+	rsp, err := c.GetTeacherHomepageComplaintTarget(ctx, teacherId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTeacherHomepageComplaintTargetResponse(rsp)
 }
 
 // ParseListFeedbackResponse parses an HTTP response from a ListFeedbackWithResponse call
@@ -6228,6 +6727,155 @@ func ParseRetryTaskResponse(rsp *http.Response) (*RetryTaskResponse, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSubmitTeacherHomepageComplaintResponse parses an HTTP response from a SubmitTeacherHomepageComplaintWithResponse call
+func ParseSubmitTeacherHomepageComplaintResponse(rsp *http.Response) (*SubmitTeacherHomepageComplaintResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SubmitTeacherHomepageComplaintResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TaskView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 429:
+		var headers SubmitTeacherHomepageComplaintResponse429Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
+		response.Headers429 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetTeacherHomepageComplaintTargetResponse parses an HTTP response from a GetTeacherHomepageComplaintTargetWithResponse call
+func ParseGetTeacherHomepageComplaintTargetResponse(rsp *http.Response) (*GetTeacherHomepageComplaintTargetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTeacherHomepageComplaintTargetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TeacherHomepageComplaintTarget
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest Error
