@@ -70,9 +70,14 @@ ALTER TABLE moderation.replays ADD COLUMN IF NOT EXISTS until timestamptz;
 UPDATE moderation.replays SET until=(data->>'Until')::timestamptz WHERE until IS NULL AND (data ? 'Until');
 CREATE INDEX IF NOT EXISTS moderation_replays_until ON moderation.replays(until) WHERE until IS NOT NULL;
 
+-- Restrict migration history to its owner even when Ops grants the runtime
+-- identity DML privileges across the module's tables.
+CREATE TABLE IF NOT EXISTS moderation.schema_migrations(name text PRIMARY KEY);
+ALTER TABLE moderation.schema_migrations ENABLE ROW LEVEL SECURITY;
+
 -- All nine previously published codes still have the same meaning. Unrecognized
--- nonempty codes and uncategorized resource complaints move to other. Remaining
--- uncategorized tasks stay uncategorized. Keep the original rationale and hashes.
+-- nonempty codes and historical uncategorized resource reports move to other.
+-- Record this migration atomically so later uncategorized reports stay as filed.
 DO $$
 DECLARE fixed_categories constant text[] := ARRAY[
  'illegal_content','pornography','gambling_drugs','fraud','violence_threat','minors_harm',
@@ -81,6 +86,9 @@ DECLARE fixed_categories constant text[] := ARRAY[
  'spam','malware','duplicate','low_quality','author_update','other'
 ];
 BEGIN
+ INSERT INTO moderation.schema_migrations(name) VALUES ('fixed_violation_categories') ON CONFLICT DO NOTHING;
+ IF NOT FOUND THEN RETURN; END IF;
+
  UPDATE moderation.tasks SET data=jsonb_set(data,'{submission,category}','"other"')
  WHERE NULLIF(data#>>'{submission,category}','') <> ALL(fixed_categories)
     OR (content_kind='resource' AND kind='report' AND NULLIF(data#>>'{submission,category}','') IS NULL);

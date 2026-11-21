@@ -102,6 +102,14 @@ func TestFixedCategoriesAndRequiredOtherReason(t *testing.T) {
 func TestFixedCategoryMigrationQueueAndComplaintReplay(t *testing.T) {
 	repo, migration := database(t)
 	ctx := context.Background()
+	if _, err := repo.DB.ExecContext(ctx, `INSERT INTO moderation.schema_migrations(name) VALUES ('runtime_write')`); err == nil {
+		t.Fatal("runtime role can write migration history")
+	}
+	// The fixture installs the latest schema. Remove the migration record before
+	// seeding rows that represent the original schema's data.
+	if _, err := migration.ExecContext(ctx, `DELETE FROM moderation.schema_migrations WHERE name='fixed_violation_categories'`); err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	s := &m.Service{Repo: repo, Access: access{}, Clock: func() time.Time { return now }}
 	admin := m.Principal{Subject: "admin"}
@@ -154,10 +162,28 @@ func TestFixedCategoryMigrationQueueAndComplaintReplay(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for range 2 {
-		if _, err := migration.ExecContext(ctx, postgres.Schema); err != nil {
-			t.Fatal(err)
-		}
+	if _, err := migration.ExecContext(ctx, postgres.Schema); err != nil {
+		t.Fatal(err)
+	}
+
+	currentObject := m.Object{ID: "resource:current", Kind: "resource", SchoolID: "school", Owner: "author", Revision: 1, Visible: true}
+	s.Content = complaintTarget{object: currentObject}
+	currentSubmission := m.Submission{ObjectID: currentObject.ID, Kind: "report", Reason: "Uncategorized public report"}
+	const newKey = "generic-resource-report"
+	current, err := s.Submit(ctx, reporter, newKey, currentSubmission)
+	if err != nil || current.Submission.Category != "" {
+		t.Fatalf("new generic report should start uncategorized: %+v, %v", current, err)
+	}
+	if _, err := migration.ExecContext(ctx, postgres.Schema); err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.Get(ctx, reporter, current.ID)
+	if err != nil || task.Submission.Category != "" {
+		t.Fatalf("rerunning migration changed the new report: %+v, %v", task, err)
+	}
+	currentReplay, err := s.Submit(ctx, reporter, newKey, currentSubmission)
+	if err != nil || currentReplay.ID != current.ID || currentReplay.Revision != current.Revision || currentReplay.Submission.Category != "" {
+		t.Fatalf("rerunning migration changed the new report receipt: %+v, %v", currentReplay, err)
 	}
 
 	updated := oldSubmission
@@ -187,7 +213,7 @@ func TestFixedCategoryMigrationQueueAndComplaintReplay(t *testing.T) {
 	}
 
 	summary, err := s.QueueSummary(ctx, admin, "school")
-	if err != nil || summary.Waiting != 4 || !maps.Equal(summary.ByCategory, map[string]int{"copyright": 1, "other": 2}) {
+	if err != nil || summary.Waiting != 5 || !maps.Equal(summary.ByCategory, map[string]int{"copyright": 1, "other": 2}) {
 		t.Fatalf("unexpected category queue summary: %+v, %v", summary, err)
 	}
 	filter := m.TaskFilter{School: "school", Admin: true, Category: "other", Limit: 100}
