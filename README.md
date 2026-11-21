@@ -1,7 +1,7 @@
 ---
 type: index
 status: Accepted
-updated: 2026-11-21
+updated: 2026-11-22
 ---
 
 # StuHelper Moderation
@@ -39,6 +39,8 @@ HTTP 任务、策略、健康和反馈接口位于 `/api/v1/moderation/`，使�
 可信宿主通过 `Repository.ReadAudit` 查询按当前授权过滤的脱敏记录，单次最多 101 条。以事务可见性快照排除回填和延迟提交，实际修改或删除会使旧快照失效。字段与分页约定见[审核审计查询](contracts/audit.md)。
 
 `Service.CleanupRetention` 返回分类清理数量。默认每类 200 条，上限 500。到期幂等回执和限流窗口保留 24 小时，已确认事件保留 90 天，常规审核审计保留 12 个自然月。`/api/v1/moderation/health` 供平台管理员查看决定和事件积压及反馈容量。
+
+Backend 启用审核模块后在启动时执行一轮清理，此后每小时执行，每轮限时 10 秒。审核清理独立于反馈收件箱，在宿主停机时取消。运行身份通过 `moderation.cleanup_task_audit(timestamptz, integer)` 限量删除到期的常规审核审计。
 
 ## 反馈收件箱
 
