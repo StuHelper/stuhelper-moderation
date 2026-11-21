@@ -16,6 +16,7 @@ import (
 
 type teacherComplaintContent struct {
 	id        string
+	owner     string
 	revision  int64
 	visible   bool
 	inspect   error
@@ -45,10 +46,19 @@ func (c *teacherComplaintContent) ApplyTeacherHomepageDecision(_ context.Context
 	return nil
 }
 
-type teacherComplaintAccess struct{}
+func (c *teacherComplaintContent) OwnsTeacherHomepage(_ context.Context, p m.Principal, school, teacherID string) (bool, error) {
+	return c.owner == p.Subject && school == "school" && teacherID == c.id, nil
+}
 
-func (teacherComplaintAccess) Authorize(_ context.Context, p m.Principal, action, school string) error {
+type teacherComplaintAccess struct {
+	platformExemption bool
+}
+
+func (a teacherComplaintAccess) Authorize(_ context.Context, p m.Principal, action, school string) error {
 	if action == "manage" && school == "school" && p.Subject == "admin" {
+		return nil
+	}
+	if action == "self_approve" && school == "*" && p.Subject == "admin" && a.platformExemption {
 		return nil
 	}
 	return m.ErrForbidden
@@ -180,8 +190,30 @@ func TestTeacherHomepageComplaintQueueAndScope(t *testing.T) {
 		t.Fatal("missing report result event")
 	}
 
+	// A school moderator cannot dismiss someone else's complaint about their
+	// own currently verified directory ID without the existing platform grant.
+	teacher.owner = admin.Subject
+	dismiss := m.Decide{Revision: task.Revision, Decision: m.Decision{
+		ObjectID: task.Submission.ObjectID, Revision: teacher.revision, Action: "dismiss", Reason: "Rechecked current homepage",
+	}}
+	if _, err := s.Decide(ctx, admin, task.ID, "recusal", dismiss); !errors.Is(err, m.ErrForbidden) {
+		t.Fatal("verified teacher bypassed own-content recusal", err)
+	}
+	if got, err := s.Get(ctx, m.Principal{Subject: "reporter"}, task.ID); err != nil || got.State != "waiting" {
+		t.Fatal("recused decision mutated the complaint", got, err)
+	}
+	s.Access = teacherComplaintAccess{platformExemption: true}
+	if got, err := s.Decide(ctx, admin, task.ID, "platform", dismiss); err != nil || got.State != "applied" {
+		t.Fatal("platform exemption rejected", got, err)
+	}
+
 	// An authorized moderator can close an old complaint after a directory
 	// merge without applying the old target to the replacement teacher.
+	task, err = s.SubmitTeacherHomepageComplaint(ctx, m.Principal{Subject: "reporter"}, "closed-again", teacher.id,
+		m.TeacherHomepageComplaint{Category: "privacy_leak", Reason: "Material presented after the earlier decision", Evidence: []string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	teacher.inspect = m.ErrNotFound
 	decision = m.Decide{Revision: task.Revision, Decision: m.Decision{
 		ObjectID: task.Submission.ObjectID, Revision: task.ObjectRevision, Action: "dismiss", Reason: "Directory target removed",

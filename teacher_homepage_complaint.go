@@ -17,6 +17,7 @@ const (
 type TeacherHomepageContent interface {
 	InspectTeacherHomepage(context.Context, Principal, string) (Object, error)
 	ApplyTeacherHomepageDecision(context.Context, Principal, Decision) error
+	OwnsTeacherHomepage(context.Context, Principal, string, string) (bool, error)
 }
 
 type TeacherHomepageComplaint struct {
@@ -125,6 +126,18 @@ func (s *Service) inspectDecisionTarget(ctx context.Context, p Principal, task T
 		// A removed or merged teacher can leave a pending complaint. The school
 		// administrator can close that receipt without mutating another record.
 		return Object{ID: task.Submission.ObjectID, SchoolID: task.SchoolID, Kind: task.ContentKind, Revision: task.ObjectRevision}, nil
+	}
+	if err != nil || task.ContentKind != TeacherHomepageContentKind || d.Action != "dismiss" || task.Owner == p.Subject {
+		return object, err
+	}
+	call, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	owns, err := s.TeacherHomepageContent.OwnsTeacherHomepage(call, p, object.SchoolID,
+		strings.TrimPrefix(object.ID, teacherHomepageObjectPrefix))
+	if owns {
+		// The existing self-favorable decision rule uses the acting account
+		// for recusal. This fact is never stored as the complaint content owner.
+		object.Owner = p.Subject
 	}
 	return object, err
 }
