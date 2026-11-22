@@ -1,5 +1,5 @@
 id: moderation
-version: 0.4.0
+version: 0.6.0 # 模块清单版本。源码发行版本由 Git tag 标识。
 kind: module
 api: 1
 critical: false
@@ -13,10 +13,12 @@ optional:
     api: 1
 capabilities:
   - moderation.tasks
+# 任务 HTTP 能力由宿主关联当前身份。
 capability_requires:
   moderation.tasks:
     - id: identity
       api: 1
+# 规格场景对应的 Go 测试。scripts/check-module.mjs 核对每个函数引用。
 scenario_tests:
   CM-01:
     - submission_replay_test.go#TestSubmissionReplaysLegacyNilEvidence
@@ -100,3 +102,10 @@ scenario_tests:
   CM-21:
     - feedback_test.go#TestFeedbackRateCapacityAndCursor
     - feedback_safety_test.go#TestFeedbackValidationEnforcesAttachmentLimitsSenderNormalizationAndHeaderSafety
+  CM-22:
+    - violation_categories_test.go#TestFixedCategoriesAndRequiredOtherReason
+  CM-23:
+    - violation_categories_test.go#TestFixedCategoryMigrationQueueAndComplaintReplay
+  CM-24:
+    - teacher_homepage_complaint_test.go#TestTeacherHomepageComplaintQueueAndScope
+    - teacher_homepage_complaint_test.go#TestTeacherHomepageComplaintRetention

@@ -12,10 +12,10 @@ func (s *Service) SubmitResourceComplaint(ctx context.Context, p Principal, key 
 	if p.Subject == "" {
 		return TaskView{}, ErrUnauthenticated
 	}
-	if !validCategory(in.Category) {
+	if in.Category == "" || !validCategory(in.Category) {
 		return TaskView{}, withReason(ErrInput, "invalid_category")
 	}
-	if !keyOK(key) || in.Kind != "report" || in.PreviousTaskID != "" || in.ProposedBody != "" || object.Kind != "resource" || object.ID != in.ObjectID || !keyOK(object.ID) || !keyOK(object.SchoolID) || object.Revision < 1 || strings.TrimSpace(object.Owner) == "" || !textOK(object.Owner, 256) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || len(in.Evidence) < 2 || len(in.Evidence) > 5 {
+	if !keyOK(key) || in.Kind != "report" || in.PreviousTaskID != "" || in.ProposedBody != "" || object.Kind != "resource" || object.ID != in.ObjectID || !keyOK(object.ID) || !keyOK(object.SchoolID) || object.Revision < 1 || strings.TrimSpace(object.Owner) == "" || !textOK(object.Owner, 256) || !validReason(in.Reason) || len(in.Evidence) < 2 || len(in.Evidence) > 5 {
 		return TaskView{}, withReason(ErrInput, "invalid_parameter")
 	}
 	for _, value := range in.Evidence {

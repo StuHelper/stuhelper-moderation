@@ -12,13 +12,16 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/StuHelper/stuhelper-moderation/sdk"
 )
 
 type Service struct {
-	Repo    Repository
-	Content Content
-	Access  Access
-	Clock   func() time.Time
+	Repo                   Repository
+	Content                Content
+	TeacherHomepageContent TeacherHomepageContent
+	Access                 Access
+	Clock                  func() time.Time
 }
 
 func (s *Service) now() time.Time {
@@ -34,11 +37,14 @@ func (s *Service) tx(ctx context.Context, run func(Transaction) error) error {
 	return s.Repo.Transaction(ctx, run)
 }
 func (s *Service) inspect(ctx context.Context, p Principal, id string) (Object, error) {
+	call, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if teacherHomepageObjectID(id) {
+		return s.inspectTeacherHomepage(call, p, strings.TrimPrefix(id, teacherHomepageObjectPrefix))
+	}
 	if s == nil || s.Content == nil {
 		return Object{}, ErrUnavailable
 	}
-	call, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
 	return s.Content.Inspect(call, p, id)
 }
 func digest(v any) string {
@@ -61,6 +67,10 @@ func textOK(v string, max int) bool {
 	return utf8.ValidString(v) && utf8.RuneCountInString(v) <= max && !strings.ContainsRune(v, 0)
 }
 
+func validReason(v string) bool {
+	return strings.TrimSpace(v) != "" && textOK(v, 2000)
+}
+
 type RelatedTaskTransaction interface {
 	RelatedWaitingCounts(school string, objectIDs []string) (map[string]int, error)
 	WaitingReportsByObject(school, objectID string, maxObjectRevision int64, excludeID string) ([]Task, error)
@@ -79,7 +89,7 @@ func cleanToken(v string, max int) bool {
 	return true
 }
 func validateDecision(d Decision) bool {
-	if !validCategory(d.Category) || !keyOK(d.ObjectID) || d.Revision < 1 || !slices.Contains([]string{"approve_append", "reject_append", "publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || strings.TrimSpace(d.Reason) == "" || !textOK(d.Reason, 2000) {
+	if !validCategory(d.Category) || !validModerationObjectID(d.ObjectID) || d.Revision < 1 || !slices.Contains([]string{"approve_append", "reject_append", "publish", "hide", "restore", "delete", "edit", "identity", "dismiss", "feature", "unfeature", "reassign"}, d.Action) || !validReason(d.Reason) {
 		return false
 	}
 	appendAction := d.Action == "approve_append" || d.Action == "reject_append"
@@ -115,13 +125,18 @@ func validateDecisionTarget(object Object, task Task, d Decision) error {
 	if object.Kind == "resource" && !slices.Contains([]string{"publish", "hide", "restore", "delete", "dismiss"}, d.Action) {
 		return withReason(ErrInput, "invalid_parameter")
 	}
+	if task.ContentKind == TeacherHomepageContentKind &&
+		(object.Kind != TeacherHomepageContentKind || !slices.Contains([]string{"hide", "dismiss"}, d.Action) ||
+			d.Body != nil || d.TeacherID != "" || d.Subject != "" || d.AuthorHandle != "" || d.EvidenceRevision != "" || d.Signed) {
+		return withReason(ErrInput, "invalid_parameter")
+	}
 	if object.SchoolID != task.SchoolID || object.Revision != d.Revision || d.ObjectID != object.ID {
 		return withReason(ErrConflict, "stale_revision")
 	}
 	return nil
 }
 func validCategory(v string) bool {
-	return v == "" || slices.Contains(ValidCategories, v)
+	return v == "" || sdk.ViolationCategory(v).Valid()
 }
 
 func isAdverseToAuthor(task Task) bool {
@@ -209,7 +224,8 @@ func (s *Service) resolveRelatedReports(t Transaction, primary Task) error {
 			}
 			return err
 		}
-		if sib.State != "waiting" || sib.Submission.Kind != "report" || sib.ObjectRevision > primary.Decision.Revision {
+		if sib.State != "waiting" || sib.Submission.Kind != "report" || sib.ObjectRevision > primary.Decision.Revision ||
+			(sib.ContentKind == TeacherHomepageContentKind && sib.ObjectRevision != primary.Decision.Revision) {
 			continue
 		}
 		linked := *primary.Decision
@@ -290,13 +306,16 @@ func (s *Service) record(t Transaction, key, hash, action string, p Principal, t
 	return s.recordWithView(t, key, hash, action, p, task, viewFor(p, task))
 }
 
-func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payload string, in Submission, object *Object, missingObjectErr error, beforeSave func(Transaction) error) (TaskView, error) {
+func (s *Service) upsertSubmissionTx(t Transaction, p Principal, operation, payload, migratedComplaintHash string, in Submission, object *Object, missingObjectErr error, beforeSave func(Transaction) error) (TaskView, error) {
 	var out TaskView
 	if e := t.Lock(digest([]string{p.Subject, in.Kind, in.ObjectID})); e != nil {
 		return out, e
 	}
 	now := s.now()
 	cached, found, e := replay(t, operation, payload, now)
+	if errors.Is(e, ErrConflict) && migratedComplaintHash != "" {
+		cached, found, e = replay(t, operation, migratedComplaintHash, now)
+	}
 	if errors.Is(e, ErrConflict) && len(in.Evidence) == 0 {
 		// Older receipts hashed omitted evidence as null instead of an empty array.
 		legacy := in
@@ -454,7 +473,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	if !validCategory(in.Category) {
 		return out, withReason(ErrInput, "invalid_category")
 	}
-	if in.AppendID != "" || !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || !slices.Contains([]string{"report", "edit_request", "delete_request", "review", "appeal"}, in.Kind) || strings.TrimSpace(in.Reason) == "" || !textOK(in.Reason, 2000) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
+	if in.AppendID != "" || !keyOK(key) || in.ObjectID == "" || len(in.ObjectID) > 128 || teacherHomepageObjectID(in.ObjectID) || !slices.Contains([]string{"report", "edit_request", "delete_request", "review", "appeal"}, in.Kind) || !validReason(in.Reason) || !textOK(in.ProposedBody, 16000) || len(in.Evidence) > 5 {
 		return out, withReason(ErrInput, "invalid_parameter")
 	}
 	for _, v := range in.Evidence {
@@ -503,7 +522,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 	h := digest(in)
 	err := s.tx(ctx, func(t Transaction) error {
 		var txErr error
-		out, txErr = s.upsertSubmissionTx(t, p, rk, h, in, &object, ErrUnavailable, nil)
+		out, txErr = s.upsertSubmissionTx(t, p, rk, h, "", in, &object, ErrUnavailable, nil)
 		return txErr
 	})
 	return out, err
@@ -512,7 +531,7 @@ func (s *Service) Submit(ctx context.Context, p Principal, key string, in Submis
 // Track accepts a durable content event, without copying full content into public records.
 func (s *Service) Track(ctx context.Context, eventID string, object Object) (TaskView, error) {
 	var out TaskView
-	if !keyOK(eventID) || !keyOK(object.ID) || !keyOK(object.SchoolID) || strings.TrimSpace(object.Owner) == "" || !textOK(object.Owner, 256) || object.Revision < 1 || (object.Kind != "" && !slices.Contains([]string{"course", "mentor", "reply", "resource"}, object.Kind)) {
+	if !keyOK(eventID) || !keyOK(object.ID) || teacherHomepageObjectID(object.ID) || !keyOK(object.SchoolID) || strings.TrimSpace(object.Owner) == "" || !textOK(object.Owner, 256) || object.Revision < 1 || (object.Kind != "" && !slices.Contains([]string{"course", "mentor", "reply", "resource"}, object.Kind)) {
 		return out, withReason(ErrInput, "invalid_parameter")
 	}
 	id := digest([]string{"content", eventID})
@@ -667,7 +686,7 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 				return ErrConflict
 			}
 		}
-		object, e := s.inspect(ctx, p, task.Submission.ObjectID)
+		object, e := s.inspectDecisionTarget(ctx, p, task, d)
 		if e != nil {
 			return e
 		}

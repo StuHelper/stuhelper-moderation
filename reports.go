@@ -13,6 +13,22 @@ func (s *Service) submitReport(ctx context.Context, p Principal, key string, in 
 }
 
 func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Submission, object *Object) (TaskView, error) {
+	return s.saveReportUsing(ctx, p, key, in, object, func(call context.Context) (Object, error) {
+		if s.Content == nil {
+			return Object{}, ErrUnavailable
+		}
+		current, err := s.Content.Inspect(call, p, in.ObjectID)
+		if err != nil {
+			return Object{}, err
+		}
+		if !current.Visible {
+			return Object{}, ErrNotFound
+		}
+		return current, s.auth(call, p, "report", current.SchoolID)
+	})
+}
+
+func (s *Service) saveReportUsing(ctx context.Context, p Principal, key string, in Submission, object *Object, load func(context.Context) (Object, error)) (TaskView, error) {
 	var out TaskView
 	if p.Subject == "" {
 		return out, ErrForbidden
@@ -23,6 +39,14 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 	in.Kind = "report"
 	operation := digest([]string{p.Subject, in.Kind, in.ObjectID, key})
 	payload := digest(in)
+	var migratedComplaintHash string
+	if object != nil && in.Category == "other" {
+		// The resources migration classifies old complaints as other. Verify the
+		// original payload for an existing receipt when delivery lost its result.
+		original := in
+		original.Category = ""
+		migratedComplaintHash = digest(original)
+	}
 	needsFacts := errors.New("report creation needs current facts")
 	checkRateLimit := func(t Transaction) error {
 		limiter, ok := t.(interface{ LimitSubmission(string, time.Time) error })
@@ -33,26 +57,17 @@ func (s *Service) saveReport(ctx context.Context, p Principal, key string, in Su
 	}
 	apply := func(t Transaction) error {
 		var txErr error
-		out, txErr = s.upsertSubmissionTx(t, p, operation, payload, in, object, needsFacts, checkRateLimit)
+		out, txErr = s.upsertSubmissionTx(t, p, operation, payload, migratedComplaintHash, in, object, needsFacts, checkRateLimit)
 		return txErr
 	}
 	err := s.tx(ctx, apply)
 	if !errors.Is(err, needsFacts) {
 		return out, err
 	}
-	if s.Content == nil {
-		return out, ErrUnavailable
-	}
 	call, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	current, e := s.Content.Inspect(call, p, in.ObjectID)
+	current, e := load(call)
 	if e != nil {
-		return out, e
-	}
-	if !current.Visible {
-		return out, ErrNotFound
-	}
-	if e = s.auth(call, p, "report", current.SchoolID); e != nil {
 		return out, e
 	}
 	object = &current

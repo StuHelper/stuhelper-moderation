@@ -69,6 +69,42 @@ CREATE TABLE IF NOT EXISTS moderation.replays(key text PRIMARY KEY,until timesta
 ALTER TABLE moderation.replays ADD COLUMN IF NOT EXISTS until timestamptz;
 UPDATE moderation.replays SET until=(data->>'Until')::timestamptz WHERE until IS NULL AND (data ? 'Until');
 CREATE INDEX IF NOT EXISTS moderation_replays_until ON moderation.replays(until) WHERE until IS NOT NULL;
+
+-- Restrict migration history to its owner even when Ops grants the runtime
+-- identity DML privileges across the module's tables.
+CREATE TABLE IF NOT EXISTS moderation.schema_migrations(name text PRIMARY KEY);
+ALTER TABLE moderation.schema_migrations ENABLE ROW LEVEL SECURITY;
+
+-- All nine previously published codes still have the same meaning. Unrecognized
+-- nonempty codes and historical uncategorized resource reports move to other.
+-- Record this migration atomically so later uncategorized reports stay as filed.
+DO $$
+DECLARE fixed_categories constant text[] := ARRAY[
+ 'illegal_content','pornography','gambling_drugs','fraud','violence_threat','minors_harm',
+ 'personal_attack','harassment_discrimination','defamation_rumor','privacy_leak','impersonation',
+ 'copyright','other_ip','academic_integrity','leaked_exam','fake_review','wrong_teacher','wrong_info',
+ 'spam','malware','duplicate','low_quality','author_update','other'
+];
+BEGIN
+ INSERT INTO moderation.schema_migrations(name) VALUES ('fixed_violation_categories') ON CONFLICT DO NOTHING;
+ IF NOT FOUND THEN RETURN; END IF;
+
+ UPDATE moderation.tasks SET data=jsonb_set(data,'{submission,category}','"other"')
+ WHERE NULLIF(data#>>'{submission,category}','') <> ALL(fixed_categories)
+    OR (content_kind='resource' AND kind='report' AND NULLIF(data#>>'{submission,category}','') IS NULL);
+ UPDATE moderation.tasks SET data=jsonb_set(data,'{decision,category}','"other"')
+ WHERE NULLIF(data#>>'{decision,category}','') <> ALL(fixed_categories);
+
+ UPDATE moderation.replays SET data=jsonb_set(data,'{View,submission,category}','"other"')
+ WHERE NULLIF(data#>>'{View,submission,category}','') <> ALL(fixed_categories)
+    OR (data#>>'{View,content_kind}'='resource' AND data#>>'{View,submission,kind}'='report'
+        AND NULLIF(data#>>'{View,submission,category}','') IS NULL);
+ UPDATE moderation.replays SET data=jsonb_set(data,'{View,decision,category}','"other"')
+ WHERE NULLIF(data#>>'{View,decision,category}','') <> ALL(fixed_categories);
+END $$;
+CREATE INDEX IF NOT EXISTS moderation_school_category_created ON moderation.tasks
+ (school_id,(COALESCE(NULLIF(data#>>'{decision,category}',''),NULLIF(data#>>'{submission,category}',''))),created_at,id COLLATE "C");
+
 CREATE TABLE IF NOT EXISTS moderation.audit (
  id text PRIMARY KEY, time timestamptz NOT NULL, data jsonb NOT NULL,
  actor text NOT NULL, target text NOT NULL, action text NOT NULL,
@@ -278,3 +314,75 @@ BEGIN
  RETURN removed;
 END $$;
 REVOKE ALL ON FUNCTION moderation.cleanup_task_audit(timestamptz, integer) FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS moderation.teacher_homepage_complaint_holds (
+ task_id text PRIMARY KEY REFERENCES moderation.tasks(id) ON DELETE CASCADE,
+ basis text NOT NULL CHECK (length(trim(basis)) BETWEEN 1 AND 512),
+ purpose text NOT NULL CHECK (length(trim(purpose)) BETWEEN 1 AND 512),
+ end_condition text NOT NULL CHECK (length(trim(end_condition)) BETWEEN 1 AND 512),
+ placed_at timestamptz NOT NULL DEFAULT current_timestamp CHECK (isfinite(placed_at)),
+ review_at timestamptz NOT NULL CHECK (isfinite(review_at)),
+ ends_at timestamptz NOT NULL CHECK (isfinite(ends_at)),
+ released_at timestamptz CHECK (isfinite(released_at)),
+ CHECK (placed_at <= review_at AND review_at <= ends_at AND placed_at < ends_at),
+ CHECK (released_at IS NULL OR placed_at <= released_at)
+);
+ALTER TABLE moderation.teacher_homepage_complaint_holds ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON moderation.teacher_homepage_complaint_holds FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION moderation.lock_teacher_homepage_complaint_hold() RETURNS trigger
+LANGUAGE plpgsql SET search_path=pg_catalog AS $$
+BEGIN
+ IF TG_OP='UPDATE' AND OLD.task_id<>NEW.task_id THEN
+  RAISE EXCEPTION 'invalid_hold_scope' USING ERRCODE='22023';
+ END IF;
+ PERFORM id FROM moderation.tasks WHERE id=NEW.task_id AND content_kind='teacher_homepage' AND kind='report' FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'invalid_hold_scope' USING ERRCODE='22023'; END IF;
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION moderation.lock_teacher_homepage_complaint_hold() FROM PUBLIC;
+DROP TRIGGER IF EXISTS teacher_homepage_complaint_hold_scope ON moderation.teacher_homepage_complaint_holds;
+CREATE TRIGGER teacher_homepage_complaint_hold_scope BEFORE INSERT OR UPDATE ON moderation.teacher_homepage_complaint_holds
+ FOR EACH ROW EXECUTE FUNCTION moderation.lock_teacher_homepage_complaint_hold();
+
+CREATE INDEX IF NOT EXISTS moderation_teacher_homepage_complaint_retention ON moderation.tasks(updated_at,id)
+ WHERE content_kind='teacher_homepage' AND kind='report' AND state='applied';
+CREATE INDEX IF NOT EXISTS moderation_replays_by_task_id ON moderation.replays((data->>'TaskID'));
+
+CREATE OR REPLACE FUNCTION moderation.cleanup_teacher_homepage_complaints(cutoff timestamptz, max_rows integer) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog SET TimeZone='UTC' AS $$
+DECLARE
+ candidate_ids text[];
+ expired_ids text[];
+ removed integer;
+BEGIN
+ IF cutoff IS NULL OR NOT isfinite(cutoff) OR cutoff > current_timestamp - interval '12 months' THEN
+  RAISE EXCEPTION 'invalid_cutoff' USING ERRCODE='22023';
+ END IF;
+ IF max_rows IS NULL OR max_rows < 1 OR max_rows > 500 THEN
+  RAISE EXCEPTION 'invalid_limit' USING ERRCODE='22023';
+ END IF;
+
+ SELECT ARRAY(
+  SELECT t.id FROM moderation.tasks t
+  WHERE t.content_kind='teacher_homepage' AND t.kind='report' AND t.state='applied' AND t.updated_at<=cutoff
+    AND NOT EXISTS(SELECT 1 FROM moderation.teacher_homepage_complaint_holds h
+     WHERE h.task_id=t.id AND h.released_at IS NULL AND h.ends_at>current_timestamp)
+  ORDER BY t.updated_at,t.id LIMIT max_rows FOR UPDATE OF t SKIP LOCKED
+ ) INTO candidate_ids;
+ IF cardinality(candidate_ids)=0 THEN RETURN 0; END IF;
+
+ -- Hold writes lock the same task. Check again in a fresh snapshot after
+ -- locking the candidates in case a hold committed after selection began.
+ SELECT ARRAY(
+  SELECT candidate.id FROM unnest(candidate_ids) AS candidate(id)
+  WHERE NOT EXISTS(SELECT 1 FROM moderation.teacher_homepage_complaint_holds h
+   WHERE h.task_id=candidate.id AND h.released_at IS NULL AND h.ends_at>current_timestamp)
+ ) INTO expired_ids;
+
+ DELETE FROM moderation.replays WHERE data->>'TaskID'=ANY(expired_ids);
+ DELETE FROM moderation.tasks WHERE id=ANY(expired_ids);
+ GET DIAGNOSTICS removed=ROW_COUNT;
+ RETURN removed;
+END $$;
+REVOKE ALL ON FUNCTION moderation.cleanup_teacher_homepage_complaints(timestamptz, integer) FROM PUBLIC;

@@ -50,14 +50,11 @@ func (s *Service) Work(ctx context.Context, limit int) (int, error) {
 			return done, ErrUnavailable
 		}
 		callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		applyErr := ErrUnavailable
-		if s.Content != nil {
-			actor := task.DecidedBy
-			if task.RetriedBy != "" {
-				actor = task.RetriedBy
-			}
-			applyErr = s.Content.Apply(callCtx, Principal{Subject: actor}, *task.Decision)
+		actor := task.DecidedBy
+		if task.RetriedBy != "" {
+			actor = task.RetriedBy
 		}
+		applyErr := s.applyDecision(callCtx, task, Principal{Subject: actor})
 		cancel()
 		// Persist the outcome even if shutdown canceled ctx after Apply executed.
 		persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)

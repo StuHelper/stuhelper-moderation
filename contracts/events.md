@@ -1,7 +1,7 @@
 ---
 type: spec
 status: Accepted
-updated: 2026-11-18
+updated: 2026-11-22
 ---
 
 # 审核事件契约
@@ -10,9 +10,11 @@ updated: 2026-11-18
 
 moderation.decided.v1 与决定同事务写入，表示决定已保存。moderation.result.v1 与终态 applied/failed 同事务写入。dismiss 在决定事务中按严格递增的任务修订号依次写入 decided.v1 与 result.v1；其他动作在内容模块确认执行后产生结果。
 
-结果 data 包含 task_id、owner（申请人）、content_owner、object_id、content_kind、request_kind、action、state、revision、decision_id。事件不含举报证据、正文、身份原值或管理员账号。通知消费者只订阅 result.v1，并区分执行成功与失败。
+结果 data 包含 task_id、owner（申请人）、content_owner、object_id、content_kind、request_kind、action、state、revision、decision_id。事件不含举报证据、正文、身份原值或管理员账号。
 
-内容通过、驳回、下架分别对应 publish、dismiss、hide。举报与资料下架申请通过 request_kind=report/delete_request 区分，侵权投诉的任务类型沿用 report。
+内容通过、驳回、下架分别对应 publish、dismiss、hide。举报与资料下架申请通过 request_kind=report/delete_request 区分，侵权投诉与教师主页投诉的任务类型沿用 report。
+
+教师主页目标的 content_kind 为 teacher_homepage，object_id 为 teacher-homepage: 加目录规范 ID。结果通知以举报回执为目标。
 
 所有 outbox 写入在同一事务执行 pg_notify('moderation_outbox', '')。通知仅用于唤醒，数据以 outbox 为准。回滚不产生事件或通知。
 
@@ -20,7 +22,9 @@ Go OutboxReader 提供 PendingOutbox(ctx, limit, excludeSubjects) 与 ConfirmOut
 
 relay 启动、重连和每 60 秒兜底读取未发送事件，收到通知立即排空积压。相同 source/subject 串行处理，失败阻止后续修订超前。5 秒指数退避至 1 小时，24 小时后转人工处理，重试保留原 ID。
 
-消费者在本地事务写 inbox，以 source/ID 去重，并忽略不高于已处理修订的事件。生产模块的确认不替代消费者 inbox。backend 装配与消费者验证由后续任务完成。
+Backend 启用审核、站内通知和事件中继时，将审核 outbox 接入中继。通知消费者只处理 `moderation.result.v1`，根据终态和接收人生成通知。消费者在本地事务写入 inbox，以 source/ID 去重，并忽略不高于已处理修订的事件。
+
+Backend 在隔离 PostgreSQL 上验证启动和重连补读、提交后通知、回滚及丢失确认后的重放。重放沿用原事件 ID，已写入的通知只保留一份。[宿主组合测试](https://github.com/StuHelper/stuhelper-backend/blob/058201f8ea12eca86beab90e0c4f424f38c4fa2f/internal/relayapp/relay_test.go)
 
 CM-16：事务回滚没有通知和 outbox，提交后收到通知；未监听期间的积压可补读；批量上限 100；重复读取保持封套及 ID，重复确认幂等，旧决定不产生新结果。
 

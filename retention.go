@@ -6,10 +6,11 @@ import (
 )
 
 type CleanupResult struct {
-	ReplaysDeleted int `json:"replays_deleted"`
-	LimitsDeleted  int `json:"limits_deleted"`
-	OutboxDeleted  int `json:"outbox_deleted"`
-	AuditDeleted   int `json:"audit_deleted"`
+	ReplaysDeleted                   int `json:"replays_deleted"`
+	LimitsDeleted                    int `json:"limits_deleted"`
+	OutboxDeleted                    int `json:"outbox_deleted"`
+	AuditDeleted                     int `json:"audit_deleted"`
+	TeacherHomepageComplaintsDeleted int `json:"teacher_homepage_complaints_deleted"`
 }
 
 type HealthSnapshot struct {
