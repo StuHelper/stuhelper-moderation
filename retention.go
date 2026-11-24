@@ -10,6 +10,7 @@ type CleanupResult struct {
 	LimitsDeleted                    int `json:"limits_deleted"`
 	OutboxDeleted                    int `json:"outbox_deleted"`
 	AuditDeleted                     int `json:"audit_deleted"`
+	ResourceComplaintsDeleted        int `json:"resource_complaints_deleted"`
 	TeacherHomepageComplaintsDeleted int `json:"teacher_homepage_complaints_deleted"`
 }
 
