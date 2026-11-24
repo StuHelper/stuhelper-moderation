@@ -23,6 +23,7 @@ scenario_tests:
   CM-01:
     - submission_replay_test.go#TestSubmissionReplaysLegacyNilEvidence
     - complaints_test.go#TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass
+    - teacher_homepage_complaint_test.go#TestResourceComplaintRetentionWaitsForHoldsAndAppealThenQueuesCleanup
     - integration_test.go#TestPendingReportMergesEvidenceAndAuthorRequestsAreScoped
     - submission_safety_test.go#TestAuthorRequestSupplementCannotOverwriteConcurrentDecision
   CM-02:

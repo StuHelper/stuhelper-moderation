@@ -57,9 +57,9 @@ func database(t *testing.T) (*postgres.Repository, *sql.DB) {
 	if _, e = migration.Exec(`GRANT EXECUTE ON FUNCTION moderation.cleanup_feedback_audit() TO ` + role + `; GRANT EXECUTE ON FUNCTION moderation.cleanup_task_audit(timestamptz, integer) TO ` + role + `; REVOKE UPDATE, DELETE ON moderation.audit FROM ` + role); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = migration.Exec(`GRANT EXECUTE ON FUNCTION moderation.cleanup_teacher_homepage_complaints(timestamptz, integer) TO ` + role +
+	if _, e = migration.Exec(`GRANT EXECUTE ON FUNCTION moderation.cleanup_teacher_homepage_complaints(timestamptz, integer), moderation.prune_resource_complaints(integer) TO ` + role +
 		`; REVOKE DELETE ON moderation.tasks FROM ` + role +
-		`; REVOKE ALL ON moderation.teacher_homepage_complaint_holds FROM ` + role); e != nil {
+		`; REVOKE ALL ON moderation.teacher_homepage_complaint_holds,moderation.resource_complaint_holds FROM ` + role); e != nil {
 		t.Fatal(e)
 	}
 	runtime := dbcfg.Copy()
