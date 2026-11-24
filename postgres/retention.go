@@ -71,6 +71,9 @@ func (r *Repository) CleanupRetention(ctx context.Context, now time.Time, batchL
 	if err = tx.QueryRowContext(ctx, `SELECT moderation.cleanup_teacher_homepage_complaints(LEAST($1::timestamptz,current_timestamp) - interval '12 months', $2)`, now, batchLimit).Scan(&out.TeacherHomepageComplaintsDeleted); err != nil {
 		return m.CleanupResult{}, safe(err)
 	}
+	if err = tx.QueryRowContext(ctx, "SELECT moderation.prune_resource_complaints($1)", batchLimit).Scan(&out.ResourceComplaintsDeleted); err != nil {
+		return out, safe(err)
+	}
 	if err = tx.Commit(); err != nil {
 		return m.CleanupResult{}, safe(err)
 	}

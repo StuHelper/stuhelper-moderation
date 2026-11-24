@@ -386,3 +386,55 @@ BEGIN
  RETURN removed;
 END $$;
 REVOKE ALL ON FUNCTION moderation.cleanup_teacher_homepage_complaints(timestamptz, integer) FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS moderation.resource_complaint_holds (
+ LIKE moderation.teacher_homepage_complaint_holds INCLUDING ALL,
+ FOREIGN KEY(task_id) REFERENCES moderation.tasks(id) ON DELETE CASCADE
+);
+ALTER TABLE moderation.resource_complaint_holds ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON moderation.resource_complaint_holds FROM PUBLIC;
+CREATE OR REPLACE FUNCTION moderation.lock_resource_complaint_hold() RETURNS trigger
+LANGUAGE plpgsql SET search_path=pg_catalog AS $$
+BEGIN
+ IF TG_OP='UPDATE' AND OLD.task_id<>NEW.task_id THEN RAISE EXCEPTION 'invalid_hold_scope'; END IF;
+ PERFORM id FROM moderation.tasks WHERE id=NEW.task_id AND content_kind='resource' AND kind='report' FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'invalid_hold_scope' USING ERRCODE='22023'; END IF;
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION moderation.lock_resource_complaint_hold() FROM PUBLIC;
+DROP TRIGGER IF EXISTS lock_resource_hold ON moderation.resource_complaint_holds;
+CREATE TRIGGER lock_resource_hold BEFORE INSERT OR UPDATE ON moderation.resource_complaint_holds
+ FOR EACH ROW EXECUTE FUNCTION moderation.lock_resource_complaint_hold();
+
+CREATE TABLE IF NOT EXISTS moderation.resource_complaint_purges (task_id text PRIMARY KEY);
+CREATE INDEX IF NOT EXISTS moderation_resource_complaint_retention ON moderation.tasks(updated_at,id)
+ WHERE content_kind='resource' AND kind='report' AND state='applied';
+CREATE INDEX IF NOT EXISTS moderation_appeal_predecessor ON moderation.tasks((data#>>'{submission,previous_task_id}')) WHERE kind='appeal';
+
+CREATE OR REPLACE FUNCTION moderation.prune_resource_complaints(p_limit integer) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog SET TimeZone='UTC' AS $$
+DECLARE task record;
+ related text[];
+ removed integer:=0;
+BEGIN
+ IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 500 THEN RAISE EXCEPTION 'invalid_limit' USING ERRCODE='22023'; END IF;
+ FOR task IN SELECT t.id FROM moderation.tasks t WHERE t.content_kind='resource' AND t.kind='report' AND t.state='applied'
+   AND t.updated_at + interval '12 months' <= statement_timestamp()
+   AND NOT EXISTS (SELECT 1 FROM moderation.resource_complaint_holds h WHERE h.task_id=t.id AND h.released_at IS NULL AND h.ends_at>statement_timestamp())
+   AND NOT EXISTS (SELECT 1 FROM moderation.tasks a WHERE a.kind='appeal' AND a.data#>>'{submission,previous_task_id}'=t.id
+     AND (a.state<>'applied' OR a.updated_at+interval '12 months'>statement_timestamp()))
+   ORDER BY t.updated_at,t.id LIMIT p_limit FOR UPDATE OF t SKIP LOCKED
+ LOOP
+   IF NOT pg_try_advisory_xact_lock(hashtextextended('moderation:appeal:' || task.id,0)) THEN CONTINUE; END IF;
+   IF EXISTS (SELECT 1 FROM moderation.tasks a WHERE a.kind='appeal' AND a.data#>>'{submission,previous_task_id}'=task.id
+      AND (a.state<>'applied' OR a.updated_at+interval '12 months'>statement_timestamp())) THEN CONTINUE; END IF;
+   IF EXISTS (SELECT 1 FROM moderation.resource_complaint_holds h WHERE h.task_id=task.id AND h.released_at IS NULL AND h.ends_at>statement_timestamp()) THEN CONTINUE; END IF;
+   SELECT ARRAY(SELECT id FROM moderation.tasks WHERE kind='appeal' AND data#>>'{submission,previous_task_id}'=task.id) || ARRAY[task.id] INTO related;
+   DELETE FROM moderation.replays WHERE data->>'TaskID'=ANY(related);
+   DELETE FROM moderation.tasks WHERE id=ANY(related);
+   INSERT INTO moderation.resource_complaint_purges(task_id) SELECT unnest(related) ON CONFLICT DO NOTHING;
+   removed:=removed+1;
+ END LOOP;
+ RETURN removed;
+END $$;
+REVOKE ALL ON FUNCTION moderation.prune_resource_complaints(integer) FROM PUBLIC;

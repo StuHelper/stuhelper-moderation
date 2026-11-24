@@ -293,3 +293,57 @@ func TestTeacherHomepageComplaintRetention(t *testing.T) {
 		t.Fatal("released hold was not eligible for expiry", number, err)
 	}
 }
+
+func TestResourceComplaintRetentionWaitsForHoldsAndAppealThenQueuesCleanup(t *testing.T) {
+	ctx := t.Context()
+	repo, owner := database(t)
+	now := time.Now().UTC()
+	old := now.AddDate(-1, 0, -3)
+	if err := repo.Transaction(ctx, func(tx m.Transaction) error {
+		for _, id := range []string{"closed", "held", "appealed", "recent", "pending", "appeal"} {
+			task := m.Task{ID: id, Owner: "synthetic", SchoolID: "school", ContentKind: "resource", State: "applied", Revision: 1, ObjectRevision: 1, CreatedAt: old, UpdatedAt: old, Submission: m.Submission{Kind: "report", ObjectID: "resource", Category: "other", Reason: "synthetic"}}
+			switch id {
+			case "pending":
+				task.State = "waiting"
+			case "recent":
+				task.UpdatedAt = now
+			case "appeal":
+				task.Submission.Kind = "appeal"
+				task.Submission.PreviousTaskID = "appealed"
+				task.State = "waiting"
+			}
+			if err := tx.SaveTask(task); err != nil {
+				return err
+			}
+			if err := tx.SaveReplay("receipt-"+id, m.Replay{TaskID: id, Digest: "d", Until: now.AddDate(0, 1, 0)}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec("INSERT INTO moderation.resource_complaint_holds(task_id,basis,purpose,end_condition,review_at,ends_at) VALUES('held','case','review','resolution',now()+interval '1 day',now()+interval '2 days')"); err != nil {
+		t.Fatal(err)
+	}
+	s := &m.Service{Repo: repo}
+	result, err := s.CleanupRetention(ctx, 1)
+	if err != nil || result.ResourceComplaintsDeleted != 1 {
+		t.Fatal(result, err)
+	}
+	ids, err := repo.PendingResourceComplaintPurges(ctx, 10)
+	if err != nil || len(ids) != 1 || ids[0] != "closed" {
+		t.Fatal(ids, err)
+	}
+	if err := repo.AcknowledgeResourceComplaintPurge(ctx, "closed"); err != nil {
+		t.Fatal(err)
+	}
+	result, err = s.CleanupRetention(ctx, 10)
+	if err != nil || result.ResourceComplaintsDeleted != 0 {
+		t.Fatal(result, err)
+	}
+	var tasks, replays int
+	if err := owner.QueryRow("SELECT (SELECT count(*) FROM moderation.tasks),(SELECT count(*) FROM moderation.replays)").Scan(&tasks, &replays); err != nil || tasks != 5 || replays != 5 {
+		t.Fatal(tasks, replays, err)
+	}
+}
