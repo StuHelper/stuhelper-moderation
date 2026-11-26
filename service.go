@@ -99,8 +99,18 @@ func validateDecision(d Decision) bool {
 	if d.Body != nil && !textOK(*d.Body, 16000) {
 		return false
 	}
-	if !cleanToken(d.AuthorHandle, 128) || !cleanToken(d.Subject, 256) || !cleanToken(d.EvidenceRevision, 256) || (d.TeacherID != "" && !keyOK(d.TeacherID)) {
+	if !cleanToken(d.AuthorHandle, 128) || !cleanToken(d.Subject, 256) || !cleanToken(d.EvidenceRevision, 256) {
 		return false
+	}
+	if (d.Action == "reassign") != (d.TeacherIDs != nil) || len(d.TeacherIDs) > 100 {
+		return false
+	}
+	seen := make(map[string]bool, len(d.TeacherIDs))
+	for _, id := range d.TeacherIDs {
+		if !keyOK(id) || seen[id] {
+			return false
+		}
+		seen[id] = true
 	}
 	switch d.Action {
 	case "edit":
@@ -127,7 +137,7 @@ func validateDecisionTarget(object Object, task Task, d Decision) error {
 	}
 	if task.ContentKind == TeacherHomepageContentKind &&
 		(object.Kind != TeacherHomepageContentKind || !slices.Contains([]string{"hide", "dismiss"}, d.Action) ||
-			d.Body != nil || d.TeacherID != "" || d.Subject != "" || d.AuthorHandle != "" || d.EvidenceRevision != "" || d.Signed) {
+			d.Body != nil || d.TeacherIDs != nil || d.Subject != "" || d.AuthorHandle != "" || d.EvidenceRevision != "" || d.Signed) {
 		return withReason(ErrInput, "invalid_parameter")
 	}
 	if object.SchoolID != task.SchoolID || object.Revision != d.Revision || d.ObjectID != object.ID {
@@ -159,7 +169,7 @@ func publicDecision(d *Decision) *Decision {
 	}
 	safe := Decision{AppendID: d.AppendID, ID: d.ID, ObjectID: d.ObjectID, Revision: d.Revision, Action: d.Action, Reason: d.Reason, Category: d.Category}
 	if d.Action == "reassign" {
-		safe.TeacherID = d.TeacherID
+		safe.TeacherIDs = slices.Clone(d.TeacherIDs)
 	}
 	return &safe
 }
@@ -631,6 +641,9 @@ func (s *Service) Decide(ctx context.Context, p Principal, id, key string, in De
 	if !keyOK(key) || in.Revision < 1 || !validateDecision(d) {
 		return out, withReason(ErrInput, "invalid_parameter")
 	}
+	d.TeacherIDs = slices.Clone(d.TeacherIDs)
+	slices.Sort(d.TeacherIDs)
+	in.Decision = d
 	rk := digest([]string{p.Subject, "decide", id, key})
 	h := digest(in)
 	err := s.tx(ctx, func(t Transaction) error {

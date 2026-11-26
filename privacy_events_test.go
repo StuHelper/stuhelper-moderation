@@ -43,7 +43,7 @@ func TestDecisionProjectionHidesEnrollmentEvidenceAndSignedState(t *testing.T) {
 			ObjectID:         "review",
 			Revision:         1,
 			Action:           "reassign",
-			TeacherID:        "teacher-public",
+			TeacherIDs:       []string{"teacher-two", "teacher-public"},
 			EvidenceRevision: "secret-enrollment-rev-42",
 			Signed:           true,
 			AuthorHandle:     "author-local",
@@ -59,7 +59,7 @@ func TestDecisionProjectionHidesEnrollmentEvidenceAndSignedState(t *testing.T) {
 		if strings.Contains(string(raw), "secret-enrollment-rev-42") || strings.Contains(string(raw), `"signed"`) {
 			t.Fatalf("TaskView leaked enrollment evidence or signed flag: %s", raw)
 		}
-		if view.Decision == nil || view.Decision.TeacherID != "teacher-public" || view.Decision.EvidenceRevision != "" || view.Decision.Signed {
+		if view.Decision == nil || len(view.Decision.TeacherIDs) != 2 || view.Decision.TeacherIDs[0] != "teacher-public" || view.Decision.TeacherIDs[1] != "teacher-two" || view.Decision.EvidenceRevision != "" || view.Decision.Signed {
 			t.Fatalf("unexpected public decision projection: %+v", view.Decision)
 		}
 	}
@@ -76,7 +76,7 @@ func TestDecisionProjectionHidesEnrollmentEvidenceAndSignedState(t *testing.T) {
 	if n, err := s.Work(ctx, 10); err != nil || n != 1 {
 		t.Fatalf("Work failed: %d %v", n, err)
 	}
-	if capture.lastApplied.EvidenceRevision != "secret-enrollment-rev-42" || !capture.lastApplied.Signed || capture.lastApplied.TeacherID != "teacher-public" {
+	if capture.lastApplied.EvidenceRevision != "secret-enrollment-rev-42" || !capture.lastApplied.Signed || len(capture.lastApplied.TeacherIDs) != 2 || capture.lastApplied.TeacherIDs[0] != "teacher-public" || capture.lastApplied.TeacherIDs[1] != "teacher-two" {
 		t.Fatalf("internal Work lost private Decision fields: %+v", capture.lastApplied)
 	}
 }
