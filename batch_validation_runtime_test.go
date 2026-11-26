@@ -224,7 +224,9 @@ func TestInputValidationFeedbackClockDownloadAuditAndCheckRuntime(t *testing.T) 
 	}
 	for _, badDecision := range []m.Decision{
 		{ObjectID: "review", Revision: 1, Action: "edit", Body: nil, Reason: "Missing body"},
-		{ObjectID: "review", Revision: 1, Action: "reassign", TeacherID: "t1", EvidenceRevision: "", Reason: "Missing evidence_revision"},
+		{ObjectID: "review", Revision: 1, Action: "reassign", TeacherIDs: []string{"t1"}, EvidenceRevision: "", Reason: "Missing evidence_revision"},
+		{ObjectID: "review", Revision: 1, Action: "reassign", EvidenceRevision: "ev-rev-1", Reason: "Missing teacher selection"},
+		{ObjectID: "review", Revision: 1, Action: "reassign", TeacherIDs: []string{"t1", "t1"}, EvidenceRevision: "ev-rev-1", Reason: "Duplicate teacher selection"},
 		{ObjectID: "review", Revision: 1, Action: "identity", AuthorHandle: strings.Repeat("h", 129), Reason: "Overlong handle"},
 		{ObjectID: "review", Revision: 1, Action: "identity", Reason: "Missing both handle and subject"},
 	} {
@@ -232,10 +234,10 @@ func TestInputValidationFeedbackClockDownloadAuditAndCheckRuntime(t *testing.T) 
 			t.Fatalf("expected ErrInput for bad decision %+v, got: %v", badDecision, err)
 		}
 	}
-	// Reassign with empty TeacherID ("noTeacher") + valid EvidenceRevision IS valid.
-	validClearTeacher := m.Decide{Revision: task.Revision, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "reassign", TeacherID: "", EvidenceRevision: "ev-rev-1", Reason: "Clear wrong teacher"}}
+	// Reassign with empty TeacherIDs ("noTeacher") + valid EvidenceRevision IS valid.
+	validClearTeacher := m.Decide{Revision: task.Revision, Decision: m.Decision{ObjectID: "review", Revision: 1, Action: "reassign", TeacherIDs: []string{}, EvidenceRevision: "ev-rev-1", Reason: "Clear wrong teacher"}}
 	if _, err = s.Decide(ctx, admin, task.ID, "ok-reassign", validClearTeacher); err != nil {
-		t.Fatalf("reassign with empty TeacherID and valid EvidenceRevision rejected: %v", err)
+		t.Fatalf("reassign with empty TeacherIDs and valid EvidenceRevision rejected: %v", err)
 	}
 
 	// 2. Feedback clock alignment in List, Download audit isolation, and feedback key validation.

@@ -1,5 +1,5 @@
 id: moderation
-version: 0.6.0 # 模块清单版本。源码发行版本由 Git tag 标识。
+version: 0.7.0 # 模块清单版本。源码发行版本由 Git tag 标识。
 kind: module
 api: 1
 critical: false
@@ -20,6 +20,9 @@ capability_requires:
       api: 1
 # 规格场景对应的 Go 测试。scripts/check-module.mjs 核对每个函数引用。
 scenario_tests:
+  REVIEWUX-04:
+    - privacy_events_test.go#TestDecisionProjectionHidesEnrollmentEvidenceAndSignedState
+    - batch_validation_runtime_test.go#TestInputValidationFeedbackClockDownloadAuditAndCheckRuntime
   CM-01:
     - submission_replay_test.go#TestSubmissionReplaysLegacyNilEvidence
     - complaints_test.go#TestResourceComplaintPortDeduplicatesRetriesAndRejectsPublicBypass

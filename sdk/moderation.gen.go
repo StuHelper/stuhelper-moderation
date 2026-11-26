@@ -715,7 +715,9 @@ type Decision struct {
 	Revision         int64              `json:"revision"`
 	Signed           *bool              `json:"signed,omitempty"`
 	Subject          *string            `json:"subject,omitempty"`
-	TeacherId        *string            `json:"teacher_id,omitempty"`
+
+	// TeacherIds 归属更正的显式教师选择。reassign 请求必须提供，空数组表示不指定教师。
+	TeacherIds *[]string `json:"teacher_ids,omitempty"`
 }
 
 // DecisionAction defines model for Decision.Action.
@@ -764,11 +766,13 @@ type DecisionInput struct {
 	ObjectId         string             `json:"object_id"`
 
 	// Reason 具体说明。必填，不可仅为空白，最多 2000 个 Unicode 字符。选择 other 时在此字段说明具体情况。
-	Reason    string  `json:"reason"`
-	Revision  int64   `json:"revision"`
-	Signed    *bool   `json:"signed,omitempty"`
-	Subject   *string `json:"subject,omitempty"`
-	TeacherId *string `json:"teacher_id,omitempty"`
+	Reason   string  `json:"reason"`
+	Revision int64   `json:"revision"`
+	Signed   *bool   `json:"signed,omitempty"`
+	Subject  *string `json:"subject,omitempty"`
+
+	// TeacherIds 归属更正的显式教师选择。reassign 请求必须提供，空数组表示不指定教师。
+	TeacherIds *[]string `json:"teacher_ids,omitempty"`
 }
 
 // DecisionInputAction defines model for DecisionInput.Action.

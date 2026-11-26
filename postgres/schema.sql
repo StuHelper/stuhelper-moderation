@@ -70,6 +70,16 @@ ALTER TABLE moderation.replays ADD COLUMN IF NOT EXISTS until timestamptz;
 UPDATE moderation.replays SET until=(data->>'Until')::timestamptz WHERE until IS NULL AND (data ? 'Until');
 CREATE INDEX IF NOT EXISTS moderation_replays_until ON moderation.replays(until) WHERE until IS NOT NULL;
 
+-- Keep historical reassignments and queued delivery in the decision's array format.
+UPDATE moderation.tasks SET data=jsonb_set(data #- '{decision,teacher_id}','{decision,teacher_ids}',
+ CASE WHEN NULLIF(data#>>'{decision,teacher_id}','') IS NULL THEN '[]'::jsonb
+      ELSE jsonb_build_array(data#>>'{decision,teacher_id}') END)
+ WHERE data#>>'{decision,action}'='reassign' AND NOT (data->'decision' ? 'teacher_ids');
+UPDATE moderation.replays SET data=jsonb_set(data #- '{View,decision,teacher_id}','{View,decision,teacher_ids}',
+ CASE WHEN NULLIF(data#>>'{View,decision,teacher_id}','') IS NULL THEN '[]'::jsonb
+      ELSE jsonb_build_array(data#>>'{View,decision,teacher_id}') END)
+ WHERE data#>>'{View,decision,action}'='reassign' AND NOT (data#>'{View,decision}' ? 'teacher_ids');
+
 -- Restrict migration history to its owner even when Ops grants the runtime
 -- identity DML privileges across the module's tables.
 CREATE TABLE IF NOT EXISTS moderation.schema_migrations(name text PRIMARY KEY);
