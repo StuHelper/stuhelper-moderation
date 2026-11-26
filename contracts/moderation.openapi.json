@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "StuHelper Moderation",
-    "version": "0.6.0"
+    "version": "0.7.0"
   },
   "servers": [
     {
@@ -2418,8 +2418,16 @@
             "maxLength": 128,
             "description": "Discussion-local public author handle, used instead of a private account ID for identity moderation."
           },
-          "teacher_id": {
-            "type": "string"
+          "teacher_ids": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "归属更正的显式教师选择。reassign 请求必须提供，空数组表示不指定教师。"
           },
           "evidence_revision": {
             "type": "string"
@@ -2490,8 +2498,16 @@
             "maxLength": 128,
             "description": "Discussion-local public author handle, used instead of a private account ID for identity moderation."
           },
-          "teacher_id": {
-            "type": "string"
+          "teacher_ids": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "归属更正的显式教师选择。reassign 请求必须提供，空数组表示不指定教师。"
           },
           "evidence_revision": {
             "type": "string"

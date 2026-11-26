@@ -75,19 +75,19 @@ type Submission struct {
 	ProposedBody   string   `json:"proposed_body,omitempty"`
 }
 type Decision struct {
-	AppendID         string  `json:"append_id,omitempty"`
-	TeacherID        string  `json:"teacher_id,omitempty"`
-	EvidenceRevision string  `json:"evidence_revision,omitempty"`
-	ID               string  `json:"id"`
-	ObjectID         string  `json:"object_id"`
-	Revision         int64   `json:"revision"`
-	Action           string  `json:"action"`
-	Category         string  `json:"category,omitempty"`
-	Body             *string `json:"body,omitempty"`
-	Subject          string  `json:"subject,omitempty"`
-	AuthorHandle     string  `json:"author_handle,omitempty"`
-	Signed           bool    `json:"signed"`
-	Reason           string  `json:"reason"`
+	AppendID         string   `json:"append_id,omitempty"`
+	TeacherIDs       []string `json:"teacher_ids,omitzero"`
+	EvidenceRevision string   `json:"evidence_revision,omitempty"`
+	ID               string   `json:"id"`
+	ObjectID         string   `json:"object_id"`
+	Revision         int64    `json:"revision"`
+	Action           string   `json:"action"`
+	Category         string   `json:"category,omitempty"`
+	Body             *string  `json:"body,omitempty"`
+	Subject          string   `json:"subject,omitempty"`
+	AuthorHandle     string   `json:"author_handle,omitempty"`
+	Signed           bool     `json:"signed"`
+	Reason           string   `json:"reason"`
 }
 type Task struct {
 	ContentOwner   string     `json:"content_owner,omitempty"`

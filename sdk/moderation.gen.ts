@@ -350,7 +350,8 @@ export interface components {
             reason: string;
             /** @description Discussion-local public author handle, used instead of a private account ID for identity moderation. */
             author_handle?: string;
-            teacher_id?: string;
+            /** @description 归属更正的显式教师选择。reassign 请求必须提供，空数组表示不指定教师。 */
+            teacher_ids?: string[];
             evidence_revision?: string;
             /** @description 此任务对应的单条追评 ID。追评裁决须与任务一致。 */
             append_id?: string;
@@ -369,7 +370,8 @@ export interface components {
             reason: string;
             /** @description Discussion-local public author handle, used instead of a private account ID for identity moderation. */
             author_handle?: string;
-            teacher_id?: string;
+            /** @description 归属更正的显式教师选择。reassign 请求必须提供，空数组表示不指定教师。 */
+            teacher_ids?: string[];
             evidence_revision?: string;
             /** @description 此任务对应的单条追评 ID。追评裁决须与任务一致。 */
             append_id?: string;
